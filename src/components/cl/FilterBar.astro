@@ -1,0 +1,249 @@
+---
+/**
+ * Client-side filter/sort for the log. The dataset is small and fully
+ * rendered at build time, so this just shows/hides and reorders the cards
+ * already in the DOM — no index, no framework.
+ */
+interface Props {
+  brands: string[];
+  vendors: string[];
+  venues: string[];
+}
+
+const { brands, vendors, venues } = Astro.props;
+---
+<div class="filter-bar">
+  <label class="filter-bar__field">
+    <span class="filter-bar__label">Brand</span>
+    <select id="filter-brand">
+      <option value="">All brands</option>
+      {brands.map((b) => <option value={b}>{b}</option>)}
+    </select>
+  </label>
+
+  {vendors.length > 0 && (
+    <label class="filter-bar__field">
+      <span class="filter-bar__label">Bought at</span>
+      <select id="filter-vendor">
+        <option value="">All vendors</option>
+        {vendors.map((v) => <option value={v}>{v}</option>)}
+      </select>
+    </label>
+  )}
+
+  {venues.length > 0 && (
+    <label class="filter-bar__field">
+      <span class="filter-bar__label">Smoked at</span>
+      <select id="filter-venue">
+        <option value="">All places</option>
+        {venues.map((v) => <option value={v}>{v}</option>)}
+      </select>
+    </label>
+  )}
+
+  <label class="filter-bar__field">
+    <span class="filter-bar__label">Sort</span>
+    <select id="sort-by">
+      <option value="date-desc">Newest first</option>
+      <option value="date-asc">Oldest first</option>
+      <option value="rating-desc">Highest rated</option>
+      <option value="rating-asc">Lowest rated</option>
+    </select>
+  </label>
+
+  <span class="filter-bar__count" id="filter-count" aria-live="polite"></span>
+
+  <button class="filter-bar__clear" id="clear-filters" type="button">Clear filters</button>
+</div>
+
+<p class="filter-bar__empty empty-state" id="filter-empty" hidden aria-live="polite">
+  No cigars match those filters.
+</p>
+
+<style>
+  .filter-bar {
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    padding: 1.4rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .filter-bar__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .filter-bar__label {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--gold-label);
+  }
+
+  .filter-bar select {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    color: var(--text);
+    padding: 0.55rem 0.95rem;
+    font-family: var(--font);
+    font-weight: 300;
+    font-size: 0.88rem;
+    min-width: 11rem;
+    max-width: 100%;
+    cursor: pointer;
+    transition: border-color var(--transition), color var(--transition);
+  }
+
+  /* Native option lists inherit the page background on some platforms and
+     go unreadable, so pin them to the sunk ground explicitly. */
+  .filter-bar select option {
+    background: var(--bg-sunk);
+    color: var(--text);
+  }
+
+  .filter-bar select:hover { border-color: var(--border-gold); }
+  .filter-bar select:focus {
+    outline: none;
+    border-color: var(--foil);
+    color: var(--foil-light);
+  }
+
+  .filter-bar__count {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.12em;
+    color: var(--gold-muted);
+    padding-bottom: 0.65rem;
+    margin-left: auto;
+  }
+
+  .filter-bar__clear {
+    background: none;
+    border: none;
+    color: var(--gold-dim);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 0.3rem 0 0.65rem;
+    transition: color var(--transition);
+  }
+
+  .filter-bar__clear:hover { color: var(--foil); }
+
+  @media (max-width: 620px) {
+    .filter-bar { gap: 0.85rem; }
+    .filter-bar__field { flex: 1 1 100%; }
+    /* 16px keeps iOS Safari from zooming the page on focus */
+    .filter-bar select { width: 100%; min-width: 0; font-size: 1rem; }
+    .filter-bar__count { margin-left: 0; }
+  }
+</style>
+
+<script>
+  const grid = document.getElementById('cigar-grid');
+  const brandSel = document.getElementById('filter-brand') as HTMLSelectElement | null;
+  const vendorSel = document.getElementById('filter-vendor') as HTMLSelectElement | null;
+  const venueSel = document.getElementById('filter-venue') as HTMLSelectElement | null;
+  const sortSel = document.getElementById('sort-by') as HTMLSelectElement | null;
+  const countEl = document.getElementById('filter-count');
+  const emptyEl = document.getElementById('filter-empty');
+  const clearBtn = document.getElementById('clear-filters');
+
+  if (grid && brandSel && sortSel) {
+    const cards = Array.from(grid.querySelectorAll<HTMLElement>('.cigar-card'));
+    const DEFAULT_SORT = 'date-desc';
+
+    /** Unrated entries have an empty data-rating and sort last, both directions. */
+    function ratingOf(el: HTMLElement): number | null {
+      const raw = el.dataset.rating;
+      return raw ? Number(raw) : null;
+    }
+
+    function byRating(a: HTMLElement, b: HTMLElement, ascending: boolean): number {
+      const ra = ratingOf(a);
+      const rb = ratingOf(b);
+      if (ra === null && rb === null) return 0;
+      if (ra === null) return 1;
+      if (rb === null) return -1;
+      return ascending ? ra - rb : rb - ra;
+    }
+
+    function compare(a: HTMLElement, b: HTMLElement, mode: string): number {
+      switch (mode) {
+        case 'date-asc':
+          return (a.dataset.date ?? '').localeCompare(b.dataset.date ?? '');
+        case 'rating-desc':
+          return byRating(a, b, false);
+        case 'rating-asc':
+          return byRating(a, b, true);
+        default: // date-desc
+          return (b.dataset.date ?? '').localeCompare(a.dataset.date ?? '');
+      }
+    }
+
+    function apply() {
+      const brand = brandSel!.value;
+      const vendor = vendorSel?.value ?? '';
+      const venue = venueSel?.value ?? '';
+      const mode = sortSel!.value;
+
+      let visible = 0;
+      for (const card of cards) {
+        const show =
+          (!brand || card.dataset.brand === brand) &&
+          (!vendor || card.dataset.boughtAt === vendor) &&
+          (!venue || card.dataset.smokedAt === venue);
+        card.hidden = !show;
+        if (show) visible++;
+      }
+
+      // Ties fall back to the build-time order (newest first, then name).
+      const ordered = [...cards].sort((a, b) => compare(a, b, mode) || 0);
+      for (const card of ordered) grid!.appendChild(card);
+
+      if (countEl) countEl.textContent = visible < cards.length ? `${visible} of ${cards.length}` : '';
+      if (emptyEl) emptyEl.hidden = visible > 0;
+
+      const params = new URLSearchParams();
+      if (brand) params.set('brand', brand);
+      if (vendor) params.set('vendor', vendor);
+      if (venue) params.set('venue', venue);
+      if (mode !== DEFAULT_SORT) params.set('sort', mode);
+      const qs = params.toString();
+      history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname);
+    }
+
+    /** Only accept a value the select actually offers. */
+    function setIfValid(sel: HTMLSelectElement | null, value: string | null) {
+      if (!sel || !value) return;
+      if (Array.from(sel.options).some((o) => o.value === value)) sel.value = value;
+    }
+
+    for (const sel of [brandSel, vendorSel, venueSel, sortSel]) {
+      sel?.addEventListener('change', apply);
+    }
+
+    clearBtn?.addEventListener('click', () => {
+      brandSel!.value = '';
+      if (vendorSel) vendorSel.value = '';
+      if (venueSel) venueSel.value = '';
+      sortSel!.value = DEFAULT_SORT;
+      apply();
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    setIfValid(brandSel, params.get('brand'));
+    setIfValid(vendorSel, params.get('vendor'));
+    setIfValid(venueSel, params.get('venue'));
+    setIfValid(sortSel, params.get('sort'));
+    if (params.toString()) apply();
+  }
+</script>

@@ -1,0 +1,79 @@
+---
+import '../styles/reading-list.css';
+import type { YearData } from '../lib/reading-list';
+import type { ResolvedWorkspace } from '../lib/workspace';
+
+interface Props {
+  title: string;
+  description?: string;
+  workspace: ResolvedWorkspace;
+  years: YearData[];
+}
+
+const { title, description = '', workspace, years } = Astro.props;
+const base = `/reading/${workspace.slug}`;
+const pathname = Astro.url.pathname;
+const canonical = new URL(pathname, Astro.site ?? Astro.url.origin);
+const { user } = Astro.locals;
+
+// The Reading List keeps its own dark palette, same reasoning as the
+// Listening Party: reading-list.css is loaded alone, with no shared tokens
+// underneath it to override.
+---
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical.href} />
+    <link rel="icon" href="/grackles-logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet" />
+    {workspace.visibility !== 'public' && <meta name="robots" content="noindex, nofollow" />}
+  </head>
+  <body>
+    <nav class="site-nav">
+      <div class="container site-nav__inner">
+        <a href={base} class="site-nav__logo">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+          </svg>
+          <span>{workspace.name}</span>
+        </a>
+
+        <div class="site-nav__links">
+          {
+            years.map(y => (
+              <a
+                href={`${base}/${y.year}`}
+                class={`site-nav__pill site-nav__pill--year${pathname === `${base}/${y.year}` ? ' active' : ''}`}
+                aria-current={pathname === `${base}/${y.year}` ? 'page' : undefined}
+              >
+                {y.year}
+              </a>
+            ))
+          }
+
+          <span class="site-nav__sep"></span>
+
+          <a href={`${base}/authors`} class={`site-nav__pill${pathname.startsWith(`${base}/authors`) ? ' active' : ''}`}>
+            Authors
+          </a>
+          <a href={`${base}/publishers`} class={`site-nav__pill${pathname.startsWith(`${base}/publishers`) ? ' active' : ''}`}>
+            Publishers
+          </a>
+
+          {workspace.role && <span class="site-nav__pill site-nav__role">{workspace.role}</span>}
+          <a class="site-nav__pill" href={user ? '/dashboard' : `/login?next=${pathname}`}>
+            {user ? 'Projects' : 'Sign in'}
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <slot />
+  </body>
+</html>

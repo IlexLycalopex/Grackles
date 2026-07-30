@@ -1,0 +1,119 @@
+---
+import ClLayout from '../../../layouts/ClLayout.astro';
+import StarRating from '../../../components/cl/StarRating.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { humidorFrom, loadCigars, smokedFrom } from '../../../lib/cigar-lounge';
+import {
+  brandStats,
+  mean,
+  parsePrice,
+  quantityOf,
+  rated,
+  ratingDistribution,
+  totalCigars,
+} from '../../../lib/cigar-helpers';
+
+export const prerender = false;
+
+const { supabase } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const workspace = await resolveWorkspace(supabase, 'cigar-lounge', wsSlug);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const cigars = await loadCigars(supabase, workspace.id);
+const smoked = smokedFrom(cigars);
+const humidor = humidorFrom(cigars);
+
+const ratings = rated(smoked).map(c => c.data.rating!);
+const distribution = ratingDistribution(smoked);
+const maxBucket = Math.max(1, ...distribution.map(d => d.count));
+
+const brands = brandStats(smoked).sort((a, b) => b.count - a.count || a.brand.localeCompare(b.brand));
+
+// Spend is summed from whatever could be parsed out of the free-text price.
+// If any of it was a band (">£40"), the total says so rather than presenting
+// an estimate as fact.
+const priced = smoked
+  .map(c => ({ price: parsePrice(c.data.pricePaid), quantity: quantityOf(c) }))
+  .filter((p): p is { price: NonNullable<ReturnType<typeof parsePrice>>; quantity: number } =>
+    p.price !== null && p.price.value !== null
+  );
+
+const spendTotal = priced.reduce((sum, p) => sum + (p.price.value ?? 0) * p.quantity, 0);
+const spendUnits = priced.reduce((sum, p) => sum + p.quantity, 0);
+const spendApproximate = priced.some(p => p.price.approximate);
+---
+
+<ClLayout title={`Stats · ${workspace.name}`} workspace={workspace}>
+  <div class="container">
+    <div class="page-header">
+      <p class="eyebrow">The numbers</p>
+      <h1>Stats</h1>
+    </div>
+
+    <div class="stats-strip">
+      <div class="stat">
+        <span class="stat__value">{smoked.length}</span>
+        <span class="stat__label">Smoked</span>
+      </div>
+      <div class="stat">
+        <span class="stat__value">{totalCigars(humidor)}</span>
+        <span class="stat__label">Resting</span>
+      </div>
+      <div class="stat">
+        <span class="stat__value">{ratings.length ? mean(ratings).toFixed(1) : '—'}</span>
+        <span class="stat__label">Avg rating</span>
+      </div>
+      <div class="stat">
+        <span class="stat__value">
+          {spendUnits ? `${spendApproximate ? '~' : ''}£${spendTotal.toFixed(0)}` : '—'}
+        </span>
+        <span class="stat__label">Spend{spendApproximate ? ' (est.)' : ''}</span>
+      </div>
+    </div>
+
+    <h2 class="section-heading">Ratings</h2>
+    <ul class="dist">
+      {
+        distribution
+          .filter(d => d.count > 0)
+          .reverse()
+          .map(d => (
+            <li class="dist__row">
+              <span class="dist__label">
+                <StarRating rating={d.rating} />
+              </span>
+              <span class="dist__bar">
+                <span class="dist__fill" style={`width:${(d.count / maxBucket) * 100}%`} />
+              </span>
+              <span class="dist__count">{d.count}</span>
+            </li>
+          ))
+      }
+    </ul>
+    {ratings.length === 0 && <p class="empty-state">Nothing rated yet.</p>}
+
+    <h2 class="section-heading">Brands</h2>
+    {
+      brands.length === 0 ? (
+        <p class="empty-state">No entries yet.</p>
+      ) : (
+        <ul class="dist">
+          {brands.map(b => (
+            <li class="dist__row">
+              <span class="dist__label">{b.brand}</span>
+              <span class="dist__bar">
+                <span class="dist__fill" style={`width:${(b.count / brands[0]!.count) * 100}%`} />
+              </span>
+              <span class="dist__count">
+                {b.count}
+                {b.averageRating !== null ? ` · ${b.averageRating.toFixed(1)}★` : ''}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </div>
+</ClLayout>

@@ -1,0 +1,201 @@
+---
+import RlLayout from '../../../../layouts/RlLayout.astro';
+import { resolveWorkspace } from '../../../../lib/workspace';
+import { loadBook, loadYears } from '../../../../lib/reading-list';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const { workspace: wsSlug, book: bookId } = Astro.params;
+
+const workspace = await resolveWorkspace(supabase, 'reading-list', wsSlug!);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+if (!workspace.canWrite) return new Response('Forbidden', { status: 403 });
+
+const years = await loadYears(supabase, workspace.id);
+let book = await loadBook(supabase, bookId!);
+if (!book) return new Response('Not found', { status: 404 });
+
+const base = `/reading/${workspace.slug}`;
+let error: string | null = null;
+
+const FORMATS = ['print', 'audio', 'graphic'] as const;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const str = (k: string) => String(form.get(k) ?? '').trim();
+  const numOrNull = (k: string) => {
+    const v = str(k);
+    if (!v) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.trunc(n) : null;
+  };
+  const dateOrNull = (k: string) => str(k) || null;
+
+  const title = str('title');
+  const started = dateOrNull('date_started');
+  const finished = dateOrNull('date_finished');
+
+  if (!title) {
+    error = 'A book needs a title.';
+  } else if (started && finished && started > finished) {
+    // Same rule as the rl_books_dates_ordered constraint; caught here only so
+    // the message is a sentence rather than a constraint name.
+    error = 'The start date is after the finish date.';
+  } else {
+    const format = FORMATS.includes(str('format') as any) ? str('format') : 'print';
+    const { error: writeError } = await supabase
+      .from('rl_books')
+      .update({
+        title,
+        author: str('author'),
+        pages: numOrNull('pages'),
+        year_published: numOrNull('year_published'),
+        date_started: started,
+        date_finished: finished,
+        format,
+        genre: str('genre'),
+        publisher: str('publisher'),
+        cover_url: str('cover_url'),
+        isbn: str('isbn'),
+        notes: str('notes'),
+        // Comma-separated in the form, an array in the column.
+        tags: str('tags')
+          .split(',')
+          .map(t => t.trim())
+          .filter(Boolean),
+        reading: form.get('reading') === 'on',
+        coming_up: form.get('coming_up') === 'on',
+        link_openlibrary: str('link_openlibrary'),
+        link_wikipedia: str('link_wikipedia'),
+      })
+      .eq('id', book.id);
+
+    if (writeError) {
+      error = writeError.message;
+    } else {
+      return Astro.redirect(`${base}/${book.year_read}`);
+    }
+  }
+
+  book = (await loadBook(supabase, book.id)) ?? book;
+}
+---
+
+<RlLayout title={`Edit ${book.title} · ${workspace.name}`} workspace={workspace} years={years}>
+  <div class="container">
+    <div class="page-header">
+      <h1>{book.title}</h1>
+      <p class="subtitle">#{book.order_read} of {book.year_read}</p>
+    </div>
+
+    {error && <p class="form-error" role="alert">{error}</p>}
+
+    <form method="POST" class="book-form">
+      <label class="book-form__field">
+        <span class="book-form__label">Title</span>
+        <input class="book-form__input" type="text" name="title" value={book.title} required />
+      </label>
+
+      <label class="book-form__field">
+        <span class="book-form__label">Author</span>
+        <input class="book-form__input" type="text" name="author" value={book.author} />
+      </label>
+
+      <div class="book-form__row">
+        <label class="book-form__field">
+          <span class="book-form__label">Pages</span>
+          <input class="book-form__input" type="number" name="pages" min="1" value={book.pages ?? ''} />
+        </label>
+        <label class="book-form__field">
+          <span class="book-form__label">Published</span>
+          <input class="book-form__input" type="number" name="year_published" value={book.year_published ?? ''} />
+        </label>
+        <label class="book-form__field">
+          <span class="book-form__label">Format</span>
+          <select class="book-form__input" name="format">
+            {
+              FORMATS.map(f => (
+                <option value={f} selected={book.format === f}>
+                  {f}
+                </option>
+              ))
+            }
+          </select>
+        </label>
+      </div>
+
+      <div class="book-form__row">
+        <label class="book-form__field">
+          <span class="book-form__label">Started</span>
+          <input class="book-form__input" type="date" name="date_started" value={book.date_started ?? ''} />
+        </label>
+        <label class="book-form__field">
+          <span class="book-form__label">Finished</span>
+          <input class="book-form__input" type="date" name="date_finished" value={book.date_finished ?? ''} />
+        </label>
+      </div>
+
+      <div class="book-form__row">
+        <label class="book-form__field">
+          <span class="book-form__label">Publisher</span>
+          <input class="book-form__input" type="text" name="publisher" value={book.publisher ?? ''} />
+        </label>
+        <label class="book-form__field">
+          <span class="book-form__label">Genre</span>
+          <input class="book-form__input" type="text" name="genre" value={book.genre ?? ''} />
+        </label>
+      </div>
+
+      <label class="book-form__field">
+        <span class="book-form__label">Tags</span>
+        <input class="book-form__input" type="text" name="tags" value={book.tags.join(', ')} placeholder="comma, separated" />
+      </label>
+
+      <label class="book-form__field">
+        <span class="book-form__label">Notes</span>
+        <textarea class="book-form__input" name="notes" rows="3">{book.notes ?? ''}</textarea>
+      </label>
+
+      <div class="book-form__row">
+        <label class="book-form__check">
+          <input type="checkbox" name="reading" checked={book.reading} />
+          <span>Currently reading</span>
+        </label>
+        <label class="book-form__check">
+          <input type="checkbox" name="coming_up" checked={book.coming_up} />
+          <span>Coming up</span>
+        </label>
+      </div>
+
+      <div class="book-form__row">
+        <label class="book-form__field">
+          <span class="book-form__label">ISBN</span>
+          <input class="book-form__input" type="text" name="isbn" value={book.isbn ?? ''} />
+        </label>
+        <label class="book-form__field">
+          <span class="book-form__label">Cover URL</span>
+          <input class="book-form__input" type="url" name="cover_url" value={book.cover_url ?? ''} />
+        </label>
+      </div>
+
+      <div class="book-form__row">
+        <label class="book-form__field">
+          <span class="book-form__label">Open Library</span>
+          <input class="book-form__input" type="url" name="link_openlibrary" value={book.links.openlibrary} />
+        </label>
+        <label class="book-form__field">
+          <span class="book-form__label">Wikipedia</span>
+          <input class="book-form__input" type="url" name="link_wikipedia" value={book.links.wikipedia} />
+        </label>
+      </div>
+
+      <div class="book-form__actions">
+        <button class="book-form__submit" type="submit">Save</button>
+        <a class="book-form__cancel" href={`${base}/${book.year_read}`}>Cancel</a>
+      </div>
+    </form>
+  </div>
+</RlLayout>

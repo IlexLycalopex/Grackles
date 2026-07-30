@@ -1,0 +1,351 @@
+---
+import type { Book } from '../../lib/reading-list';
+
+interface Props {
+  book: Book;
+  showOrder?: boolean;
+}
+
+const { book, showOrder = false } = Astro.props;
+
+const formatColor = book.coming_up ? 'var(--text-faint)' : book.format === 'audio' ? 'var(--accent-audio)' : book.format === 'graphic' ? 'var(--accent-graphic)' : 'var(--accent)';
+
+function formatDate(d: string | null): string {
+  if (!d) return '';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+const dateStr = (() => {
+  if (book.date_started && book.date_finished) return `${formatDate(book.date_started)} – ${formatDate(book.date_finished)}`;
+  if (book.date_finished) return `Finished ${formatDate(book.date_finished)}`;
+  if (book.date_started) return `Started ${formatDate(book.date_started)}`;
+  return '';
+})();
+---
+<article
+  class="book-card"
+  class:list={[book.coming_up && 'book-card--coming-up', book.notes && 'book-card--has-notes']}
+  style={`--format-color: ${formatColor}`}
+  data-format={book.format}
+  data-title={book.title}
+  data-author={book.author}
+  data-notes={book.notes ?? undefined}
+>
+  {book.coming_up && (
+    <div class="book-card__coming-up">Coming up</div>
+  )}
+
+  {!book.coming_up && (
+    <div class="book-card__badge">
+      {book.format === 'audio' ? (
+        <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14" aria-label="Audio">
+          <path d="M9 3a1 1 0 0 0-1.414 0L3.172 7.414A4 4 0 0 0 2 10.172V15a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-4.828a4 4 0 0 0-1.172-2.758L10.414 3A1 1 0 0 0 9 3z"/>
+        </svg>
+      ) : book.format === 'graphic' ? (
+        <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14" aria-label="Graphic novel">
+          <rect x="2" y="2" width="7" height="9" rx="1"/>
+          <rect x="11" y="2" width="7" height="5" rx="1"/>
+          <rect x="11" y="9" width="7" height="9" rx="1"/>
+          <rect x="2" y="13" width="7" height="5" rx="1"/>
+        </svg>
+      ) : (
+        <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14" aria-label="Print">
+          <path d="M9 4.804A7.968 7.968 0 0 0 5.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 0 1 5.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0 1 14.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0 0 14.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 1 1-2 0V4.804z"/>
+        </svg>
+      )}
+    </div>
+  )}
+
+  {showOrder && (
+    <div class="book-card__order">#{book.order_read}</div>
+  )}
+
+  <div class="book-card__cover">
+    {book.cover_url ? (
+      <img src={book.cover_url} alt={`Cover of ${book.title}`} loading="lazy" width="200" height="300" />
+    ) : (
+      <div class="cover-placeholder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/>
+        </svg>
+      </div>
+    )}
+  </div>
+
+  <div class="book-card__body">
+    <p class="book-card__title">{book.title}</p>
+    <p class="book-card__author">{book.author}</p>
+    {(book.year_published || book.pages) && (
+      <p class="book-card__faint">
+        {book.year_published ? book.year_published : ''}
+        {book.year_published && book.pages ? ' · ' : ''}
+        {book.pages ? `${book.pages} pp` : ''}
+      </p>
+    )}
+    {book.tags.length > 0 && (
+      <div class="book-card__tags">
+        {book.tags.map((tag) => <span class="book-card__tag">{tag}</span>)}
+      </div>
+    )}
+    <div class="book-card__footer">
+      <div class="book-card__links">
+        {book.links.openlibrary && <a href={book.links.openlibrary} target="_blank" rel="noopener" title="Open Library">OL</a>}
+        {book.links.wikipedia && <a href={book.links.wikipedia} target="_blank" rel="noopener" title="Wikipedia">WP</a>}
+      </div>
+      {dateStr && <span class="book-card__dates">{dateStr}</span>}
+    </div>
+    {book.notes && (
+      <button class="book-card__notes-btn" aria-label={`Show notes for ${book.title}`}>
+        <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+          <path fill-rule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" clip-rule="evenodd"/>
+        </svg>
+      </button>
+    )}
+  </div>
+</article>
+
+<style>
+  .book-card {
+    position: relative;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--format-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: background var(--transition), transform var(--transition);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .book-card:hover {
+    background: var(--bg-hover);
+    transform: translateY(-2px);
+  }
+
+  .book-card--coming-up {
+    opacity: 0.6;
+  }
+
+  .book-card--has-notes {
+    cursor: pointer;
+  }
+
+  .book-card--coming-up .book-card__cover img {
+    filter: grayscale(0.4);
+  }
+
+  .book-card__coming-up {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    font-size: 0.65rem;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-faint);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.1rem 0.35rem;
+    z-index: 1;
+  }
+
+  .book-card__badge {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.75rem;
+    color: var(--format-color);
+    z-index: 1;
+  }
+
+  .book-card__order {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    font-size: 0.7rem;
+    color: var(--text-faint);
+    opacity: 0;
+    transition: opacity var(--transition);
+  }
+
+  .book-card:hover .book-card__order { opacity: 1; }
+
+  /* No hover on touch devices — keep the order number visible */
+  @media (hover: none) {
+    .book-card__order { opacity: 1; }
+  }
+
+  .book-card__cover {
+    width: 100%;
+    aspect-ratio: 2/3;
+    overflow: hidden;
+  }
+
+  .book-card__cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform var(--transition);
+  }
+
+  .book-card:hover .book-card__cover img { transform: scale(1.03); }
+
+  .book-card__cover .cover-placeholder {
+    width: 100%;
+    height: 100%;
+  }
+
+  .book-card__body {
+    padding: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    flex: 1;
+  }
+
+  .book-card__title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .book-card__author {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+  }
+
+  .book-card__faint {
+    font-size: 0.78rem;
+    color: var(--text-faint);
+  }
+
+  .book-card__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: auto;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .book-card__links {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .book-card__links a {
+    font-size: 0.72rem;
+    font-family: var(--mono);
+    color: var(--text-faint);
+    text-decoration: none;
+    padding: 0.1rem 0.35rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    transition: all var(--transition);
+  }
+
+  .book-card__links a:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .book-card__dates {
+    font-size: 0.72rem;
+    color: var(--text-faint);
+  }
+
+  .book-card__notes-btn {
+    position: absolute;
+    bottom: 0.6rem;
+    right: 0.6rem;
+    background: none;
+    border: none;
+    color: var(--text-faint);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: color var(--transition);
+  }
+
+  .book-card__notes-btn:hover { color: var(--accent); }
+</style>
+
+<script>
+  document.addEventListener('click', (e) => {
+    const target = e.target as Element;
+    if (target.closest('a')) return;
+    const card = target.closest<HTMLElement>('.book-card--has-notes');
+    if (!card) return;
+
+    const notes = card.dataset.notes ?? '';
+    const title = card.dataset.title ?? '';
+    const author = card.dataset.author ?? '';
+    const btn = card.querySelector<HTMLElement>('.book-card__notes-btn');
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-modal', 'true');
+    backdrop.setAttribute('aria-label', `Notes for ${title}`);
+
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'modal__close';
+    closeBtn.setAttribute('aria-label', 'Close notes');
+    closeBtn.textContent = '×';
+
+    const titleEl = document.createElement('p');
+    titleEl.className = 'modal__title';
+    titleEl.textContent = title;
+
+    const authorEl = document.createElement('p');
+    authorEl.className = 'modal__author';
+    authorEl.textContent = author;
+
+    const notesEl = document.createElement('p');
+    notesEl.textContent = notes;
+
+    modal.append(closeBtn, titleEl, authorEl, notesEl);
+    backdrop.appendChild(modal);
+
+    function closeModal() {
+      backdrop.remove();
+      btn?.focus();
+    }
+
+    // ESC key
+    function onKeyDown(ev: KeyboardEvent) {
+      if (ev.key === 'Escape') { closeModal(); document.removeEventListener('keydown', onKeyDown); }
+      // Focus trap: keep Tab within modal
+      if (ev.key === 'Tab') {
+        const focusable = backdrop.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (ev.shiftKey && document.activeElement === first) { ev.preventDefault(); last.focus(); }
+        else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
+      }
+    }
+
+    backdrop.addEventListener('click', (ev) => {
+      if (ev.target === backdrop || (ev.target as Element).closest('.modal__close')) {
+        closeModal();
+        document.removeEventListener('keydown', onKeyDown);
+      }
+    });
+
+    document.addEventListener('keydown', onKeyDown);
+    document.body.appendChild(backdrop);
+
+    // Focus the close button
+    (backdrop.querySelector('.modal__close') as HTMLElement)?.focus();
+  });
+</script>

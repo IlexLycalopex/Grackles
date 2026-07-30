@@ -1,0 +1,67 @@
+---
+import type { YearMeta } from '../../lib/reading-list';
+
+interface Props {
+  /** URL prefix for this workspace, e.g. /reading/jamie */
+  base?: string;
+  years: YearMeta[];
+  activeYear: string;
+}
+
+const { years, activeYear, base = '' } = Astro.props;
+---
+<nav class="year-nav" aria-label="Year navigation">
+  {years.map((y) => (
+    <a
+      href={`${base}/${y.id}/`}
+      class:list={['year-nav__pill', { 'year-nav__pill--active': y.id === activeYear }]}
+      aria-current={y.id === activeYear ? 'page' : undefined}
+    >
+      {y.id}
+    </a>
+  ))}
+</nav>
+
+<style>
+  .year-nav {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 1rem 0;
+    scrollbar-width: none;
+  }
+
+  .year-nav::-webkit-scrollbar { display: none; }
+
+  .year-nav__pill {
+    padding: 0.4rem 1rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-family: var(--display);
+    letter-spacing: 0.05em;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: all var(--transition);
+  }
+
+  .year-nav__pill:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+  .year-nav__pill--active { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+
+  /* Fade hints that the row scrolls; the spacer lets the last pill scroll
+     clear of the faded zone. */
+  @media (max-width: 640px) {
+    .year-nav {
+      -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+      mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+    }
+    .year-nav::after { content: ''; flex: 0 0 2.5rem; }
+  }
+</style>
+
+<script>
+  document
+    .querySelector('.year-nav__pill--active')
+    ?.scrollIntoView({ inline: 'center', block: 'nearest' });
+</script>

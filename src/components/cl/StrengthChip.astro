@@ -1,0 +1,33 @@
+---
+interface Props {
+  strength: 'mild' | 'medium' | 'full';
+  /** Hide the word, keep the pips (for tight card footers). */
+  pipsOnly?: boolean;
+}
+
+const { strength, pipsOnly = false } = Astro.props;
+
+const filled = { mild: 1, medium: 2, full: 3 }[strength];
+---
+<span
+  class:list={['strength', `strength--${strength}`]}
+  title={pipsOnly ? `${strength} strength` : undefined}
+>
+  <span class="strength__pips" aria-hidden="true">
+    {Array.from({ length: 3 }, (_, i) => (
+      <span class:list={['strength__pip', i < filled && 'strength__pip--on']} />
+    ))}
+  </span>
+  <span class:list={[pipsOnly && 'sr-only']}>{strength}</span>
+</span>
+
+<style>
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+</style>

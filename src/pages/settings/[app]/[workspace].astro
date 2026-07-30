@@ -1,0 +1,233 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+import { appByPath, workspaceHref } from '../../../lib/apps';
+import { resolveWorkspace } from '../../../lib/workspace';
+import type { MemberRole, Visibility } from '../../../lib/database.types';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const { app: appPath, workspace: wsSlug } = Astro.params;
+
+const app = appByPath(appPath!);
+if (!app) return new Response('Not found', { status: 404 });
+
+let workspace = await resolveWorkspace(supabase, app.slug, wsSlug!);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+// Members can read this page's data, but only owners have any business here.
+if (!workspace.isOwner) return new Response('Forbidden', { status: 403 });
+
+const ROLES: MemberRole[] = ['owner', 'editor', 'viewer'];
+const VISIBILITIES: Visibility[] = ['private', 'unlisted', 'public'];
+
+let error: string | null = null;
+let notice: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') ?? '');
+  const str = (k: string) => String(form.get(k) ?? '').trim();
+
+  if (action === 'invite') {
+    const email = str('email').toLowerCase();
+    const role = ROLES.includes(str('role') as MemberRole) ? (str('role') as MemberRole) : 'viewer';
+
+    if (!email) {
+      error = 'Enter an email address to invite.';
+    } else {
+      const { error: e } = await supabase.from('workspace_invites').insert({
+        workspace_id: workspace.id,
+        email,
+        role,
+        invited_by: user.id,
+      });
+      // The partial unique index only allows one un-accepted invite per
+      // address, so a repeat is a duplicate rather than a failure.
+      if (e?.code === '23505') {
+        error = `${email} already has an invitation waiting.`;
+      } else if (e) {
+        error = e.message;
+      } else {
+        notice = `Invited ${email} as ${role}. Send them the link below — there is no email being sent yet.`;
+      }
+    }
+  }
+
+  if (action === 'revoke') {
+    const { error: e } = await supabase.from('workspace_invites').delete().eq('id', str('invite_id'));
+    error = e?.message ?? null;
+    if (!e) notice = 'Invitation revoked.';
+  }
+
+  if (action === 'set-role') {
+    const role = str('role') as MemberRole;
+    const { error: e } = await supabase
+      .from('workspace_members')
+      .update({ role })
+      .eq('workspace_id', workspace.id)
+      .eq('user_id', str('user_id'));
+    // guard_last_owner() raises rather than letting a workspace end up with
+    // nobody able to administer it.
+    error = e?.message ?? null;
+    if (!e) notice = 'Role updated.';
+  }
+
+  if (action === 'remove') {
+    const { error: e } = await supabase
+      .from('workspace_members')
+      .delete()
+      .eq('workspace_id', workspace.id)
+      .eq('user_id', str('user_id'));
+    error = e?.message ?? null;
+    if (!e) notice = 'Member removed.';
+  }
+
+  if (action === 'set-visibility') {
+    const visibility = str('visibility') as Visibility;
+    if (!VISIBILITIES.includes(visibility)) {
+      error = 'Unknown visibility.';
+    } else {
+      const { error: e } = await supabase
+        .from('workspaces')
+        .update({ visibility })
+        .eq('id', workspace.id);
+      error = e?.message ?? null;
+      if (!e) {
+        notice = `This project is now ${visibility}.`;
+        workspace = (await resolveWorkspace(supabase, app.slug, wsSlug!)) ?? workspace;
+      }
+    }
+  }
+}
+
+const { data: members } = await supabase
+  .from('workspace_members')
+  .select('user_id, role, profiles(display_name, email)')
+  .eq('workspace_id', workspace.id);
+
+const { data: invites } = await supabase
+  .from('workspace_invites')
+  .select('id, email, role, token, expires_at')
+  .eq('workspace_id', workspace.id)
+  .is('accepted_at', null);
+
+const origin = Astro.url.origin;
+const ownerCount = (members ?? []).filter(m => m.role === 'owner').length;
+---
+
+<AppShell title={`${workspace.name} settings · Grackles`}>
+  <h1 class="page-title">{workspace.name}</h1>
+  <p class="page-intro">
+    {app.name} · <a href={workspaceHref(workspace.app, workspace.slug)}>open the project</a>
+  </p>
+
+  {error && <p class="notice notice--error" role="alert">{error}</p>}
+  {notice && <p class="notice notice--ok">{notice}</p>}
+
+  <p class="section-label">Who can see this</p>
+  <form method="POST" class="inline-form">
+    <input type="hidden" name="action" value="set-visibility" />
+    <select class="field__input field__input--auto" name="visibility">
+      {
+        VISIBILITIES.map(v => (
+          <option value={v} selected={workspace.visibility === v}>
+            {v}
+          </option>
+        ))
+      }
+    </select>
+    <button class="button" type="submit">Update</button>
+  </form>
+  <p class="page-intro">
+    <strong>private</strong> — members only. <strong>unlisted</strong> — anyone with the link.
+    <strong>public</strong> — readable by anyone, and indexed by search engines.
+  </p>
+
+  <p class="section-label">Members</p>
+  <ul class="member-list">
+    {
+      (members ?? []).map(m => (
+        <li class="member">
+          <div class="member__who">
+            <span class="member__name">{m.profiles?.display_name || m.profiles?.email}</span>
+            <span class="member__email">{m.profiles?.email}</span>
+          </div>
+          <form method="POST" class="inline-form">
+            <input type="hidden" name="action" value="set-role" />
+            <input type="hidden" name="user_id" value={m.user_id} />
+            <select class="field__input field__input--auto" name="role">
+              {ROLES.map(r => (
+                <option value={r} selected={m.role === r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+            <button class="button button--quiet" type="submit">Save</button>
+          </form>
+          {
+            /* Removing the only owner would orphan the project. The database
+               refuses it too; hiding the button avoids the error entirely. */
+            !(m.role === 'owner' && ownerCount === 1) && (
+              <form method="POST">
+                <input type="hidden" name="action" value="remove" />
+                <input type="hidden" name="user_id" value={m.user_id} />
+                <button class="button button--danger" type="submit">Remove</button>
+              </form>
+            )
+          }
+        </li>
+      ))
+    }
+  </ul>
+
+  <p class="section-label">Invite someone</p>
+  <form method="POST" class="inline-form">
+    <input type="hidden" name="action" value="invite" />
+    <input class="field__input" type="email" name="email" placeholder="their@email.com" required />
+    <select class="field__input field__input--auto" name="role">
+      <option value="viewer" selected>viewer</option>
+      <option value="editor">editor</option>
+      <option value="owner">owner</option>
+    </select>
+    <button class="button" type="submit">Invite</button>
+  </form>
+  <p class="page-intro">
+    A <strong>viewer</strong> can read everything and change nothing — that is the read-only
+    collaboration case.
+  </p>
+
+  {
+    (invites ?? []).length > 0 && (
+      <>
+        <p class="section-label">Pending invitations</p>
+        <ul class="member-list">
+          {(invites ?? []).map(inv => (
+            <li class="member">
+              <div class="member__who">
+                <span class="member__name">{inv.email}</span>
+                <span class="member__email">
+                  {inv.role} · expires {new Date(inv.expires_at).toLocaleDateString('en-GB')}
+                </span>
+                {/* Until SMTP is configured, the link has to be passed on by hand. */}
+                <input
+                  class="field__input member__link"
+                  type="text"
+                  readonly
+                  value={`${origin}/invite/${inv.token}`}
+                  onclick="this.select()"
+                />
+              </div>
+              <form method="POST">
+                <input type="hidden" name="action" value="revoke" />
+                <input type="hidden" name="invite_id" value={inv.id} />
+                <button class="button button--danger" type="submit">Revoke</button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      </>
+    )
+  }
+</AppShell>

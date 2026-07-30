@@ -1,0 +1,139 @@
+---
+import ClLayout from '../../../../layouts/ClLayout.astro';
+import StarRating from '../../../../components/cl/StarRating.astro';
+import StrengthChip from '../../../../components/cl/StrengthChip.astro';
+import { resolveWorkspace } from '../../../../lib/workspace';
+import { humidorFrom, loadCigar, loadCigars, smokedFrom } from '../../../../lib/cigar-lounge';
+import { formatDate, formatDuration, formatSize, photoUrl, restingDays } from '../../../../lib/cigar-helpers';
+
+export const prerender = false;
+
+const { supabase } = Astro.locals;
+const { workspace: wsSlug, cigar: cigarSlug } = Astro.params;
+
+const workspace = await resolveWorkspace(supabase, 'cigar-lounge', wsSlug!);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const cigar = await loadCigar(supabase, workspace.id, cigarSlug!);
+if (!cigar) return new Response('Not found', { status: 404 });
+
+const base = `/cigars/${workspace.slug}`;
+const d = cigar.data;
+const inHumidor = d.status === 'humidor';
+const spec = formatSize(d.length, d.ringGauge);
+const resting = inHumidor ? restingDays(cigar) : null;
+
+// Previous/next within the list this entry belongs to, so the arrows stay in
+// the same ordering the log or humidor page used.
+const all = await loadCigars(supabase, workspace.id);
+const siblings = inHumidor ? humidorFrom(all) : smokedFrom(all);
+const index = siblings.findIndex(c => c.id === cigar.id);
+const prev = index > 0 ? siblings[index - 1] : null;
+const next = index >= 0 && index < siblings.length - 1 ? siblings[index + 1] : null;
+
+const facts = [
+  d.country && { label: 'Country', value: d.country },
+  d.wrapper && { label: 'Wrapper', value: d.wrapper },
+  d.vitola && { label: 'Vitola', value: d.vitola },
+  d.pricePaid && { label: 'Price', value: d.pricePaid },
+  d.pairing && { label: 'Pairing', value: d.pairing },
+  d.boughtAt && { label: 'Bought at', value: d.boughtAt },
+  d.smokedAt && { label: 'Smoked at', value: d.smokedAt },
+  d.dateSmoked && { label: 'Smoked', value: formatDate(d.dateSmoked) },
+  d.dateAcquired && { label: 'Acquired', value: formatDate(d.dateAcquired) },
+  resting !== null && { label: 'Resting', value: formatDuration(resting) },
+  inHumidor && d.quantity > 1 && { label: 'Quantity', value: `×${d.quantity}` },
+].filter(Boolean) as { label: string; value: string }[];
+---
+
+<ClLayout
+  title={`${d.name} · ${workspace.name}`}
+  description={`${d.brand} ${d.name}`}
+  workspace={workspace}
+>
+  <div class="container">
+    <a class="back-link" href={inHumidor ? `${base}/humidor` : base}>← Back</a>
+
+    <article class="entry">
+      <header class="entry__header">
+        <p class="entry__brand">{d.brand}</p>
+        <h1 class="entry__name foil">{d.name}</h1>
+        {spec && <p class="entry__spec">{spec}</p>}
+
+        <div class="entry__meta">
+          {inHumidor && <span class="entry__badge entry__badge--quiet">In humidor</span>}
+          {d.strength && <StrengthChip strength={d.strength} />}
+          {
+            d.rating !== undefined && (
+              <span class="score score--lg">
+                <StarRating rating={d.rating} />
+                <span class="score__value">{d.rating.toFixed(1)}</span>
+              </span>
+            )
+          }
+          {
+            workspace.canWrite && (
+              <a class="entry__badge" href={`${base}/edit/${cigar.id}`}>
+                Edit
+              </a>
+            )
+          }
+        </div>
+      </header>
+
+      {
+        d.photo && (
+          <div class="entry__photo">
+            <img src={photoUrl(d.photo)} alt={d.name} width="900" height="600" />
+          </div>
+        )
+      }
+
+      {
+        facts.length > 0 && (
+          <dl class="entry__facts">
+            {facts.map(f => (
+              <div class="entry__fact">
+                <dt>{f.label}</dt>
+                <dd>{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )
+      }
+
+      {d.note && <p class="entry__note">{d.note}</p>}
+
+      {
+        cigar.body && (
+          <div class="entry__notes prose">
+            {cigar.body.split(/\n{2,}/).map(para => (
+              <p>{para}</p>
+            ))}
+          </div>
+        )
+      }
+    </article>
+
+    {
+      (prev || next) && (
+        <nav class="entry-nav">
+          {prev ? (
+            <a class="entry-nav__link" href={`${base}/cigar/${prev.id}`}>
+              <span class="entry-nav__dir">Previous</span>
+              <span class="entry-nav__name">{prev.data.name}</span>
+            </a>
+          ) : (
+            <span />
+          )}
+          {next && (
+            <a class="entry-nav__link entry-nav__link--next" href={`${base}/cigar/${next.id}`}>
+              <span class="entry-nav__dir">Next</span>
+              <span class="entry-nav__name">{next.data.name}</span>
+            </a>
+          )}
+        </nav>
+      )
+    }
+  </div>
+</ClLayout>

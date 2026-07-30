@@ -1,0 +1,202 @@
+---
+---
+<div class="filter-bar">
+  <div class="filter-bar__section">
+    <span class="filter-bar__label">Format</span>
+    <div class="filter-bar__pills" id="format-filters">
+      <button class="pill pill--print pill--active" data-format="print">Print</button>
+      <button class="pill pill--audio pill--active" data-format="audio">Audio</button>
+      <button class="pill pill--graphic pill--active" data-format="graphic">Graphic</button>
+    </div>
+  </div>
+
+  <div class="filter-bar__search">
+    <input type="search" id="book-search" placeholder="Search title or author…" aria-label="Search books" />
+  </div>
+
+  <span class="filter-bar__count" id="filter-count" aria-live="polite"></span>
+
+  <button class="filter-bar__clear" id="clear-filters">Clear filters</button>
+</div>
+
+<div class="filter-bar__empty" id="filter-empty" hidden aria-live="polite">
+  No books match your filters.
+</div>
+
+<style>
+  .filter-bar {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0.5rem;
+  }
+
+  .filter-bar__section { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+  .filter-bar__label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+  .filter-bar__pills { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+
+  .pill {
+    padding: 0.25rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+
+  .pill--active.pill--print   { border-color: var(--accent); color: var(--accent); }
+  .pill--active.pill--audio   { border-color: var(--accent-audio); color: var(--accent-audio); }
+  .pill--active.pill--graphic { border-color: var(--accent-graphic); color: var(--accent-graphic); }
+
+  .filter-bar__search input {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: 0.35rem 0.75rem;
+    font-size: 0.9rem;
+    min-width: 220px;
+    transition: border-color var(--transition);
+  }
+
+  .filter-bar__search input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .filter-bar__clear {
+    background: none;
+    border: none;
+    color: var(--text-faint);
+    font-size: 0.82rem;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0.3rem;
+    transition: color var(--transition);
+    align-self: center;
+  }
+
+  .filter-bar__clear:hover { color: var(--accent); }
+
+  @media (max-width: 600px) {
+    .filter-bar { gap: 0.75rem; }
+    .filter-bar__search { width: 100%; }
+    /* Full width, and 16px font so iOS Safari doesn't zoom the page on focus */
+    .filter-bar__search input { width: 100%; min-width: 0; font-size: 1rem; }
+    .pill { padding: 0.4rem 0.85rem; }
+  }
+</style>
+
+<script>
+  const activeFormats = new Set(['print', 'audio', 'graphic']);
+  let searchQuery = '';
+
+  // Case- and accent-insensitive ("alvaro" matches "Álvaro")
+  const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  const cards = () => Array.from(document.querySelectorAll<HTMLElement>('.book-card'));
+  const totalCount = () => cards().length;
+
+  function getPageBaseTitle(): string {
+    return document.title.replace(/ — .*$/, '');
+  }
+
+  function updateCount(visible: number, total: number) {
+    const el = document.getElementById('filter-count');
+    const empty = document.getElementById('filter-empty');
+    if (!el || !empty) return;
+    const isFiltered = visible < total;
+    el.textContent = isFiltered ? `${visible} of ${total}` : '';
+    empty.hidden = visible > 0;
+  }
+
+  function updateTitle() {
+    const base = getPageBaseTitle();
+    document.title = searchQuery ? `${base} — "${searchQuery}"` : base;
+  }
+
+  function updateURL() {
+    const params = new URLSearchParams(window.location.search);
+    if (activeFormats.size < 3) {
+      params.set('format', Array.from(activeFormats).join(','));
+    } else {
+      params.delete('format');
+    }
+    if (searchQuery) {
+      params.set('q', searchQuery);
+    } else {
+      params.delete('q');
+    }
+    const newUrl = params.toString() ? `?${params}` : window.location.pathname;
+    history.replaceState(null, '', newUrl);
+  }
+
+  function filterCards() {
+    let visible = 0;
+    const total = totalCount();
+    const query = norm(searchQuery);
+    for (const card of cards()) {
+      const fmt = card.dataset.format ?? '';
+      const title = norm(card.dataset.title ?? '');
+      const author = norm(card.dataset.author ?? '');
+
+      const fmtOk = activeFormats.has(fmt);
+      const searchOk = !query || title.includes(query) || author.includes(query);
+      const show = fmtOk && searchOk;
+
+      card.style.display = show ? '' : 'none';
+      if (show) visible++;
+    }
+    updateCount(visible, total);
+    updateTitle();
+    updateURL();
+  }
+
+  document.getElementById('format-filters')?.addEventListener('click', (e) => {
+    const btn = (e.target as Element).closest<HTMLElement>('[data-format]');
+    if (!btn) return;
+    const fmt = btn.dataset.format!;
+    if (activeFormats.has(fmt)) { activeFormats.delete(fmt); btn.classList.remove('pill--active'); }
+    else { activeFormats.add(fmt); btn.classList.add('pill--active'); }
+    filterCards();
+  });
+
+  document.getElementById('book-search')?.addEventListener('input', (e) => {
+    searchQuery = (e.target as HTMLInputElement).value.trim();
+    filterCards();
+  });
+
+  document.getElementById('clear-filters')?.addEventListener('click', () => {
+    activeFormats.clear();
+    activeFormats.add('print'); activeFormats.add('audio'); activeFormats.add('graphic');
+    searchQuery = '';
+    (document.getElementById('book-search') as HTMLInputElement).value = '';
+    document.querySelectorAll('.pill[data-format]').forEach((b) => b.classList.add('pill--active'));
+    filterCards();
+  });
+
+  // Init from URL params
+  const params = new URLSearchParams(window.location.search);
+  const fmtParam = params.get('format');
+  if (fmtParam) {
+    activeFormats.clear();
+    fmtParam.split(',').forEach((f) => activeFormats.add(f.trim()));
+    document.querySelectorAll<HTMLElement>('.pill[data-format]').forEach((btn) => {
+      if (activeFormats.has(btn.dataset.format!)) btn.classList.add('pill--active');
+      else btn.classList.remove('pill--active');
+    });
+  }
+  const qParam = params.get('q');
+  if (qParam) {
+    searchQuery = qParam.trim();
+    (document.getElementById('book-search') as HTMLInputElement).value = qParam;
+  }
+
+  if (fmtParam || qParam) filterCards();
+  else updateCount(totalCount(), totalCount());
+</script>

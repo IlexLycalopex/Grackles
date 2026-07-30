@@ -1,0 +1,47 @@
+---
+import RlLayout from '../../../layouts/RlLayout.astro';
+import GroupCard from '../../../components/rl/GroupCard.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { groupByAuthor, loadAllBooks, loadYears } from '../../../lib/reading-list';
+
+export const prerender = false;
+
+const { supabase } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const workspace = await resolveWorkspace(supabase, 'reading-list', wsSlug);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const [years, books] = await Promise.all([
+  loadYears(supabase, workspace.id),
+  loadAllBooks(supabase, workspace.id),
+]);
+
+const base = `/reading/${workspace.slug}`;
+const authors = groupByAuthor(books);
+const repeat = authors.filter(a => a.bookCount > 1);
+---
+
+<RlLayout
+  title={`Authors · ${workspace.name}`}
+  description={`${authors.length} authors`}
+  workspace={workspace}
+  years={years}
+>
+  <div class="container">
+    <div class="page-header">
+      <h1>Authors</h1>
+      <p class="subtitle">
+        {authors.length} authors · {repeat.length} read more than once
+      </p>
+    </div>
+
+    <div class="author-grid">
+      {
+        authors.map(a => (
+          <GroupCard name={a.name} books={a.books} formats={a.formats} years={a.years} base={base} />
+        ))
+      }
+    </div>
+  </div>
+</RlLayout>

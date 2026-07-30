@@ -1,0 +1,47 @@
+---
+import ClLayout from '../../../layouts/ClLayout.astro';
+import CigarCard from '../../../components/cl/CigarCard.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { humidorFrom, loadCigars } from '../../../lib/cigar-lounge';
+import { totalCigars } from '../../../lib/cigar-helpers';
+
+export const prerender = false;
+
+const { supabase } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const workspace = await resolveWorkspace(supabase, 'cigar-lounge', wsSlug);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const base = `/cigars/${workspace.slug}`;
+const humidor = humidorFrom(await loadCigars(supabase, workspace.id));
+---
+
+<ClLayout title={`Humidor · ${workspace.name}`} workspace={workspace}>
+  <div class="container">
+    <div class="page-header">
+      <p class="eyebrow">Resting</p>
+      <h1>Humidor</h1>
+      <p class="subtitle">
+        {totalCigars(humidor)} cigars across {humidor.length} entr{humidor.length === 1 ? 'y' : 'ies'},
+        longest-resting first.
+      </p>
+    </div>
+
+    {
+      humidor.length === 0 ? (
+        <p class="empty-state">The humidor is empty.</p>
+      ) : (
+        <div class="cigar-grid">
+          {humidor.map(cigar => (
+            <CigarCard
+              cigar={cigar}
+              base={base}
+              editHref={workspace.canWrite ? `${base}/edit/${cigar.id}` : undefined}
+            />
+          ))}
+        </div>
+      )
+    }
+  </div>
+</ClLayout>

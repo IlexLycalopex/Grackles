@@ -17,13 +17,46 @@ several people can share a project.
 | ✅ | Supabase schema, RLS, and the existing data imported (see the `listening-party` repo, `supabase/migrations/`) |
 | ✅ | Astro 6 + Vercel adapter, `output: 'server'` |
 | ✅ | Magic-link sign-in, session cookies, `/dashboard` |
-| ⬜ | The three apps' own routes — `/lp/:workspace` etc. |
-| ⬜ | Invite UI and workspace settings |
+| ✅ | All three apps' routes, with editing |
+| ✅ | Invites, member roles and per-workspace visibility |
+| ⬜ | Custom SMTP — until then invite links must be copied by hand from settings |
 | ⬜ | DNS cutover from GitHub Pages to Vercel |
 
 The launcher at `/` is unchanged in appearance. Its nav still links out to the
-five sites that have not moved; the three that have now point at in-app routes,
-which will 404 until those routes exist.
+five sites that have not moved; the three that have now point at in-app routes.
+
+## Routes
+
+```
+/                                  launcher
+/login  /auth/callback  /logout    magic-link auth
+/dashboard                         your projects across all apps
+/invite/:token                     accept an invitation
+/settings/:app/:workspace          members, roles, invites, visibility (owner only)
+
+/lp/:workspace                     Listening Party — current season
+/lp/:workspace/:season             a season
+/lp/:workspace/artists             every artist
+/lp/:workspace/contributors/:slug  one person's picks
+/lp/:workspace/pick/:id            edit a week
+
+/reading/:workspace                Reading List — years overview
+/reading/:workspace/:year          a year's books
+/reading/:workspace/authors        grouped by author
+/reading/:workspace/publishers     grouped by publisher (normalised)
+/reading/:workspace/book/:id       edit a book
+
+/cigars/:workspace                 Cigar Lounge — the log
+/cigars/:workspace/humidor         what is resting
+/cigars/:workspace/stats           ratings, brands, spend
+/cigars/:workspace/cigar/:slug     one entry
+/cigars/:workspace/edit/:slug      edit an entry
+```
+
+Each app keeps its own visual identity: its layout loads only its own
+stylesheet, so there are no shared tokens underneath to fight in the cascade.
+The three stylesheets are the originals, with the editing UI appended below a
+marker comment in each.
 
 ## Running it
 
@@ -74,12 +107,25 @@ src/
 │   ├── auth/callback.ts     exchanges the link's code for a session
 │   ├── logout.ts            POST only
 │   ├── invite/[token].ts    calls accept_invite()
-│   └── dashboard.astro      your workspaces across all three apps
+│   ├── dashboard.astro      your workspaces across all three apps
+│   ├── settings/            per-workspace members, roles, visibility
+│   ├── lp/                  Listening Party
+│   ├── reading/             Reading List
+│   └── cigars/              Cigar Lounge
 └── styles/
     ├── tokens.css           shared palette and type
     ├── launcher.css         the front door, scoped to body.launcher
-    └── app.css              chrome for everything else
+    ├── app.css              chrome for the shell pages
+    ├── listening-party.css  ┐
+    ├── reading-list.css     ├ each app's original stylesheet
+    └── cigar-lounge.css     ┘
 ```
+
+`lib/workspace.ts` is the shared entry point for every app route:
+`resolveWorkspace(supabase, app, slug)` returns the workspace plus the caller's
+role, or null when it does not exist **or** may not be seen — the two are
+deliberately indistinguishable, so a private project 404s rather than
+announcing itself with a 403.
 
 ## Deployment notes
 

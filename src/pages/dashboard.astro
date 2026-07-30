@@ -77,16 +77,23 @@ const pending = invites ?? [];
     ) : (
       <ul class="ws-grid">
         {rows.map(({ role, ws }) => (
-          <li>
-            <a class="ws-card" href={workspaceHref(ws.app, ws.slug)}>
+          <li class="ws-card">
+            {/* The link wraps only the title block — a nested <a> for settings
+                would be invalid markup. */}
+            <a class="ws-card__link" href={workspaceHref(ws.app, ws.slug)}>
               <span class="ws-card__app">{appBySlug(ws.app)?.name ?? ws.app}</span>
               <span class="ws-card__name">{ws.name}</span>
               {ws.description && <span class="ws-card__desc">{ws.description}</span>}
-              <span class="ws-card__meta">
-                <span class={`tag${role === 'viewer' ? ' tag--viewer' : ''}`}>{role}</span>
-                <span class="tag">{ws.visibility}</span>
-              </span>
             </a>
+            <span class="ws-card__meta">
+              <span class={`tag${role === 'viewer' ? ' tag--viewer' : ''}`}>{role}</span>
+              <span class="tag">{ws.visibility}</span>
+              {role === 'owner' && (
+                <a class="ws-card__settings" href={`/settings/${appBySlug(ws.app)?.path}/${ws.slug}`}>
+                  Settings
+                </a>
+              )}
+            </span>
           </li>
         ))}
       </ul>

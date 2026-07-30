@@ -1,0 +1,69 @@
+---
+import RlLayout from '../../../layouts/RlLayout.astro';
+import BookCard from '../../../components/rl/BookCard.astro';
+import FilterBar from '../../../components/rl/FilterBar.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { loadYear, loadYears, statsFor } from '../../../lib/reading-list';
+
+export const prerender = false;
+
+const { supabase } = Astro.locals;
+const { workspace: wsSlug, year: yearParam } = Astro.params;
+
+const workspace = await resolveWorkspace(supabase, 'reading-list', wsSlug!);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const year = Number(yearParam);
+if (!Number.isInteger(year)) return new Response('Not found', { status: 404 });
+
+const [years, yearData] = await Promise.all([
+  loadYears(supabase, workspace.id),
+  loadYear(supabase, workspace.id, year),
+]);
+
+if (!yearData) return new Response('Not found', { status: 404 });
+
+const base = `/reading/${workspace.slug}`;
+const stats = statsFor(yearData.books);
+---
+
+<RlLayout
+  title={`${year} · ${workspace.name}`}
+  description={`${stats.totalBooks} books read in ${year}`}
+  workspace={workspace}
+  years={years}
+>
+  <div class="container">
+    <div class="page-header">
+      <h1>{year}</h1>
+      <p class="subtitle">
+        {stats.totalBooks} book{stats.totalBooks !== 1 ? 's' : ''} ·
+        {stats.totalPages.toLocaleString('en-GB')} pages
+        {yearData.status === 'active' ? ' · in progress' : ''}
+      </p>
+    </div>
+
+    <FilterBar />
+
+    <div class="book-grid" id="book-grid">
+      {
+        yearData.books.map(book => (
+          <div class="book-grid__item" data-book-id={book.id}>
+            <BookCard book={book} showOrder />
+            {workspace.canWrite && (
+              <a class="book-edit" href={`${base}/book/${book.id}`} title={`Edit ${book.title}`}>
+                Edit
+              </a>
+            )}
+          </div>
+        ))
+      }
+    </div>
+
+    {
+      yearData.books.length === 0 && (
+        <p class="subtitle" style="padding:48px 0;">Nothing recorded for {year} yet.</p>
+      )
+    }
+  </div>
+</RlLayout>

@@ -1,0 +1,53 @@
+---
+import RlLayout from '../../../layouts/RlLayout.astro';
+import GroupCard from '../../../components/rl/GroupCard.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { groupByPublisher, loadAllBooks, loadYears } from '../../../lib/reading-list';
+
+export const prerender = false;
+
+const { supabase } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const workspace = await resolveWorkspace(supabase, 'reading-list', wsSlug);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const [years, books] = await Promise.all([
+  loadYears(supabase, workspace.id),
+  loadAllBooks(supabase, workspace.id),
+]);
+
+const base = `/reading/${workspace.slug}`;
+// Grouped on the normalised name, so imprints of the same house merge —
+// the normalisation happens on write, not here.
+const publishers = groupByPublisher(books);
+---
+
+<RlLayout
+  title={`Publishers · ${workspace.name}`}
+  description={`${publishers.length} publishers`}
+  workspace={workspace}
+  years={years}
+>
+  <div class="container">
+    <div class="page-header">
+      <h1>Publishers</h1>
+      <p class="subtitle">{publishers.length} publishers</p>
+    </div>
+
+    <div class="author-grid">
+      {
+        publishers.map(p => (
+          <GroupCard
+            name={p.name}
+            books={p.books}
+            formats={p.formats}
+            years={p.years}
+            showAuthor
+            base={base}
+          />
+        ))
+      }
+    </div>
+  </div>
+</RlLayout>

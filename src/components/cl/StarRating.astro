@@ -1,0 +1,96 @@
+---
+/**
+ * 0–5 rating, half-step capable, drawn as foil diamonds — the mark the
+ * Oxblood Foil design uses for its rating control (◆ ◆ ◆ ◆ ◇).
+ *
+ * Two identical rows, a dim one underneath and a foil one clipped to
+ * `rating / 5`, so any fractional value renders without a half-diamond glyph.
+ * Used on the log, the entry detail page and the stats tables.
+ */
+interface Props {
+  rating: number;
+  /** Diamond height, as a CSS length. */
+  size?: string;
+  /** Print the numeric value next to the diamonds. */
+  showValue?: boolean;
+  class?: string;
+}
+
+const { rating, size = '1rem', showValue = false, class: className } = Astro.props;
+
+const clamped = Math.min(5, Math.max(0, rating));
+const pct = (clamped / 5) * 100;
+// 3 → "3", 3.5 → "3.5"
+const label = Number.isInteger(clamped) ? `${clamped}` : clamped.toFixed(1);
+
+const diamond = 'M10 1.2 18.8 10 10 18.8 1.2 10Z';
+---
+<span
+  class:list={['stars', className]}
+  style={`--star-size: ${size}`}
+  role="img"
+  aria-label={`${label} out of 5`}
+>
+  {/* The clip is measured against this box, so it must wrap the rows only. */}
+  <span class="stars__layers" aria-hidden="true">
+    <span class="stars__row">
+      {Array.from({ length: 5 }, () => (
+        <svg class="stars__star" viewBox="0 0 20 20" fill="currentColor"><path d={diamond} /></svg>
+      ))}
+    </span>
+    <span class="stars__clip" style={`width: ${pct}%`}>
+      <span class="stars__row stars__row--filled">
+        {Array.from({ length: 5 }, () => (
+          <svg class="stars__star" viewBox="0 0 20 20" fill="currentColor"><path d={diamond} /></svg>
+        ))}
+      </span>
+    </span>
+  </span>
+  {showValue && <span class="stars__value">{label}</span>}
+</span>
+
+<style>
+  .stars {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+  }
+
+  .stars__layers {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+  }
+
+  .stars__row {
+    display: flex;
+    gap: calc(var(--star-size) * 0.28);
+    width: max-content;
+  }
+
+  .stars__star {
+    width: var(--star-size);
+    height: var(--star-size);
+    flex: none;
+    /* The design's unfilled diamond. */
+    color: #6e4a2a;
+  }
+
+  .stars__clip {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .stars__row--filled .stars__star { color: var(--foil); }
+
+  .stars__value {
+    margin-left: calc(var(--star-size) * 0.6);
+    font-family: var(--numeral);
+    font-size: calc(var(--star-size) * 1.35);
+    line-height: 0.8;
+    color: var(--foil-light);
+  }
+</style>

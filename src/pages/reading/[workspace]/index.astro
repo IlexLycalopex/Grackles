@@ -1,0 +1,97 @@
+---
+import RlLayout from '../../../layouts/RlLayout.astro';
+import BookCard from '../../../components/rl/BookCard.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { loadAllBooks, loadYears, statsFor } from '../../../lib/reading-list';
+
+export const prerender = false;
+
+const { supabase } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const workspace = await resolveWorkspace(supabase, 'reading-list', wsSlug);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const [years, allBooks] = await Promise.all([
+  loadYears(supabase, workspace.id),
+  loadAllBooks(supabase, workspace.id),
+]);
+
+const base = `/reading/${workspace.slug}`;
+const stats = statsFor(allBooks);
+const nowReading = allBooks.filter(b => b.reading);
+
+// Per-year counts come from the books actually loaded rather than the stored
+// total_books, so the page never claims more than it can show.
+const byYear = new Map<number, typeof allBooks>();
+for (const b of allBooks) {
+  if (!byYear.has(b.year_read)) byYear.set(b.year_read, []);
+  byYear.get(b.year_read)!.push(b);
+}
+---
+
+<RlLayout
+  title={`${workspace.name} · Grackles`}
+  description={`${stats.totalBooks} books across ${years.length} years`}
+  workspace={workspace}
+  years={years}
+>
+  <div class="container">
+    <div class="page-header">
+      <h1>{workspace.name}</h1>
+      <p class="subtitle">Years of reading. Everything finished.</p>
+    </div>
+
+    <div class="stats-strip">
+      <div class="stat">
+        <span class="stat__value">{stats.totalBooks}</span>
+        <span class="stat__label">Books</span>
+      </div>
+      <div class="stat">
+        <span class="stat__value">{stats.totalPages.toLocaleString('en-GB')}</span>
+        <span class="stat__label">Pages</span>
+      </div>
+      <div class="stat">
+        <span class="stat__value">{years.length}</span>
+        <span class="stat__label">Years</span>
+      </div>
+      <div class="stat">
+        <span class="stat__value">{stats.audioPct}%</span>
+        <span class="stat__label">Audio</span>
+      </div>
+    </div>
+
+    {
+      nowReading.length > 0 && (
+        <section aria-label="Now reading">
+          <h2 class="section-label">Now reading</h2>
+          <div class="book-grid">
+            {nowReading.map(book => (
+              <BookCard book={book} />
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    <h2 class="section-label">By year</h2>
+    <div class="year-grid">
+      {
+        years.map(y => {
+          const books = byYear.get(y.year) ?? [];
+          const pages = books.reduce((s, b) => s + (b.pages ?? 0), 0);
+          return (
+            <a class="year-card" href={`${base}/${y.year}`}>
+              <span class="year-card__year">{y.year}</span>
+              <span class="year-card__count">
+                {books.length} book{books.length !== 1 ? 's' : ''}
+              </span>
+              <span class="year-card__pages">{pages.toLocaleString('en-GB')} pages</span>
+              {y.status === 'active' && <span class="year-card__active">In progress</span>}
+            </a>
+          );
+        })
+      }
+    </div>
+  </div>
+</RlLayout>

@@ -1,0 +1,56 @@
+---
+import '../styles/cigar-lounge.css';
+import type { ResolvedWorkspace } from '../lib/workspace';
+
+interface Props {
+  title: string;
+  description?: string;
+  workspace: ResolvedWorkspace;
+}
+
+const { title, description = '', workspace } = Astro.props;
+const base = `/cigars/${workspace.slug}`;
+const pathname = Astro.url.pathname;
+const canonical = new URL(pathname, Astro.site ?? Astro.url.origin);
+const { user } = Astro.locals;
+
+const links = [
+  { href: base, label: 'Log' },
+  { href: `${base}/humidor`, label: 'Humidor' },
+  { href: `${base}/stats`, label: 'Stats' },
+];
+---
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical.href} />
+    <link rel="icon" href="/grackles-logo.png" />
+    {workspace.visibility !== 'public' && <meta name="robots" content="noindex, nofollow" />}
+  </head>
+  <body>
+    <nav class="site-nav">
+      <div class="container site-nav__inner">
+        <a href={base} class="site-nav__logo">{workspace.name}</a>
+        <div class="site-nav__links">
+          {
+            links.map(l => (
+              <a href={l.href} class={`site-nav__pill${pathname === l.href ? ' active' : ''}`}>
+                {l.label}
+              </a>
+            ))
+          }
+          {workspace.role && <span class="site-nav__pill site-nav__role">{workspace.role}</span>}
+          <a class="site-nav__pill" href={user ? '/dashboard' : `/login?next=${pathname}`}>
+            {user ? 'Projects' : 'Sign in'}
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <slot />
+  </body>
+</html>

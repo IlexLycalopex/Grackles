@@ -1,0 +1,39 @@
+---
+import type { Book } from '../../lib/reading-list';
+
+interface Props {
+  /** URL prefix for this workspace, e.g. /reading/jamie */
+  base?: string;
+  name: string;
+  books: Book[];
+  formats: Set<string>;
+  years: number[];
+  showAuthor?: boolean;
+}
+
+const { name, books, formats, years, showAuthor = false, base = '' } = Astro.props;
+const sortedYears = [...years].sort((a, b) => a - b);
+const sortedBooks = [...books].sort((a, b) => a.year_read - b.year_read || a.order_read - b.order_read);
+---
+<details class="author-card">
+  <summary>
+    <p class="author-card__name">{name}</p>
+    <p class="author-card__count">{books.length} {books.length === 1 ? 'book' : 'books'}</p>
+    <div class="author-card__dots">
+      {Array.from(formats).map((fmt) => (
+        <span class={`format-pip format-pip--${fmt}`} title={fmt}></span>
+      ))}
+    </div>
+    <p class="author-card__years">{sortedYears.join(', ')}</p>
+  </summary>
+  <ul class="author-card__books">
+    {sortedBooks.map((book) => (
+      <li>
+        <span class={`format-pip format-pip--${book.format}`} title={book.format}></span>
+        <span class="author-card__book-title">{book.title}</span>
+        {showAuthor && <span class="author-card__book-author">{book.author}</span>}
+        <a href={`${base}/${book.year_read}/`} class="author-card__book-year">{book.year_read}</a>
+      </li>
+    ))}
+  </ul>
+</details>

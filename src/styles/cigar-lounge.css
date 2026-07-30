@@ -1,0 +1,619 @@
+/* ── Oxblood Foil ───────────────────────────────────────────────────
+   Ported from the "Oxblood Foil App" design. Deep oxblood grounds,
+   gold foil for anything that carries value (headings, ratings, stats),
+   and Space Mono micro-labels doing the structural signposting.
+
+   This deliberately breaks the shared look with Listening Party and the
+   reading log — those still use the burnt-sienna token set. */
+:root {
+  /* Grounds */
+  --bg:            #3c1216;  /* the screen */
+  --bg-deep:       #180a0c;  /* outermost, behind everything */
+  --bg-sunk:       #2a0d10;  /* nav and footer bands */
+  --bg-card:       rgba(214, 162, 78, 0.05);
+  --bg-hover:      rgba(214, 162, 78, 0.10);
+
+  /* Edges */
+  --border:        #5a2226;
+  --border-soft:   #4a1a1e;
+  --border-gold:   #b8863c;
+
+  /* Foil */
+  --foil-light:    #f6e6c2;
+  --foil:          #d6a24e;
+  --foil-deep:     #c8933f;
+  --gold-label:    #c79a58;
+  --gold-muted:    #8f6b45;
+  --gold-dim:      #7c5a38;
+
+  /* Ink */
+  --text:          #f2dfc4;
+  --text-2:        #e4d3b6;
+  --text-muted:    #d8b98a;
+  --text-faint:    #8f6b45;
+
+  /* The two gradients the whole system leans on */
+  --foil-sheen:    linear-gradient(180deg, #f6e6c2, #d6a24e);
+  --foil-press:    linear-gradient(160deg, #f6e6c2, #c8933f);
+  --top-glow:      radial-gradient(circle at 50% -8%, rgba(214, 162, 78, 0.16), transparent 55%);
+
+  --display:       'Marcellus', 'Times New Roman', serif;
+  --font:          'Jost', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono:          'Space Mono', 'SF Mono', 'Fira Code', monospace;
+  --numeral:       'Bebas Neue', Impact, sans-serif;
+
+  --radius:        12px;
+  --radius-lg:     14px;
+  --transition:    0.18s ease;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  background: var(--bg-deep);
+  color: var(--text);
+  font-family: var(--font);
+  font-weight: 300;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--top-glow), var(--bg);
+  background-attachment: fixed;
+}
+
+a { color: inherit; text-decoration: none; }
+
+::selection { background: var(--foil); color: var(--bg-sunk); }
+
+:focus-visible {
+  outline: 2px solid var(--foil);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+img { display: block; max-width: 100%; }
+
+h1, h2, h3 {
+  font-family: var(--display);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+}
+
+/* Foil-stamped headline. Falls back to solid gold where background-clip
+   isn't supported. */
+.foil {
+  color: var(--foil-light);
+  background: var(--foil-sheen);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* The recurring Space Mono signpost: tiny, wide-tracked, gold. */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--gold-label);
+}
+
+/* Skip to content */
+.skip-to-content {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 9999;
+  padding: 8px 20px;
+  background: var(--foil-press);
+  color: var(--bg);
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.skip-to-content:focus { left: 24px; }
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.container {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 26px;
+  width: 100%;
+}
+
+main { flex: 1; }
+
+/* ── Site nav ───────────────────────────────────────────────────── */
+.site-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(42, 13, 16, 0.82);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+  border-bottom: 1px solid var(--border);
+}
+.site-nav__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 58px;
+  gap: 12px;
+}
+.site-nav__logo {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.site-nav__mark {
+  font-size: 0.8rem;
+  color: var(--foil);
+  line-height: 1;
+}
+.site-nav__logo span:not(.site-nav__mark) {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  transition: color var(--transition);
+}
+.site-nav__logo:hover span:not(.site-nav__mark) { color: var(--foil); }
+
+.site-nav__links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.site-nav__pill {
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  border-radius: 22px;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-dim);
+  transition: color var(--transition), border-color var(--transition), background var(--transition);
+  white-space: nowrap;
+}
+.site-nav__pill:hover { color: var(--gold-label); }
+.site-nav__pill.active {
+  color: var(--foil);
+  border-color: var(--border-gold);
+  background: var(--bg-card);
+}
+
+@media (max-width: 640px) {
+  .site-nav__pill { padding: 8px 11px; font-size: 0.62rem; letter-spacing: 0.14em; }
+  .site-nav__inner { gap: 8px; }
+}
+
+@media (max-width: 380px) {
+  .site-nav__logo span:not(.site-nav__mark) { display: none; }
+}
+
+/* ── Footer ─────────────────────────────────────────────────────── */
+.site-footer {
+  border-top: 1px solid var(--border);
+  background: linear-gradient(0deg, var(--bg-sunk) 60%, transparent);
+  padding: 34px 0;
+  margin-top: 4.5rem;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold-dim);
+}
+
+/* ── Page headers ───────────────────────────────────────────────── */
+.page-header {
+  padding: 3.5rem 0 2rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+
+.page-header h1 {
+  font-size: clamp(2.75rem, 7vw, 4.75rem);
+  margin: 0.5rem 0 0.65rem;
+}
+
+.page-header .subtitle {
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  font-weight: 300;
+  line-height: 1.65;
+  max-width: 44ch;
+}
+
+/* ── Stats strip ────────────────────────────────────────────────── */
+.stats-strip {
+  display: flex;
+  gap: 2.25rem;
+  flex-wrap: wrap;
+  padding: 1.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.stat { display: flex; flex-direction: column; gap: 0.3rem; }
+
+.stat__value {
+  font-family: var(--numeral);
+  font-size: 2.6rem;
+  line-height: 0.85;
+  color: var(--foil-light);
+  letter-spacing: 0.01em;
+}
+
+.stat__label {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold-label);
+}
+
+/* ── Cigar grid ─────────────────────────────────────────────────── */
+.cigar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  /* Photos are optional, so cards in a row differ in height. Sizing each to
+     its own content leaves a ragged edge; stretching leaves dead space inside
+     the photoless cards, which looks worse. */
+  align-items: start;
+  gap: 1.5rem;
+  padding: 2rem 0;
+}
+
+/* ── Score badge ────────────────────────────────────────────────── */
+.score {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--score-size, 42px);
+  height: var(--score-size, 42px);
+  border: 1px solid var(--border-gold);
+  border-radius: 50%;
+  color: var(--foil);
+  font-family: var(--numeral);
+  line-height: 0.8;
+}
+
+.score--lg {
+  --score-size: 88px;
+  border-color: var(--foil);
+  box-shadow: 0 0 0 6px rgba(214, 162, 78, 0.06);
+}
+
+.score__value { font-size: calc(var(--score-size, 42px) * 0.46); }
+.score--lg .score__value { font-size: 2.75rem; }
+
+.score__label {
+  font-family: var(--mono);
+  font-size: 0.44rem;
+  letter-spacing: 0.2em;
+  margin-top: 0.2rem;
+}
+
+/* A rule that fades out from the centrepiece, as on the detail screen. */
+.flanked {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.flanked::before, .flanked::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+}
+.flanked::before { background: linear-gradient(90deg, transparent, var(--border-gold)); }
+.flanked::after { background: linear-gradient(270deg, transparent, var(--border-gold)); }
+
+/* ── Strength chip ──────────────────────────────────────────────── */
+.strength {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-label);
+}
+
+.strength__pips { display: flex; gap: 2px; }
+
+.strength__pip {
+  width: 5px;
+  height: 10px;
+  border-radius: 1px;
+  background: var(--border-soft);
+}
+
+.strength__pip--on { background: var(--foil); }
+
+/* ── Panels ─────────────────────────────────────────────────────── */
+.panel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  padding: 2rem 0;
+}
+
+@media (max-width: 760px) {
+  .panel-grid { grid-template-columns: 1fr; }
+}
+
+.panel {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  min-width: 0;
+}
+
+/* The design highlights one card per group with a gold edge and a wash. */
+.panel--featured {
+  border-color: var(--border-gold);
+  background: var(--bg-card);
+}
+
+.panel h2 {
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  font-weight: 400;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--gold-label);
+  margin-bottom: 1.1rem;
+}
+
+.panel__note {
+  font-size: 0.82rem;
+  font-weight: 300;
+  color: var(--text-faint);
+  margin-top: 0.9rem;
+  line-height: 1.6;
+}
+
+.panel--full { grid-column: 1 / -1; }
+
+/* ── Tables ─────────────────────────────────────────────────────── */
+.table-scroll { overflow-x: auto; }
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.data-table th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold-label);
+  font-weight: 400;
+  padding: 0 0.6rem 0.65rem 0;
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: 0.7rem 0.6rem 0.7rem 0;
+  border-top: 1px solid var(--border-soft);
+  vertical-align: middle;
+}
+
+.data-table th:last-child, .data-table td:last-child { padding-right: 0; }
+
+/* Alignment applies to the whole column; the numeral treatment must not leak
+   into the header, which has its own smaller Space Mono styling. */
+.data-table .num { text-align: right; }
+
+.data-table td.num {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.data-table tbody tr:hover { background: var(--bg-card); }
+
+.data-table__brand {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
+/* ── Distribution bars ──────────────────────────────────────────── */
+.bar-chart { display: flex; flex-direction: column; gap: 0.7rem; }
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 3.4rem 1fr 1.75rem;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.bar-row__label {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+  text-align: right;
+}
+
+.bar-row__track {
+  display: block;
+  background: var(--border-soft);
+  border-radius: 4px;
+  height: 7px;
+  overflow: hidden;
+}
+
+.bar-row__fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--border-gold), var(--foil-light));
+  border-radius: 4px;
+  min-width: 0;
+}
+
+.bar-row__count {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--gold-muted);
+  text-align: right;
+}
+
+/* ── Empty states ───────────────────────────────────────────────── */
+.empty-state {
+  padding: 3.5rem 0;
+  color: var(--text-muted);
+  font-weight: 300;
+  text-align: center;
+  line-height: 1.7;
+}
+
+.empty-state code {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--foil);
+}
+
+.empty-state a { color: var(--foil); text-decoration: underline; }
+
+/* ── Added for the Supabase app: editing UI ──────────────────────── */
+
+.site-nav__role {
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  opacity: 0.6;
+  cursor: default;
+}
+
+.cigar-card { position: relative; }
+
+/* Sits above the card-wide link so it stays clickable. */
+.cigar-card__edit {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.cigar-card:hover .cigar-card__edit,
+.cigar-card__edit:focus-visible { opacity: 1; }
+
+.section-heading {
+  margin: 2.5rem 0 1rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.dist { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+
+.dist__row {
+  display: grid;
+  grid-template-columns: minmax(6rem, 10rem) 1fr auto;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.85rem;
+}
+
+.dist__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(128, 128, 128, 0.18);
+  overflow: hidden;
+}
+
+.dist__fill { display: block; height: 100%; background: currentColor; opacity: 0.55; }
+.dist__count { font-variant-numeric: tabular-nums; opacity: 0.7; }
+
+.form-error {
+  max-width: 720px;
+  margin: 1.25rem 0 0;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid currentColor;
+  font-size: 0.9rem;
+}
+
+.cigar-form {
+  max-width: 720px;
+  margin: 1.75rem 0 6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.cigar-form__row { display: flex; flex-wrap: wrap; gap: 1rem; }
+.cigar-form__row .cigar-form__field { flex: 1 1 11rem; }
+.cigar-form__field { display: flex; flex-direction: column; gap: 0.4rem; }
+
+.cigar-form__label {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.cigar-form__hint { font-size: 0.75rem; opacity: 0.5; line-height: 1.45; }
+
+.cigar-form__input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+  font-size: 0.95rem;
+  color: inherit;
+  background: rgba(128, 128, 128, 0.08);
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  border-radius: 6px;
+}
+
+.cigar-form__input:focus { outline: none; border-color: currentColor; }
+textarea.cigar-form__input { resize: vertical; line-height: 1.55; }
+
+.cigar-form__actions { display: flex; align-items: center; gap: 1.25rem; }
+
+.cigar-form__submit {
+  padding: 0.7rem 1.6rem;
+  font: inherit;
+  font-size: 0.82rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.18s ease;
+}
+
+.cigar-form__submit:hover { opacity: 0.7; }
+.cigar-form__cancel { font-size: 0.85rem; opacity: 0.6; }

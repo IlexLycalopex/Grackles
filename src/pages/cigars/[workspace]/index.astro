@@ -1,0 +1,71 @@
+---
+import ClLayout from '../../../layouts/ClLayout.astro';
+import CigarCard from '../../../components/cl/CigarCard.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { humidorFrom, loadCigars, smokedFrom } from '../../../lib/cigar-lounge';
+import { mean, rated, totalCigars } from '../../../lib/cigar-helpers';
+
+export const prerender = false;
+
+const { supabase } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const workspace = await resolveWorkspace(supabase, 'cigar-lounge', wsSlug);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const base = `/cigars/${workspace.slug}`;
+const cigars = await loadCigars(supabase, workspace.id);
+const smoked = smokedFrom(cigars);
+const humidor = humidorFrom(cigars);
+
+const ratings = rated(smoked).map(c => c.data.rating!);
+const avg = ratings.length ? mean(ratings) : null;
+---
+
+<ClLayout
+  title={`${workspace.name} · Grackles`}
+  description={`${smoked.length} cigars smoked`}
+  workspace={workspace}
+>
+  <div class="container">
+    <div class="page-header">
+      <p class="eyebrow">The log</p>
+      <h1>{workspace.name}</h1>
+      <p class="subtitle">Every cigar smoked, newest first.</p>
+    </div>
+
+    <div class="stats-strip">
+      <div class="stat">
+        <span class="stat__value">{smoked.length}</span>
+        <span class="stat__label">Smoked</span>
+      </div>
+      <a class="stat stat--link" href={`${base}/humidor`}>
+        <span class="stat__value">{totalCigars(humidor)}</span>
+        <span class="stat__label">In humidor</span>
+      </a>
+      <div class="stat">
+        <span class="stat__value">{avg === null ? '—' : avg.toFixed(1)}</span>
+        <span class="stat__label">Avg rating</span>
+      </div>
+    </div>
+
+    {
+      smoked.length === 0 ? (
+        <p class="empty-state">
+          Nothing smoked yet.
+          {workspace.canWrite ? ' Add an entry to start the log.' : ''}
+        </p>
+      ) : (
+        <div class="cigar-grid">
+          {smoked.map(cigar => (
+            <CigarCard
+              cigar={cigar}
+              base={base}
+              editHref={workspace.canWrite ? `${base}/edit/${cigar.id}` : undefined}
+            />
+          ))}
+        </div>
+      )
+    }
+  </div>
+</ClLayout>
