@@ -1,0 +1,136 @@
+---
+import AlbumCard from './AlbumCard.astro';
+import ProgressBar from './ProgressBar.astro';
+import { groupByYear, nowPlaying } from '../../lib/listening-party';
+import type { Contributor, SeasonWithPicks } from '../../lib/listening-party';
+import type { ResolvedWorkspace } from '../../lib/workspace';
+
+interface Props {
+  workspace: ResolvedWorkspace;
+  season: SeasonWithPicks;
+  contributors: Contributor[];
+}
+
+const { workspace, season, contributors } = Astro.props;
+const base = `/lp/${workspace.slug}`;
+
+const completed = season.selections.filter(s => s.status === 'completed');
+const upcoming = season.selections.filter(s => s.status === 'upcoming');
+const current = nowPlaying(season.selections);
+
+// Only the people actually playing this season, in roster order.
+const playing = contributors.filter(c => season.selections.some(s => s.contributor.id === c.id));
+
+const editHref = (id: string) => (workspace.canWrite ? `${base}/pick/${id}` : undefined);
+---
+
+<header class="hero">
+  <div class="container">
+    <div class={`hero__inner${current ? ' hero__inner--split' : ''}`}>
+      <div class="hero__left">
+        <p class="hero__eyebrow">Season {season.slug}</p>
+        <h1 class="hero__title">{season.title}</h1>
+        <p class="hero__description">{season.description}</p>
+        <div class="hero__meta">
+          {
+            playing.map(c => (
+              <a href={`${base}/contributors/${c.slug}`} class="contributor-badge">
+                <span class="contributor-badge__dot" style={`background:${c.color}`} />
+                {c.name}
+              </a>
+            ))
+          }
+          {
+            current && (
+              <a href="#now-playing" class="hero__jump-btn">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                Jump to current
+              </a>
+            )
+          }
+        </div>
+      </div>
+
+      {
+        current && (
+          <div class="hero__right">
+            <div class="hero__np-card">
+              <div class="hero__np-badge">▶ Now Playing &mdash; Week {current.week}</div>
+              <div class="hero__np-art">
+                {current.artworkUrl ? (
+                  <img src={current.artworkUrl} alt={`${current.album} by ${current.artist}`} />
+                ) : (
+                  <div class="hero__np-art-placeholder">
+                    <svg viewBox="0 0 24 24" width="40%" height="40%" fill="none" stroke="currentColor" stroke-width="1.2">
+                      <circle cx="12" cy="12" r="9" />
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+              <div class="hero__np-body">
+                <div class="hero__np-contrib">
+                  <span class="hero__np-contrib-dot" style={`background:${current.contributor.color}`} />
+                  {current.contributor.name}
+                </div>
+                <div class="hero__np-album">{current.album}</div>
+                <div class="hero__np-artist">{current.artist}</div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+    </div>
+  </div>
+</header>
+
+<ProgressBar completed={completed.length} total={season.totalWeeks} />
+
+<main class="seasons-grid">
+  <div class="container">
+    {
+      groupByYear(completed).map(([year, picks]) => (
+        <section class="year-section">
+          <h2 class="year-heading">{year}</h2>
+          <div class="year-cards">
+            {picks.map(pick => (
+              <AlbumCard pick={pick} isNowPlaying={pick.id === current?.id} editHref={editHref(pick.id)} />
+            ))}
+          </div>
+        </section>
+      ))
+    }
+
+    {
+      upcoming.length > 0 && (
+        <section class="year-section upcoming-section">
+          <h2 class="year-heading">
+            Upcoming
+            <span class="year-heading__count">{upcoming.length} weeks remaining</span>
+          </h2>
+          <div class="year-cards">
+            {upcoming.map(pick => (
+              <AlbumCard pick={pick} editHref={editHref(pick.id)} />
+            ))}
+          </div>
+        </section>
+      )
+    }
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="container site-footer__inner">
+    <span>{season.title}</span>
+    <span class="site-footer__hint">
+      {
+        workspace.canWrite
+          ? 'Click the pencil on any card to set that week’s pick'
+          : `You have read-only access to this ${workspace.visibility} project`
+      }
+    </span>
+  </div>
+</footer>

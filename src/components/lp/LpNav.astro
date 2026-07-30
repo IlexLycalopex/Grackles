@@ -1,0 +1,78 @@
+---
+import type { Contributor, Season } from '../../lib/listening-party';
+import type { ResolvedWorkspace } from '../../lib/workspace';
+
+interface Props {
+  workspace: ResolvedWorkspace;
+  seasons: Season[];
+  contributors: Contributor[];
+}
+
+const { workspace, seasons, contributors } = Astro.props;
+const base = `/lp/${workspace.slug}`;
+const pathname = Astro.url.pathname;
+
+const { user } = Astro.locals;
+---
+
+<nav class="site-nav">
+  <div class="container site-nav__inner">
+    <a href={base} class="site-nav__logo">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6">
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="3.5" />
+        <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+      </svg>
+      <span>{workspace.name}</span>
+    </a>
+
+    <div class="site-nav__links">
+      {
+        seasons.map(s => (
+          <a
+            href={`${base}/${s.slug}`}
+            class={`site-nav__pill${pathname === `${base}/${s.slug}` ? ' active' : ''}`}
+          >
+            {s.slug}
+          </a>
+        ))
+      }
+
+      <span class="site-nav__sep"></span>
+
+      {
+        contributors.map(c => (
+          <a
+            href={`${base}/contributors/${c.slug}`}
+            class={`site-nav__contrib${pathname.startsWith(`${base}/contributors/${c.slug}`) ? ' active' : ''}`}
+            title={c.name}
+          >
+            <span class="site-nav__contrib-dot" style={`background:${c.color}`} />
+            <span class="site-nav__contrib-name">{c.name}</span>
+          </a>
+        ))
+      }
+
+      <span class="site-nav__sep"></span>
+
+      <a
+        href={`${base}/artists`}
+        class={`site-nav__pill${pathname.startsWith(`${base}/artists`) ? ' active' : ''}`}
+      >
+        Artists
+      </a>
+
+      {
+        workspace.role && (
+          <span class="site-nav__pill site-nav__role" title={`You are ${workspace.role} here`}>
+            {workspace.role}
+          </span>
+        )
+      }
+
+      <a class="site-nav__pill" href={user ? '/dashboard' : `/login?next=${pathname}`}>
+        {user ? 'Projects' : 'Sign in'}
+      </a>
+    </div>
+  </div>
+</nav>

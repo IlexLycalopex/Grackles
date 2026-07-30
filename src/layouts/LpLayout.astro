@@ -1,0 +1,81 @@
+---
+import '../styles/listening-party.css';
+import LpNav from '../components/lp/LpNav.astro';
+import type { Contributor, Season } from '../lib/listening-party';
+import type { ResolvedWorkspace } from '../lib/workspace';
+
+interface Props {
+  title: string;
+  description?: string;
+  ogImage?: string;
+  workspace: ResolvedWorkspace;
+  seasons: Season[];
+  contributors: Contributor[];
+}
+
+const { title, description = '', ogImage, workspace, seasons, contributors } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin);
+
+// The Listening Party keeps its own dark identity rather than inheriting the
+// launcher's paper palette, so this layout loads listening-party.css alone —
+// no shared tokens to fight with in the cascade.
+---
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical.href} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    {ogImage && <meta property="og:image" content={ogImage} />}
+    <link rel="icon" href="/grackles-logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet" />
+    {
+      /* Private and unlisted workspaces must never end up in a search index,
+         regardless of who happens to be able to read them. */
+      workspace.visibility !== 'public' && <meta name="robots" content="noindex, nofollow" />
+    }
+  </head>
+  <body>
+    <LpNav workspace={workspace} seasons={seasons} contributors={contributors} />
+    <slot />
+
+    <script>
+      // Notes modals. Delegated so cards rendered later still work.
+      const open = (id: string) => {
+        const modal = document.getElementById(id);
+        if (!modal) return;
+        modal.hidden = false;
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+      };
+
+      const closeAll = () => {
+        document.querySelectorAll<HTMLElement>('.notes-modal:not([hidden])').forEach(m => {
+          m.hidden = true;
+          m.setAttribute('aria-hidden', 'true');
+        });
+        document.body.style.overflow = '';
+      };
+
+      document.addEventListener('click', e => {
+        const trigger = (e.target as HTMLElement).closest<HTMLElement>('[data-modal]');
+        if (trigger) {
+          open(trigger.dataset.modal!);
+          return;
+        }
+        if ((e.target as HTMLElement).closest('[data-close-modal]')) closeAll();
+      });
+
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeAll();
+      });
+    </script>
+  </body>
+</html>

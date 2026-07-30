@@ -1,0 +1,139 @@
+---
+import LpLayout from '../../../../layouts/LpLayout.astro';
+import AlbumCard from '../../../../components/lp/AlbumCard.astro';
+import { resolveWorkspace } from '../../../../lib/workspace';
+import { groupByYear, loadAllSelections, loadContributors, loadSeasons } from '../../../../lib/listening-party';
+
+export const prerender = false;
+
+const { supabase } = Astro.locals;
+const { workspace: wsSlug, contributor: contribSlug } = Astro.params;
+
+const workspace = await resolveWorkspace(supabase, 'listening-party', wsSlug!);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const [seasons, contributors, allSelections] = await Promise.all([
+  loadSeasons(supabase, workspace.id),
+  loadContributors(supabase, workspace.id),
+  loadAllSelections(supabase, workspace.id),
+]);
+
+const contrib = contributors.find(c => c.slug === contribSlug);
+if (!contrib) return new Response('Not found', { status: 404 });
+
+const base = `/lp/${workspace.slug}`;
+const mine = allSelections.filter(s => s.contributor.id === contrib.id);
+const completed = mine.filter(s => s.status === 'completed' && s.album);
+const planned = mine.filter(s => s.status === 'upcoming');
+
+// ── Derived scorecard — no extra data entry, all inferred from the picks ──
+const uniqueArtists = new Set(completed.map(s => s.artist)).size;
+
+const yearSlots = completed.map(s => s.yearSlot).filter(Boolean);
+const minYear = yearSlots.length ? Math.min(...yearSlots) : null;
+const maxYear = yearSlots.length ? Math.max(...yearSlots) : null;
+const yearRange =
+  minYear && maxYear ? (minYear === maxYear ? `${minYear}` : `${minYear} – ${maxYear}`) : '—';
+
+const latestPick = completed.length ? completed.reduce((a, b) => (a.week > b.week ? a : b)) : null;
+
+const decadeCounts = new Map<string, number>();
+for (const s of completed) {
+  if (!s.yearSlot) continue;
+  const label = `${Math.floor(s.yearSlot / 10) * 10}s`;
+  decadeCounts.set(label, (decadeCounts.get(label) ?? 0) + 1);
+}
+const favDecade = [...decadeCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—';
+---
+
+<LpLayout
+  title={`${contrib.name} | ${workspace.name}`}
+  description={`${completed.length} picks by ${contrib.name}`}
+  workspace={workspace}
+  seasons={seasons}
+  contributors={contributors}
+>
+  <div class="contrib-hero">
+    <div class="container">
+      <a href={base} class="contrib-hero__back">
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+          <path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        Back
+      </a>
+
+      <h1 class="contrib-hero__name">
+        <span class="contrib-hero__dot" style={`background:${contrib.color}`}></span>
+        {contrib.name}
+      </h1>
+
+      <div class="contrib-stats">
+        <div class="contrib-stat">
+          <span class="contrib-stat__value" style={`color:${contrib.color}`}>{completed.length}</span>
+          <span class="contrib-stat__label">Completed</span>
+        </div>
+        <div class="contrib-stat">
+          <span class="contrib-stat__value">{planned.length}</span>
+          <span class="contrib-stat__label">Remaining</span>
+        </div>
+        <div class="contrib-stat">
+          <span class="contrib-stat__value">{mine.length}</span>
+          <span class="contrib-stat__label">Total picks</span>
+        </div>
+        <div class="contrib-stat">
+          <span class="contrib-stat__value">{uniqueArtists}</span>
+          <span class="contrib-stat__label">Artists</span>
+        </div>
+      </div>
+
+      {
+        completed.length > 0 && (
+          <div class="contrib-scorecard">
+            <div class="contrib-scorecard__item">
+              <span class="contrib-scorecard__label">Year span</span>
+              <span class="contrib-scorecard__value">{yearRange}</span>
+            </div>
+            <div class="contrib-scorecard__item">
+              <span class="contrib-scorecard__label">Fav decade</span>
+              <span class="contrib-scorecard__value">{favDecade}</span>
+            </div>
+            {latestPick && (
+              <div class="contrib-scorecard__item contrib-scorecard__item--wide">
+                <span class="contrib-scorecard__label">Latest pick</span>
+                <span class="contrib-scorecard__value contrib-scorecard__value--pick">
+                  <span class="contrib-scorecard__pick-dot" style={`background:${contrib.color}`} />
+                  {latestPick.album}
+                  <span class="contrib-scorecard__pick-week">Wk {latestPick.week}</span>
+                </span>
+              </div>
+            )}
+          </div>
+        )
+      }
+    </div>
+  </div>
+
+  <main class="seasons-grid">
+    <div class="container">
+      {
+        completed.length === 0 ? (
+          <p style="color:var(--text-muted); padding:48px 0;">No completed picks yet.</p>
+        ) : (
+          groupByYear(completed).map(([year, picks]) => (
+            <section class="year-section">
+              <h2 class="year-heading">{year}</h2>
+              <div class="year-cards">
+                {picks.map(pick => (
+                  <AlbumCard
+                    pick={pick}
+                    editHref={workspace.canWrite ? `${base}/pick/${pick.id}` : undefined}
+                  />
+                ))}
+              </div>
+            </section>
+          ))
+        )
+      }
+    </div>
+  </main>
+</LpLayout>

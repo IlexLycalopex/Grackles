@@ -1,0 +1,24 @@
+---
+interface Props {
+  completed: number;
+  total: number;
+}
+
+const { completed, total } = Astro.props;
+const pct = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
+---
+
+<div class="progress-section">
+  <div class="container">
+    <div class="progress-header">
+      <span class="progress-label">Season progress</span>
+      <span class="progress-count">
+        <strong class="progress-count__pct">{pct}%</strong>
+        <span class="progress-count__detail">Week {completed} of {total}</span>
+      </span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" style={`width:${pct}%`}></div>
+    </div>
+  </div>
+</div>

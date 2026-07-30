@@ -1,0 +1,35 @@
+---
+import LpLayout from '../../../layouts/LpLayout.astro';
+import SeasonView from '../../../components/lp/SeasonView.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { loadContributors, loadSeason, loadSeasons, nowPlaying } from '../../../lib/listening-party';
+
+export const prerender = false;
+
+const { supabase } = Astro.locals;
+const { workspace: wsSlug, season: seasonSlug } = Astro.params;
+
+const workspace = await resolveWorkspace(supabase, 'listening-party', wsSlug!);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const [seasons, contributors, season] = await Promise.all([
+  loadSeasons(supabase, workspace.id),
+  loadContributors(supabase, workspace.id),
+  loadSeason(supabase, workspace.id, seasonSlug!),
+]);
+
+if (!season) return new Response('Not found', { status: 404 });
+
+const playing = nowPlaying(season.selections);
+---
+
+<LpLayout
+  title={`${season.title} | ${workspace.name}`}
+  description={season.description}
+  ogImage={playing?.artworkUrl || undefined}
+  workspace={workspace}
+  seasons={seasons}
+  contributors={contributors}
+>
+  <SeasonView workspace={workspace} season={season} contributors={contributors} />
+</LpLayout>

@@ -1,0 +1,59 @@
+---
+import LpLayout from '../../../layouts/LpLayout.astro';
+import SeasonView from '../../../components/lp/SeasonView.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import {
+  loadContributors,
+  loadSeason,
+  loadSeasons,
+  nowPlaying,
+  pickCurrentSeason,
+} from '../../../lib/listening-party';
+
+export const prerender = false;
+
+const { supabase } = Astro.locals;
+const slug = Astro.params.workspace!;
+
+const workspace = await resolveWorkspace(supabase, 'listening-party', slug);
+// Missing and forbidden are the same answer on purpose — a private workspace
+// should not confirm its own existence.
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const [seasons, contributors] = await Promise.all([
+  loadSeasons(supabase, workspace.id),
+  loadContributors(supabase, workspace.id),
+]);
+
+const current = pickCurrentSeason(seasons);
+const season = current ? await loadSeason(supabase, workspace.id, current.slug) : null;
+const playing = season ? nowPlaying(season.selections) : null;
+---
+
+<LpLayout
+  title={season ? `${season.title} | ${workspace.name}` : workspace.name}
+  description={season?.description ?? workspace.description}
+  ogImage={playing?.artworkUrl || undefined}
+  workspace={workspace}
+  seasons={seasons}
+  contributors={contributors}
+>
+  {
+    season ? (
+      <SeasonView workspace={workspace} season={season} contributors={contributors} />
+    ) : (
+      <main class="seasons-grid">
+        <div class="container">
+          <section class="year-section">
+            <h2 class="year-heading">No seasons yet</h2>
+            <p class="hero__description">
+              {workspace.canWrite
+                ? 'Add a season to start recording picks.'
+                : 'Nothing has been published here yet.'}
+            </p>
+          </section>
+        </div>
+      </main>
+    )
+  }
+</LpLayout>
