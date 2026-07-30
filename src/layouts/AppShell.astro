@@ -1,0 +1,44 @@
+---
+import Base from './Base.astro';
+import '../styles/app.css';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+const { user } = Astro.locals;
+
+// No point offering "Sign in" to someone already looking at the sign-in form.
+const onLoginPage = Astro.url.pathname === '/login';
+---
+
+<Base title={title} description={description}>
+  <div class="shell">
+    <header class="masthead">
+      <a class="masthead__brand" href="/">Grackles</a>
+      <div class="masthead__right">
+        {
+          user ? (
+            <>
+              <span>{user.email}</span>
+              <a href="/dashboard">Projects</a>
+              <form method="POST" action="/logout">
+                <button
+                  type="submit"
+                  style="background:none;border:none;padding:0;font:inherit;color:inherit;cursor:pointer;"
+                >
+                  Sign out
+                </button>
+              </form>
+            </>
+          ) : (
+            !onLoginPage && <a href="/login">Sign in</a>
+          )
+        }
+      </div>
+    </header>
+    <slot />
+  </div>
+</Base>

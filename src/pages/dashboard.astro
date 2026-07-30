@@ -1,0 +1,95 @@
+---
+import AppShell from '../layouts/AppShell.astro';
+import { appBySlug, workspaceHref } from '../lib/apps';
+
+export const prerender = false;
+
+const { user, supabase } = Astro.locals;
+if (!user) return Astro.redirect('/login?next=/dashboard');
+
+// No `.eq('user_id', …)` anywhere below. The membership rows a user can see
+// are already limited by RLS to their own, so filtering here would be
+// duplicating a rule the database already enforces — and the version that
+// matters is the database's.
+const { data: memberships, error } = await supabase
+  .from('workspace_members')
+  .select('role, workspaces(id, app, slug, name, description, visibility)')
+  .order('created_at', { ascending: true });
+
+// `workspaces` is nullable in the join's type even though the FK is NOT NULL,
+// so narrow it once here rather than asserting at each use below.
+const rows = (memberships ?? []).flatMap(({ role, workspaces }) =>
+  workspaces ? [{ role, ws: workspaces }] : []
+);
+
+// Pending invites addressed to this account. The RLS policy on
+// workspace_invites already scopes these to the caller's email.
+const { data: invites } = await supabase
+  .from('workspace_invites')
+  .select('id, token, role, workspaces(name, app)')
+  .is('accepted_at', null);
+
+const pending = invites ?? [];
+---
+
+<AppShell title="Your projects · Grackles">
+  <h1 class="page-title">Your projects</h1>
+  <p class="page-intro">
+    Everything you own or have been invited to, across all three apps.
+  </p>
+
+  {error && <p class="notice notice--error" role="alert">Could not load your projects: {error.message}</p>}
+
+  {
+    pending.length > 0 && (
+      <>
+        <p class="section-label">Invitations</p>
+        <ul class="ws-grid">
+          {pending.map(invite => (
+            <li>
+              <form method="POST" action={`/invite/${invite.token}`}>
+                <div class="ws-card">
+                  <span class="ws-card__app">
+                    {invite.workspaces ? appBySlug(invite.workspaces.app)?.name : 'Project'}
+                  </span>
+                  <span class="ws-card__name">{invite.workspaces?.name ?? 'A project'}</span>
+                  <span class="ws-card__desc">You have been invited as {invite.role}.</span>
+                  <div class="ws-card__meta">
+                    <button class="button" type="submit">Accept</button>
+                  </div>
+                </div>
+              </form>
+            </li>
+          ))}
+        </ul>
+      </>
+    )
+  }
+
+  <p class="section-label">Projects</p>
+
+  {
+    rows.length === 0 ? (
+      <div class="empty">
+        <p>Nothing here yet.</p>
+        <p>Projects you create or are invited to will appear on this page.</p>
+      </div>
+    ) : (
+      <ul class="ws-grid">
+        {rows.map(({ role, ws }) => (
+          <li>
+            <a class="ws-card" href={workspaceHref(ws.app, ws.slug)}>
+              <span class="ws-card__app">{appBySlug(ws.app)?.name ?? ws.app}</span>
+              <span class="ws-card__name">{ws.name}</span>
+              {ws.description && <span class="ws-card__desc">{ws.description}</span>}
+              <span class="ws-card__meta">
+                <span class={`tag${role === 'viewer' ? ' tag--viewer' : ''}`}>{role}</span>
+                <span class="tag">{ws.visibility}</span>
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+</AppShell>

@@ -1,0 +1,49 @@
+/* Shared foundation for every page in the monorepo.
+   The palette is taken from the original Grackles launcher so the apps read as
+   one site; each app can override --accent and --display for its own identity
+   without touching anything else. */
+
+:root {
+  --paper: #eae7e0;
+  --paper-raised: #f2f0ea;
+  --ink: #1e1d2e;
+  --ink-muted: #8a8578;
+  --rule: #c8c3b6;
+  --accent: #1e1d2e;
+  --danger: #9b3b2f;
+
+  --body: 'Karla', system-ui, sans-serif;
+  --display: 'Cormorant Garamond', Georgia, serif;
+
+  --radius: 2px;
+  --transition: 0.2s ease;
+  --measure: 34rem;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  min-height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-weight: 300;
+}
+
+/* The paper grain that gives the launcher its texture. Fixed and
+   pointer-events:none so it sits over everything without catching clicks. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.032'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+}
+
+a { color: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}

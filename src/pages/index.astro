@@ -1,0 +1,60 @@
+---
+import Base from '../layouts/Base.astro';
+import '../styles/launcher.css';
+import { LAUNCHER_LINKS } from '../lib/apps';
+
+// The launcher is the same composition it has always been. The only change is
+// that the three migrated apps now link to in-app routes, and a signed-in
+// visitor gets a way through to their projects.
+const { user } = Astro.locals;
+---
+
+<Base title="Grackles" bodyClass="launcher">
+  <button class="hamburger" id="menuBtn" aria-label="Menu" aria-expanded="false">
+    <svg width="20" height="14" viewBox="0 0 20 14" fill="none" aria-hidden="true" id="menuIcon">
+      <path d="M0 1h20M0 7h20M0 13h20" stroke="currentColor" stroke-width="1.2"></path>
+    </svg>
+  </button>
+
+  <nav class="nav-overlay" id="navOverlay">
+    {
+      LAUNCHER_LINKS.map(link => (
+        <a href={link.href} target={link.external ? '_blank' : undefined} rel={link.external ? 'noopener' : undefined}>
+          {link.label}
+        </a>
+      ))
+    }
+    <a href={user ? '/dashboard' : '/login'}>{user ? 'Your projects' : 'Sign in'}</a>
+  </nav>
+
+  <div class="centre">
+    <div class="logo-wrap">
+      <img src="/grackles-logo.png" alt="Grackles logo" width="1152" height="1300" />
+    </div>
+    <div class="wordmark">
+      <h1>Grackles</h1>
+      <div class="rule"></div>
+    </div>
+  </div>
+
+  <script>
+    const btn = document.getElementById('menuBtn')!;
+    const icon = document.getElementById('menuIcon')!;
+    const nav = document.getElementById('navOverlay')!;
+
+    const BARS = 'M0 1h20M0 7h20M0 13h20';
+    const CROSS = 'M2 1l16 12M18 1L2 13';
+
+    function setOpen(open: boolean) {
+      nav.classList.toggle('open', open);
+      btn.setAttribute('aria-expanded', String(open));
+      icon.querySelector('path')!.setAttribute('d', open ? CROSS : BARS);
+    }
+
+    btn.addEventListener('click', () => setOpen(!nav.classList.contains('open')));
+    nav.querySelectorAll('a').forEach(a => a.addEventListener('click', () => setOpen(false)));
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') setOpen(false);
+    });
+  </script>
+</Base>

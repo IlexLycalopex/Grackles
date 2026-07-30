@@ -1,0 +1,92 @@
+---
+import AppShell from '../layouts/AppShell.astro';
+
+export const prerender = false;
+
+// Where to land after the link is clicked. Kept relative and validated so the
+// `next` parameter cannot be used to bounce someone off-site.
+function safeNext(raw: string | null): string {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/dashboard';
+  return raw;
+}
+
+const next = safeNext(Astro.url.searchParams.get('next'));
+
+// Already signed in? Nothing to do here.
+if (Astro.locals.user) return Astro.redirect(next);
+
+let sent = false;
+let error: string | null = null;
+let email = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  email = String(form.get('email') ?? '').trim();
+
+  if (!email) {
+    error = 'Enter the email address you want the link sent to.';
+  } else {
+    const redirectTo = new URL('/auth/callback', Astro.url.origin);
+    redirectTo.searchParams.set('next', next);
+
+    const { error: authError } = await Astro.locals.supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: redirectTo.href,
+        // Only people who have been invited, or who already exist, should get
+        // a link. Leaving this true would let anyone create an account.
+        shouldCreateUser: false,
+      },
+    });
+
+    // Deliberately not distinguishing "no such account" from success — that
+    // difference would turn this form into a way to test whether an address
+    // is registered.
+    if (authError && authError.status !== 400) {
+      error = 'Something went wrong sending that link. Try again in a moment.';
+    } else {
+      sent = true;
+    }
+  }
+}
+---
+
+<AppShell title="Sign in · Grackles">
+  <h1 class="page-title">Sign in</h1>
+
+  {
+    sent ? (
+      <>
+        <p class="page-intro">
+          If <strong>{email}</strong> has an account, a sign-in link is on its way. It is good for
+          one use and expires in an hour.
+        </p>
+        <p class="page-intro">You can close this tab — the link opens a new session.</p>
+      </>
+    ) : (
+      <>
+        <p class="page-intro">
+          No password. Enter your email and we will send a link that signs you straight in.
+        </p>
+
+        {error && <p class="notice notice--error" role="alert">{error}</p>}
+
+        <form method="POST" style="margin-top:2rem;max-width:24rem;">
+          <label class="field">
+            <span class="field__label">Email</span>
+            <input
+              class="field__input"
+              type="email"
+              name="email"
+              value={email}
+              required
+              autocomplete="email"
+              autofocus
+            />
+          </label>
+          <button class="button" type="submit">Send me a link</button>
+        </form>
+      </>
+    )
+  }
+</AppShell>

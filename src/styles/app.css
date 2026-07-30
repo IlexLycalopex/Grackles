@@ -1,0 +1,205 @@
+/* Chrome for the signed-in pages (login, dashboard, and later each app's
+   own routes). Deliberately quiet: the launcher is the character piece, and
+   these screens should feel like the same paper without competing with it. */
+
+.shell {
+  position: relative;
+  z-index: 2;
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 5rem;
+}
+
+.shell--narrow { max-width: var(--measure); }
+
+/* ── Masthead ─────────────────────────────────────────── */
+.masthead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 2.5rem;
+}
+
+.masthead__brand {
+  font-family: var(--display);
+  font-size: 1.6rem;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.masthead__right {
+  display: flex;
+  align-items: baseline;
+  gap: 1.25rem;
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+}
+
+.masthead__right a { transition: color var(--transition); }
+.masthead__right a:hover { color: var(--ink); }
+
+/* ── Headings ─────────────────────────────────────────── */
+.page-title {
+  font-family: var(--display);
+  font-size: clamp(2rem, 5vw, 2.9rem);
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+}
+
+.page-intro {
+  margin-top: 0.75rem;
+  color: var(--ink-muted);
+  font-size: 0.95rem;
+  max-width: var(--measure);
+}
+
+.section-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin: 2.75rem 0 1rem;
+}
+
+/* ── Workspace cards ──────────────────────────────────── */
+.ws-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 1rem;
+  list-style: none;
+}
+
+.ws-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  height: 100%;
+  padding: 1.25rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: border-color var(--transition), transform var(--transition);
+}
+
+.ws-card:hover {
+  border-color: var(--ink);
+  transform: translateY(-2px);
+}
+
+.ws-card__app {
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.ws-card__name {
+  font-family: var(--display);
+  font-size: 1.35rem;
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.ws-card__desc {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+
+.ws-card__meta {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+}
+
+/* Role and visibility read as quiet metadata, not badges shouting for
+   attention — but `viewer` matters, so it is the one that gets weight. */
+.tag {
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.66rem;
+}
+
+.tag--viewer { border-color: var(--ink); color: var(--ink); }
+
+/* ── Forms ────────────────────────────────────────────── */
+.field { display: block; margin-bottom: 1.25rem; }
+
+.field__label {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin-bottom: 0.5rem;
+}
+
+.field__input {
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  transition: border-color var(--transition);
+}
+
+.field__input:focus { border-color: var(--ink); }
+
+.button {
+  display: inline-block;
+  padding: 0.7rem 1.5rem;
+  font: inherit;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  color: var(--paper);
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.button:hover { opacity: 0.85; }
+
+/* ── Notices ──────────────────────────────────────────── */
+.notice {
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--rule);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin-bottom: 1.75rem;
+}
+
+.notice--ok    { border-left-color: var(--ink); }
+.notice--error { border-left-color: var(--danger); color: var(--danger); }
+
+.empty {
+  padding: 2.5rem 1.5rem;
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius);
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
