@@ -1,0 +1,104 @@
+---
+import { fieldValue } from '../../lib/forms';
+import type { Contributor, Season, Selection } from '../../lib/listening-party';
+
+/**
+ * The fields of a week's pick.
+ *
+ * Rendered by both `pick/new` and `pick/[selection]`, so the form you use to
+ * make a record is the form you use to fix it. `pick` being null is what makes
+ * it the create form — there is no second copy of this markup to keep in step.
+ */
+interface Props {
+  pick: Selection | null;
+  seasons: Season[];
+  contributors: Contributor[];
+  /** Pre-selected values for a new pick, taken from the page it was started from. */
+  defaults?: { seasonId?: string; week?: number; yearSlot?: number };
+  /** The rejected submission, when there was one. */
+  submitted?: FormData | null;
+}
+
+const { pick, seasons, contributors, defaults = {}, submitted = null } = Astro.props;
+
+const v = (key: string, stored?: string | number | null, fallback: string | number = '') =>
+  fieldValue(submitted, key, stored, fallback);
+
+const seasonId = v('season_id', pick?.seasonId, defaults.seasonId ?? '');
+const contributorId = v('contributor_id', pick?.contributor.id);
+const status = v('status', pick?.status, 'upcoming');
+---
+
+<div class="pick-form__row">
+  <label class="pick-form__field">
+    <span class="pick-form__label">Season</span>
+    <select class="pick-form__input" name="season_id" required>
+      {seasons.map(s => <option value={s.id} selected={s.id === seasonId}>{s.title}</option>)}
+    </select>
+  </label>
+
+  <label class="pick-form__field">
+    <span class="pick-form__label">Whose pick</span>
+    <select class="pick-form__input" name="contributor_id" required>
+      <option value="" selected={!contributorId}>Choose someone</option>
+      {contributors.map(c => <option value={c.id} selected={c.id === contributorId}>{c.name}</option>)}
+    </select>
+  </label>
+</div>
+
+<div class="pick-form__row">
+  <label class="pick-form__field">
+    <span class="pick-form__label">Week</span>
+    <input class="pick-form__input" type="number" name="week" min="1" value={v('week', pick?.week, defaults.week ?? '')} required />
+    <span class="pick-form__hint">One person cannot hold the same week twice.</span>
+  </label>
+
+  <label class="pick-form__field">
+    <span class="pick-form__label">Year</span>
+    <input class="pick-form__input" type="number" name="year_slot" value={v('year_slot', pick?.yearSlot, defaults.yearSlot ?? '')} required />
+    <span class="pick-form__hint">The year the album stands for, not the year it is played.</span>
+  </label>
+</div>
+
+<label class="pick-form__field">
+  <span class="pick-form__label">Album</span>
+  <input class="pick-form__input" type="text" name="album" value={v('album', pick?.album)} />
+</label>
+
+<label class="pick-form__field">
+  <span class="pick-form__label">Artist</span>
+  <input class="pick-form__input" type="text" name="artist" value={v('artist', pick?.artist)} />
+</label>
+
+<label class="pick-form__field">
+  <span class="pick-form__label">Status</span>
+  <select class="pick-form__input" name="status">
+    <option value="upcoming" selected={status !== 'completed'}>Upcoming</option>
+    <option value="completed" selected={status === 'completed'}>Completed</option>
+  </select>
+  <span class="pick-form__hint">
+    Completed picks appear on the season page; upcoming ones stay hidden behind a padlock.
+  </span>
+</label>
+
+<label class="pick-form__field">
+  <span class="pick-form__label">Notes</span>
+  <textarea class="pick-form__input" name="notes" rows="3">{v('notes', pick?.notes)}</textarea>
+  <span class="pick-form__hint">Shown behind the notes icon — e.g. what else was in the running.</span>
+</label>
+
+<fieldset class="pick-form__group">
+  <legend class="pick-form__label">Links</legend>
+  <span class="pick-form__hint">
+    Leave blank and the buttons fall back to a search for the album, so they always work.
+  </span>
+  <input class="pick-form__input" type="url" name="link_wikipedia" value={v('link_wikipedia', pick?.links.wikipedia)} placeholder="Wikipedia URL" />
+  <input class="pick-form__input" type="url" name="link_spotify" value={v('link_spotify', pick?.links.spotify)} placeholder="Spotify URL" />
+  <input class="pick-form__input" type="url" name="link_youtube" value={v('link_youtube', pick?.links.youtube)} placeholder="YouTube Music URL" />
+</fieldset>
+
+<label class="pick-form__field">
+  <span class="pick-form__label">Artwork URL</span>
+  <input class="pick-form__input" type="url" name="artwork_url" value={v('artwork_url', pick?.artworkUrl)} placeholder="Left blank, this is filled in automatically" />
+  <span class="pick-form__hint">Clear this to have the artwork looked up again.</span>
+</label>

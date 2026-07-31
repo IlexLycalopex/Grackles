@@ -1,0 +1,155 @@
+---
+import ClLayout from '../../../../layouts/ClLayout.astro';
+import { FormValues, fieldValue } from '../../../../lib/forms';
+import { requireWrite } from '../../../../lib/workspace';
+import { loadCigar, loadCigars } from '../../../../lib/cigar-lounge';
+import { describeWriteError } from '../../../../lib/records/save';
+import { slugify, uniqueSlug } from '../../../../lib/slug';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const { workspace: wsSlug, cigar: cigarSlugParam } = Astro.params;
+
+const gate = await requireWrite(
+  supabase,
+  'cigar-lounge',
+  wsSlug!,
+  user?.id ?? null,
+  Astro.url.pathname + Astro.url.search
+);
+if (!gate.ok) return gate.response;
+const workspace = gate.workspace;
+
+const base = `/cigars/${workspace.slug}`;
+const today = new Date().toISOString().slice(0, 10);
+
+const cigar = await loadCigar(supabase, workspace.id, cigarSlugParam!);
+if (!cigar) return new Response('Not found', { status: 404 });
+
+// Already smoked: there is nothing to take out of the humidor, and the edit
+// form is what they actually want.
+if (cigar.data.status !== 'humidor') return Astro.redirect(`${base}/edit/${cigar.id}`);
+
+const d = cigar.data;
+const remaining = d.quantity - 1;
+
+let error: string | null = null;
+let submitted: FormData | null = null;
+
+if (Astro.request.method === 'POST') {
+  submitted = await Astro.request.formData();
+  const f = new FormValues(submitted);
+
+  const dateSmoked = f.date('date_smoked');
+
+  if (!dateSmoked) {
+    error = 'When did you smoke it?';
+  } else if (d.dateAcquired && dateSmoked < d.dateAcquired.toISOString().slice(0, 10)) {
+    error = 'It cannot have been smoked before it was acquired.';
+  } else {
+    // Only needed when one is being split off a stack; harmless otherwise,
+    // since the function keeps the existing slug when it converts in place.
+    const existing = await loadCigars(supabase, workspace.id);
+    const slug = uniqueSlug(
+      slugify([dateSmoked, d.brand, d.name].filter(Boolean).join(' ')),
+      existing.map(c => c.id)
+    );
+
+    // One call, so the deduction and the log entry cannot come apart.
+    const { error: rpcError } = await supabase.rpc('smoke_from_humidor', {
+      p_cigar_id: cigar.rowId,
+      p_slug: slug,
+      p_date_smoked: dateSmoked,
+      p_smoked_at: f.str('smoked_at'),
+      p_pairing: f.str('pairing'),
+      p_note: f.str('note'),
+      p_rating: f.dec('rating'),
+      p_tasting_notes: f.str('tasting_notes'),
+    });
+
+    if (rpcError) {
+      error = describeWriteError(rpcError, 'smoke_from_humidor');
+    } else {
+      return Astro.redirect(base);
+    }
+  }
+}
+
+const v = (key: string, fallback: string | number = '') =>
+  fieldValue(submitted, key, undefined, fallback);
+---
+
+<ClLayout title={`Smoke ${d.name} · ${workspace.name}`} workspace={workspace}>
+  <div class="container">
+    <div class="page-header">
+      <p class="eyebrow">{d.brand}</p>
+      <h1>Smoke {d.name}</h1>
+      <p class="subtitle">
+        {
+          remaining > 0
+            ? `One of ${d.quantity}. ${remaining} will stay in the humidor.`
+            : 'The last one — this entry moves into the log.'
+        }
+      </p>
+    </div>
+
+    {error && <p class="form-error" role="alert">{error}</p>}
+
+    <form method="POST" class="cigar-form">
+      <div class="cigar-form__row">
+        <label class="cigar-form__field">
+          <span class="cigar-form__label">Date smoked</span>
+          <input class="cigar-form__input" type="date" name="date_smoked" value={v('date_smoked', today)} required />
+        </label>
+        <label class="cigar-form__field">
+          <span class="cigar-form__label">Where</span>
+          <input class="cigar-form__input" type="text" name="smoked_at" value={v('smoked_at')} />
+        </label>
+      </div>
+
+      <div class="cigar-form__row">
+        <label class="cigar-form__field">
+          <span class="cigar-form__label">Rating</span>
+          <select class="cigar-form__input" name="rating">
+            <option value="" selected={v('rating') === ''}>Unrated</option>
+            {
+              [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map(r => (
+                <option value={r} selected={v('rating') !== '' && Number(v('rating')) === r}>
+                  {r.toFixed(1)}
+                </option>
+              ))
+            }
+          </select>
+        </label>
+        <label class="cigar-form__field">
+          <span class="cigar-form__label">Pairing</span>
+          <input class="cigar-form__input" type="text" name="pairing" value={v('pairing')} />
+        </label>
+      </div>
+
+      <label class="cigar-form__field">
+        <span class="cigar-form__label">Note</span>
+        <input class="cigar-form__input" type="text" name="note" value={v('note')} />
+        <span class="cigar-form__hint">A one-line aside — who you smoked it with, the occasion.</span>
+      </label>
+
+      <label class="cigar-form__field">
+        <span class="cigar-form__label">Tasting notes</span>
+        <textarea class="cigar-form__input" name="tasting_notes" rows="5">{v('tasting_notes')}</textarea>
+      </label>
+
+      <p class="cigar-form__hint">
+        The rest carries over from the humidor entry: {[d.vitola, d.wrapper, d.country,
+        d.strength ? `${d.strength} strength` : null, d.pricePaid]
+          .filter(Boolean)
+          .join(' · ') || 'nothing else recorded'}.
+      </p>
+
+      <div class="cigar-form__actions">
+        <button class="cigar-form__submit" type="submit">Log it</button>
+        <a class="cigar-form__cancel" href={`${base}/humidor`}>Cancel</a>
+      </div>
+    </form>
+  </div>
+</ClLayout>

@@ -50,6 +50,19 @@ const avg = ratings.length ? mean(ratings) : null;
     </div>
 
     {
+      workspace.canWrite && (
+        <div class="record-actions">
+          <a class="record-actions__btn record-actions__btn--primary" href={`${base}/new?status=smoked`}>
+            + Log a smoke
+          </a>
+          <a class="record-actions__btn" href={`${base}/new?status=humidor`}>
+            Add to humidor
+          </a>
+        </div>
+      )
+    }
+
+    {
       smoked.length === 0 ? (
         <p class="empty-state">
           Nothing smoked yet.

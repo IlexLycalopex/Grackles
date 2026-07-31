@@ -1,0 +1,141 @@
+---
+import LpLayout from '../../../../layouts/LpLayout.astro';
+import SeasonFields from '../../../../components/lp/SeasonFields.astro';
+import { requireWrite } from '../../../../lib/workspace';
+import { loadContributors, loadSeasons } from '../../../../lib/listening-party';
+import { readSeason } from '../../../../lib/records/season';
+import { describeWriteError } from '../../../../lib/records/save';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const { workspace: wsSlug, season: seasonSlug } = Astro.params;
+
+const gate = await requireWrite(
+  supabase,
+  'listening-party',
+  wsSlug!,
+  user?.id ?? null,
+  Astro.url.pathname + Astro.url.search
+);
+if (!gate.ok) return gate.response;
+const workspace = gate.workspace;
+
+const base = `/lp/${workspace.slug}`;
+
+let [seasons, contributors] = await Promise.all([
+  loadSeasons(supabase, workspace.id),
+  loadContributors(supabase, workspace.id),
+]);
+
+let season = seasons.find(s => s.slug === seasonSlug);
+if (!season) return new Response('Not found', { status: 404 });
+
+async function loadRoster(seasonId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('lp_season_contributors')
+    .select('contributor_id')
+    .eq('season_id', seasonId)
+    .order('sort_order');
+  return (data ?? []).map(r => r.contributor_id);
+}
+
+let roster = await loadRoster(season.id);
+
+// Set when creating the season saved it but the roster write did not.
+let error: string | null =
+  Astro.url.searchParams.get('roster') === 'failed'
+    ? 'The season was created, but nobody was added to it. Choose who is playing and save.'
+    : null;
+let submitted: FormData | null = null;
+
+if (Astro.request.method === 'POST') {
+  submitted = await Astro.request.formData();
+  const parsed = readSeason(submitted);
+
+  if (!parsed.ok) {
+    error = parsed.error;
+  } else {
+    const { roster: wanted, ...values } = parsed.values;
+
+    const { error: writeError } = await supabase
+      .from('lp_seasons')
+      .update(values)
+      .eq('id', season.id);
+
+    if (writeError) {
+      error = describeWriteError(writeError, 'lp_seasons update');
+    } else {
+      // Reconcile the roster rather than replacing it wholesale: deleting every
+      // row and re-inserting would work, but a delete that succeeds followed by
+      // an insert that fails empties the season.
+      const added = wanted.filter(id => !roster.includes(id));
+      const removed = roster.filter(id => !wanted.includes(id));
+
+      if (added.length > 0) {
+        await supabase.from('lp_season_contributors').insert(
+          added.map(contributor_id => ({ season_id: season!.id, contributor_id }))
+        );
+      }
+      if (removed.length > 0) {
+        // Any pick they already have keeps them in the season regardless — the
+        // foreign key from lp_selections is what actually holds it together, so
+        // this only changes who is offered next time.
+        await supabase
+          .from('lp_season_contributors')
+          .delete()
+          .eq('season_id', season.id)
+          .in('contributor_id', removed);
+      }
+
+      return Astro.redirect(`${base}/${parsed.values.slug}`);
+    }
+
+    // Re-read so the page reflects what is stored after a failed write.
+    seasons = await loadSeasons(supabase, workspace.id);
+    season = seasons.find(s => s.id === season!.id) ?? season;
+    roster = await loadRoster(season.id);
+  }
+}
+---
+
+<LpLayout
+  title={`${season.title} settings | ${workspace.name}`}
+  workspace={workspace}
+  seasons={seasons}
+  contributors={contributors}
+>
+  <div class="page-hero">
+    <div class="container">
+      <a href={`${base}/${season.slug}`} class="artist-detail__back">
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+          <path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        Back to {season.slug}
+      </a>
+      <h1 class="page-hero__title">{season.title}</h1>
+      <p class="page-hero__sub">Season settings and who is playing.</p>
+    </div>
+  </div>
+
+  <main>
+    <div class="container">
+      {error && <p class="form-error" role="alert">{error}</p>}
+
+      <form method="POST" class="pick-form">
+        <SeasonFields
+          season={season}
+          contributors={contributors}
+          roster={roster}
+          nextSortOrder={season.sortOrder}
+          submitted={submitted}
+        />
+
+        <div class="pick-form__actions">
+          <button class="pick-form__submit" type="submit">Save season</button>
+          <a class="pick-form__cancel" href={`${base}/${season.slug}`}>Cancel</a>
+        </div>
+      </form>
+    </div>
+  </main>
+</LpLayout>

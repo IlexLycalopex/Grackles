@@ -1,0 +1,124 @@
+---
+import LpLayout from '../../../../layouts/LpLayout.astro';
+import SelectionFields from '../../../../components/lp/SelectionFields.astro';
+import { requireWrite } from '../../../../lib/workspace';
+import { loadContributors, loadSeason, loadSeasons } from '../../../../lib/listening-party';
+import { readSelection } from '../../../../lib/records/selection';
+import { describeWriteError } from '../../../../lib/records/save';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const gate = await requireWrite(
+  supabase,
+  'listening-party',
+  wsSlug,
+  user?.id ?? null,
+  Astro.url.pathname + Astro.url.search
+);
+if (!gate.ok) return gate.response;
+const workspace = gate.workspace;
+
+const base = `/lp/${workspace.slug}`;
+
+const [seasons, contributors] = await Promise.all([
+  loadSeasons(supabase, workspace.id),
+  loadContributors(supabase, workspace.id),
+]);
+
+// Nothing to add a pick to yet. Sending them to make a season is more use than
+// an empty dropdown.
+if (seasons.length === 0) return Astro.redirect(`${base}/season/new`);
+
+// Which season the button was pressed on, falling back to the last one.
+const requested = Astro.url.searchParams.get('season');
+const season = seasons.find(s => s.slug === requested) ?? seasons[seasons.length - 1]!;
+
+// The picks already in that season, for two purposes: sensible defaults for the
+// next week and year, and the roster — only people playing this season should
+// be offered, which is what makes 2028 Chris, Nick and Jamie while 2026 is not.
+const seasonDetail = await loadSeason(supabase, workspace.id, season.slug);
+const picks = seasonDetail?.selections ?? [];
+
+const playing = await (async () => {
+  const { data } = await supabase
+    .from('lp_season_contributors')
+    .select('contributor_id')
+    .eq('season_id', season.id);
+  const ids = new Set((data ?? []).map(r => r.contributor_id));
+  const roster = contributors.filter(c => ids.has(c.id));
+  // A season with no roster recorded falls back to everyone rather than
+  // offering an empty list you cannot get past.
+  return roster.length > 0 ? roster : contributors;
+})();
+
+const nextWeek = picks.length > 0 ? Math.max(...picks.map(p => p.week)) + 1 : 1;
+const nextYear = picks.length > 0 ? Math.max(...picks.map(p => p.yearSlot)) + 1 : new Date().getFullYear();
+
+let error: string | null = null;
+let submitted: FormData | null = null;
+
+if (Astro.request.method === 'POST') {
+  submitted = await Astro.request.formData();
+  const parsed = readSelection(submitted);
+
+  if (!parsed.ok) {
+    error = parsed.error;
+  } else {
+    const { error: writeError } = await supabase
+      .from('lp_selections')
+      .insert({ workspace_id: workspace.id, ...parsed.values });
+
+    if (writeError) {
+      error = describeWriteError(writeError, 'lp_selections insert');
+    } else {
+      return Astro.redirect(
+        `${base}/${seasons.find(s => s.id === parsed.values.season_id)?.slug ?? season.slug}`
+      );
+    }
+  }
+}
+---
+
+<LpLayout
+  title={`Add a pick | ${workspace.name}`}
+  workspace={workspace}
+  seasons={seasons}
+  contributors={contributors}
+>
+  <div class="page-hero">
+    <div class="container">
+      <a href={`${base}/${season.slug}`} class="artist-detail__back">
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+          <path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        Back to {season.slug}
+      </a>
+      <h1 class="page-hero__title">Add a pick</h1>
+      <p class="page-hero__sub">A week for someone to bring an album to.</p>
+    </div>
+  </div>
+
+  <main>
+    <div class="container">
+      {error && <p class="form-error" role="alert">{error}</p>}
+
+      <form method="POST" class="pick-form">
+        <SelectionFields
+          pick={null}
+          seasons={seasons}
+          contributors={playing}
+          defaults={{ seasonId: season.id, week: nextWeek, yearSlot: nextYear }}
+          submitted={submitted}
+        />
+
+        <div class="pick-form__actions">
+          <button class="pick-form__submit" type="submit">Add pick</button>
+          <a class="pick-form__cancel" href={`${base}/${season.slug}`}>Cancel</a>
+        </div>
+      </form>
+    </div>
+  </main>
+</LpLayout>

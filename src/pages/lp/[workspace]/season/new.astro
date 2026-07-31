@@ -1,0 +1,126 @@
+---
+import LpLayout from '../../../../layouts/LpLayout.astro';
+import SeasonFields from '../../../../components/lp/SeasonFields.astro';
+import { requireWrite } from '../../../../lib/workspace';
+import { loadContributors, loadSeasons } from '../../../../lib/listening-party';
+import { readSeason } from '../../../../lib/records/season';
+import { describeWriteError } from '../../../../lib/records/save';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const gate = await requireWrite(
+  supabase,
+  'listening-party',
+  wsSlug,
+  user?.id ?? null,
+  Astro.url.pathname + Astro.url.search
+);
+if (!gate.ok) return gate.response;
+const workspace = gate.workspace;
+
+const base = `/lp/${workspace.slug}`;
+
+const [seasons, contributors] = await Promise.all([
+  loadSeasons(supabase, workspace.id),
+  loadContributors(supabase, workspace.id),
+]);
+
+const nextSortOrder = seasons.length > 0 ? Math.max(...seasons.map(s => s.sortOrder)) + 1 : 0;
+
+let error: string | null = null;
+let submitted: FormData | null = null;
+
+if (Astro.request.method === 'POST') {
+  submitted = await Astro.request.formData();
+  const parsed = readSeason(submitted);
+
+  if (!parsed.ok) {
+    error = parsed.error;
+  } else {
+    const { roster, ...season } = parsed.values;
+
+    const { data: created, error: writeError } = await supabase
+      .from('lp_seasons')
+      .insert({ workspace_id: workspace.id, ...season })
+      .select('id, slug')
+      .single();
+
+    if (writeError || !created) {
+      error = writeError
+        ? describeWriteError(writeError, 'lp_seasons insert')
+        : 'The season could not be created.';
+    } else {
+      // The roster is a second table, so this is a second write. If it fails
+      // the season still exists with nobody in it — which the edit form fixes,
+      // so say what happened rather than pretending the whole thing failed and
+      // inviting a duplicate.
+      const { error: rosterError } = await supabase.from('lp_season_contributors').insert(
+        roster.map((contributor_id, i) => ({
+          season_id: created.id,
+          contributor_id,
+          sort_order: i,
+        }))
+      );
+
+      if (rosterError) {
+        console.error('lp_season_contributors insert failed', rosterError);
+        return Astro.redirect(`${base}/season/${created.slug}?roster=failed`);
+      }
+      return Astro.redirect(`${base}/${created.slug}`);
+    }
+  }
+}
+---
+
+<LpLayout
+  title={`New season | ${workspace.name}`}
+  workspace={workspace}
+  seasons={seasons}
+  contributors={contributors}
+>
+  <div class="page-hero">
+    <div class="container">
+      <a href={base} class="artist-detail__back">
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+          <path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        Back
+      </a>
+      <h1 class="page-hero__title">New season</h1>
+      <p class="page-hero__sub">It starts empty — add the weeks as they are claimed.</p>
+    </div>
+  </div>
+
+  <main>
+    <div class="container">
+      {error && <p class="form-error" role="alert">{error}</p>}
+
+      {
+        contributors.length === 0 ? (
+          <p class="form-error">
+            There is nobody on the roster yet. <a href={`${base}/contributor/new`}>Add someone</a>{' '}
+            before making a season.
+          </p>
+        ) : (
+          <form method="POST" class="pick-form">
+            <SeasonFields
+              season={null}
+              contributors={contributors}
+              roster={contributors.map(c => c.id)}
+              nextSortOrder={nextSortOrder}
+              submitted={submitted}
+            />
+
+            <div class="pick-form__actions">
+              <button class="pick-form__submit" type="submit">Create season</button>
+              <a class="pick-form__cancel" href={base}>Cancel</a>
+            </div>
+          </form>
+        )
+      }
+    </div>
+  </main>
+</LpLayout>

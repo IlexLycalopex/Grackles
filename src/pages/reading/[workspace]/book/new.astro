@@ -1,0 +1,103 @@
+---
+import RlLayout from '../../../../layouts/RlLayout.astro';
+import BookFields from '../../../../components/rl/BookFields.astro';
+import { requireWrite } from '../../../../lib/workspace';
+import { loadYears } from '../../../../lib/reading-list';
+import { readBook } from '../../../../lib/records/book';
+import { describeWriteError } from '../../../../lib/records/save';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const gate = await requireWrite(
+  supabase,
+  'reading-list',
+  wsSlug,
+  user?.id ?? null,
+  Astro.url.pathname + Astro.url.search
+);
+if (!gate.ok) return gate.response;
+const workspace = gate.workspace;
+
+const base = `/reading/${workspace.slug}`;
+const years = await loadYears(supabase, workspace.id);
+
+// No years yet, so there is nothing to file a book under.
+if (years.length === 0) return Astro.redirect(`${base}/year/new`);
+
+// The year the button was pressed on, else the most recent.
+const requested = Number(Astro.url.searchParams.get('year'));
+const year = years.find(y => y.year === requested) ?? years[0]!;
+
+/**
+ * The next free position in a year.
+ *
+ * Read at render time and again on failure, because it is a guess: two people
+ * adding a book at once both see the same number and the second one loses to
+ * the unique index. That is the right outcome — the alternative is a sequence
+ * that leaves gaps whenever a save is abandoned — and the error explains it.
+ */
+async function nextPosition(yearId: string): Promise<number> {
+  const { data } = await supabase
+    .from('rl_books')
+    .select('order_read')
+    .eq('year_id', yearId)
+    .order('order_read', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data?.order_read ?? 0) + 1;
+}
+
+let error: string | null = null;
+let submitted: FormData | null = null;
+
+if (Astro.request.method === 'POST') {
+  submitted = await Astro.request.formData();
+  const parsed = readBook(submitted);
+
+  if (!parsed.ok) {
+    error = parsed.error;
+  } else {
+    const { error: writeError } = await supabase
+      .from('rl_books')
+      .insert({ workspace_id: workspace.id, ...parsed.values });
+
+    if (writeError) {
+      error = describeWriteError(writeError, 'rl_books insert');
+    } else {
+      return Astro.redirect(
+        `${base}/${years.find(y => y.id === parsed.values.year_id)?.year ?? year.year}`
+      );
+    }
+  }
+}
+
+const orderRead = await nextPosition(year.id);
+---
+
+<RlLayout title={`Add a book · ${workspace.name}`} workspace={workspace} years={years}>
+  <div class="container">
+    <div class="page-header">
+      <h1>Add a book</h1>
+      <p class="subtitle">Book {orderRead} of {year.year}</p>
+    </div>
+
+    {error && <p class="form-error" role="alert">{error}</p>}
+
+    <form method="POST" class="book-form">
+      <BookFields
+        book={null}
+        years={years}
+        defaults={{ yearId: year.id, orderRead }}
+        submitted={submitted}
+      />
+
+      <div class="book-form__actions">
+        <button class="book-form__submit" type="submit">Add book</button>
+        <a class="book-form__cancel" href={`${base}/${year.year}`}>Cancel</a>
+      </div>
+    </form>
+  </div>
+</RlLayout>

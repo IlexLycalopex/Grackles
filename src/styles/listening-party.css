@@ -1047,3 +1047,84 @@ textarea.pick-form__input {
 }
 
 .pick-form__cancel:hover { color: var(--text); }
+
+/* ── Creating records ─────────────────────────────────────────────
+   The action bar and the fields the create forms added. Same element
+   names as the reading list and cigar lounge use for the same jobs —
+   the three stylesheets stay separate so each app keeps its own look,
+   but the structure underneath them is deliberately identical. */
+
+.record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 28px 0 4px;
+}
+
+.record-actions__btn {
+  padding: 9px 18px;
+  font-family: var(--display);
+  font-size: 14px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: color var(--transition), border-color var(--transition);
+}
+
+.record-actions__btn:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+.record-actions__btn--primary {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.record-actions__btn--primary:hover {
+  color: var(--bg);
+  opacity: 0.88;
+}
+
+.pick-form__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.pick-form__row .pick-form__field { flex: 1 1 12rem; }
+
+.pick-form__checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 4px;
+}
+
+.pick-form__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.pick-form__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* A colour well should look like the swatch it is, not like a text box. */
+input[type='color'].pick-form__input {
+  padding: 4px;
+  height: 42px;
+  cursor: pointer;
+}

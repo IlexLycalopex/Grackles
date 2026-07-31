@@ -1,0 +1,53 @@
+---
+import { fieldValue } from '../../lib/forms';
+import type { YearData } from '../../lib/reading-list';
+
+interface Props {
+  year: YearData | null;
+  defaultYear: number;
+  submitted?: FormData | null;
+}
+
+const { year, defaultYear, submitted = null } = Astro.props;
+
+const v = (key: string, stored?: string | number | null, fallback: string | number = '') =>
+  fieldValue(submitted, key, stored, fallback);
+
+const status = v('status', year?.status, 'active');
+---
+
+<label class="book-form__field">
+  <span class="book-form__label">Year</span>
+  <input
+    class="book-form__input"
+    type="number"
+    name="year"
+    value={v('year', year?.year, defaultYear)}
+    readonly={year !== null}
+    required
+  />
+  {
+    year !== null && (
+      <span class="book-form__hint">
+        The year is the address of the page and every book in it points here, so it cannot be
+        changed. Move the books instead.
+      </span>
+    )
+  }
+</label>
+
+<div class="book-form__row">
+  <label class="book-form__field">
+    <span class="book-form__label">Status</span>
+    <select class="book-form__input" name="status">
+      <option value="active" selected={status === 'active'}>In progress</option>
+      <option value="complete" selected={status === 'complete'}>Complete</option>
+    </select>
+  </label>
+
+  <label class="book-form__field">
+    <span class="book-form__label">Target</span>
+    <input class="book-form__input" type="number" name="total_books" min="0" value={v('total_books', year?.total_books)} />
+    <span class="book-form__hint">How many books you are aiming for. Leave blank if you are not counting.</span>
+  </label>
+</div>

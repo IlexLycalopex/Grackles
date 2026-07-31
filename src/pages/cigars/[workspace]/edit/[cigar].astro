@@ -1,89 +1,52 @@
 ---
 import ClLayout from '../../../../layouts/ClLayout.astro';
-import { resolveWorkspace } from '../../../../lib/workspace';
+import CigarFields from '../../../../components/cl/CigarFields.astro';
+import { requireWrite } from '../../../../lib/workspace';
 import { loadCigar } from '../../../../lib/cigar-lounge';
-import { parsePrice } from '../../../../lib/cigar-helpers';
+import { readCigar } from '../../../../lib/records/cigar';
+import { describeWriteError } from '../../../../lib/records/save';
 
 export const prerender = false;
 
 const { supabase, user } = Astro.locals;
 const { workspace: wsSlug, cigar: cigarSlug } = Astro.params;
 
-const workspace = await resolveWorkspace(supabase, 'cigar-lounge', wsSlug!, user?.id ?? null);
-if (!workspace) return new Response('Not found', { status: 404 });
-
-if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
-if (!workspace.canWrite) return new Response('Forbidden', { status: 403 });
+const gate = await requireWrite(
+  supabase,
+  'cigar-lounge',
+  wsSlug!,
+  user?.id ?? null,
+  Astro.url.pathname + Astro.url.search
+);
+if (!gate.ok) return gate.response;
+const workspace = gate.workspace;
 
 let cigar = await loadCigar(supabase, workspace.id, cigarSlug!);
 if (!cigar) return new Response('Not found', { status: 404 });
 
 const base = `/cigars/${workspace.slug}`;
 let error: string | null = null;
-
-const STRENGTHS = ['mild', 'medium', 'full'] as const;
-const iso = (d?: Date) => (d ? d.toISOString().slice(0, 10) : '');
+let submitted: FormData | null = null;
 
 if (Astro.request.method === 'POST') {
-  const form = await Astro.request.formData();
-  const str = (k: string) => String(form.get(k) ?? '').trim();
-  const dateOrNull = (k: string) => str(k) || null;
+  submitted = await Astro.request.formData();
+  const parsed = readCigar(submitted);
 
-  const status = str('status') === 'humidor' ? 'humidor' : 'smoked';
-  const dateSmoked = dateOrNull('date_smoked');
-  const dateAcquired = dateOrNull('date_acquired');
-  const quantity = Math.max(1, Number(str('quantity') || '1') || 1);
-  const name = str('name');
-
-  // These four mirror the CHECK constraints on cl_cigars. Catching them here
-  // turns a constraint violation into a sentence; the constraints still decide.
-  if (!name) {
-    error = 'A cigar needs a name.';
-  } else if (status === 'smoked' && !dateSmoked) {
-    error = 'A smoked cigar needs the date it was smoked — or set it back to the humidor.';
-  } else if (status === 'humidor' && dateSmoked) {
-    error = 'This has a smoked date, so its status should be smoked.';
-  } else if (status === 'smoked' && quantity > 1) {
-    error = 'A smoked entry records one cigar. Keep the rest as a humidor entry.';
-  } else if (dateAcquired && dateSmoked && dateAcquired > dateSmoked) {
-    error = 'It cannot have been smoked before it was acquired.';
+  if (!parsed.ok) {
+    error = parsed.error;
   } else {
-    const price = parsePrice(str('price_text'));
-    const ratingRaw = str('rating');
-    const rating = ratingRaw === '' ? null : Number(ratingRaw);
-
+    // The slug is not in the payload: it is the URL of this page and of the
+    // entry, and it was minted from the date and name when the record was
+    // created. Renaming a cigar should not move a page somebody has open.
     const { error: writeError } = await supabase
       .from('cl_cigars')
-      .update({
-        status,
-        quantity,
-        name,
-        brand: str('brand'),
-        vitola: str('vitola'),
-        wrapper: str('wrapper'),
-        length_text: str('length_text'),
-        ring_gauge: str('ring_gauge') ? Number(str('ring_gauge')) : null,
-        country: str('country'),
-        strength: STRENGTHS.includes(str('strength') as any) ? str('strength') : null,
-        bought_at: str('bought_at'),
-        smoked_at: str('smoked_at'),
-        date_acquired: dateAcquired,
-        date_smoked: dateSmoked,
-        // Kept as written, with the parsed figure alongside so stats can sum.
-        price_text: price?.display ?? '',
-        price_gbp: price?.value ?? null,
-        price_approximate: price?.approximate ?? false,
-        rating,
-        pairing: str('pairing'),
-        note: str('note'),
-        tasting_notes: str('tasting_notes'),
-      })
+      .update(parsed.values)
       .eq('id', cigar.rowId);
 
     if (writeError) {
-      error = writeError.message;
+      error = describeWriteError(writeError, 'cl_cigars update');
     } else {
-      return Astro.redirect(status === 'humidor' ? `${base}/humidor` : base);
+      return Astro.redirect(parsed.values.status === 'humidor' ? `${base}/humidor` : base);
     }
   }
 
@@ -103,130 +66,7 @@ const d = cigar.data;
     {error && <p class="form-error" role="alert">{error}</p>}
 
     <form method="POST" class="cigar-form">
-      <div class="cigar-form__row">
-        <label class="cigar-form__field">
-          <span class="cigar-form__label">Name</span>
-          <input class="cigar-form__input" type="text" name="name" value={d.name} required />
-        </label>
-        <label class="cigar-form__field">
-          <span class="cigar-form__label">Brand</span>
-          <input class="cigar-form__input" type="text" name="brand" value={d.brand} />
-        </label>
-      </div>
-
-      <div class="cigar-form__row">
-        <label class="cigar-form__field">
-          <span class="cigar-form__label">Status</span>
-          <select class="cigar-form__input" name="status">
-            <option value="humidor" selected={d.status === 'humidor'}>In humidor</option>
-            <option value="smoked" selected={d.status === 'smoked'}>Smoked</option>
-          </select>
-        </label>
-        <label class="cigar-form__field">
-          <span class="cigar-form__label">Quantity</span>
-          <input class="cigar-form__input" type="number" name="quantity" min="1" value={d.quantity} />
-          <span class="cigar-form__hint">A smoked entry is always one.</span>
-        </label>
-      </div>
-
-      <div class="cigar-form__row">
-        <label class="cigar-form__field">
-          <span class="cigar-form__label">Vitola</span>
-          <input class="cigar-form__input" type="text" name="vitola" value={d.vitola} />
-        </label>
-        <label class="cigar-form__field">
-          <span class="cigar-form__label">Wrapper</span>
-          <input class="cigar-form__input" type="text" name="wrapper" value={d.wrapper ?? ''} />
-        </label>
-        <label class="cigar-form__field">
-          <span class="cigar-form__label">Country</span>
-          <input class="cigar-form__input" type="text" name="country" value={d.country ?? ''} />
-        </label>
-      </div>
-
-      <div class="cigar-form__row">
-        <label class="cigar-form__field">
-          <span class="cigar-form__label">Length</span>
-          <input class="cigar-form__input" type="text" name="length_text" value={d.length ?? ''} placeholder='4 7/8"' />
-          <span class="cigar-form__hint">As written on the box.</span>
-        </label>
-        <label class="cigar-form__field">
-          <span class="cigar-form__label">Ring gauge</span>
-          <input class="cigar-form__input" type="number" name="ring_gauge" min="1" value={d.ringGauge ?? ''} />
-        </label>
-        <label class="cigar-form__field">
-          <span class="cigar-form__label">Strength</span>
-          <select class="cigar-form__input" name="strength">
-            <option value="" selected={!d.strength}>—</option>
-            {
-              STRENGTHS.map(s => (
-                <option value={s} selected={d.strength === s}>
-                  {s}
-                </option>
-              ))
-            }
-          </select>
-        </label>
-      </div>
-
-      <div class="cigar-form__row">
-        <label class="cigar-form__field">
-          <span class="cigar-form__label">Acquired</span>
-          <input class="cigar-form__input" type="date" name="date_acquired" value={iso(d.dateAcquired)} />
-        </label>
-        <label class="cigar-form__field">
-          <span class="cigar-form__label">Smoked</span>
-          <input class="cigar-form__input" type="date" name="date_smoked" value={iso(d.dateSmoked)} />
-        </label>
-      </div>
-
-      <div class="cigar-form__row">
-        <label class="cigar-form__field">
-          <span class="cigar-form__label">Bought at</span>
-          <input class="cigar-form__input" type="text" name="bought_at" value={d.boughtAt ?? ''} />
-        </label>
-        <label class="cigar-form__field">
-          <span class="cigar-form__label">Smoked at</span>
-          <input class="cigar-form__input" type="text" name="smoked_at" value={d.smokedAt ?? ''} />
-        </label>
-      </div>
-
-      <div class="cigar-form__row">
-        <label class="cigar-form__field">
-          <span class="cigar-form__label">Price paid</span>
-          <input class="cigar-form__input" type="text" name="price_text" value={d.pricePaid ?? ''} placeholder="£32.50, ~£25, >£40" />
-          <span class="cigar-form__hint">Kept exactly as typed; a figure is read out of it for the stats.</span>
-        </label>
-        <label class="cigar-form__field">
-          <span class="cigar-form__label">Rating</span>
-          <select class="cigar-form__input" name="rating">
-            <option value="" selected={d.rating === undefined}>Unrated</option>
-            {
-              [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map(r => (
-                <option value={r} selected={d.rating === r}>
-                  {r.toFixed(1)}
-                </option>
-              ))
-            }
-          </select>
-        </label>
-      </div>
-
-      <label class="cigar-form__field">
-        <span class="cigar-form__label">Pairing</span>
-        <input class="cigar-form__input" type="text" name="pairing" value={d.pairing ?? ''} />
-      </label>
-
-      <label class="cigar-form__field">
-        <span class="cigar-form__label">Note</span>
-        <input class="cigar-form__input" type="text" name="note" value={d.note ?? ''} />
-        <span class="cigar-form__hint">A one-line aside — who you smoked it with, the occasion.</span>
-      </label>
-
-      <label class="cigar-form__field">
-        <span class="cigar-form__label">Tasting notes</span>
-        <textarea class="cigar-form__input" name="tasting_notes" rows="5">{cigar.body}</textarea>
-      </label>
+      <CigarFields cigar={cigar} submitted={submitted} />
 
       <div class="cigar-form__actions">
         <button class="cigar-form__submit" type="submit">Save</button>

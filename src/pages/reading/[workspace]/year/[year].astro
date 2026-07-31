@@ -1,0 +1,84 @@
+---
+import RlLayout from '../../../../layouts/RlLayout.astro';
+import YearFields from '../../../../components/rl/YearFields.astro';
+import { requireWrite } from '../../../../lib/workspace';
+import { loadYear, loadYears } from '../../../../lib/reading-list';
+import { readYear } from '../../../../lib/records/year';
+import { describeWriteError } from '../../../../lib/records/save';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const { workspace: wsSlug, year: yearParam } = Astro.params;
+
+const gate = await requireWrite(
+  supabase,
+  'reading-list',
+  wsSlug!,
+  user?.id ?? null,
+  Astro.url.pathname + Astro.url.search
+);
+if (!gate.ok) return gate.response;
+const workspace = gate.workspace;
+
+const base = `/reading/${workspace.slug}`;
+
+const yearNumber = Number(yearParam);
+if (!Number.isInteger(yearNumber)) return new Response('Not found', { status: 404 });
+
+const years = await loadYears(supabase, workspace.id);
+let year = await loadYear(supabase, workspace.id, yearNumber);
+if (!year) return new Response('Not found', { status: 404 });
+
+let error: string | null = null;
+let submitted: FormData | null = null;
+
+if (Astro.request.method === 'POST') {
+  submitted = await Astro.request.formData();
+  const parsed = readYear(submitted);
+
+  if (!parsed.ok) {
+    error = parsed.error;
+  } else {
+    // `year` is deliberately dropped. The field is readonly on the form, but a
+    // readonly input is a hint to a browser and nothing more — leaving the
+    // column out of the update is what actually keeps the year fixed.
+    const { status, total_books } = parsed.values;
+
+    const { error: writeError } = await supabase
+      .from('rl_years')
+      .update({ status, total_books })
+      .eq('id', year.id);
+
+    if (writeError) {
+      error = describeWriteError(writeError, 'rl_years update');
+    } else {
+      return Astro.redirect(`${base}/${year.year}`);
+    }
+
+    year = (await loadYear(supabase, workspace.id, yearNumber)) ?? year;
+  }
+}
+---
+
+<RlLayout title={`${year.year} settings · ${workspace.name}`} workspace={workspace} years={years}>
+  <div class="container">
+    <div class="page-header">
+      <h1>{year.year}</h1>
+      <p class="subtitle">
+        {year.books.length} book{year.books.length !== 1 ? 's' : ''} recorded
+      </p>
+    </div>
+
+    {error && <p class="form-error" role="alert">{error}</p>}
+
+    <form method="POST" class="book-form">
+      <YearFields year={year} defaultYear={year.year} submitted={submitted} />
+
+      <div class="book-form__actions">
+        <button class="book-form__submit" type="submit">Save</button>
+        <a class="book-form__cancel" href={`${base}/${year.year}`}>Cancel</a>
+      </div>
+    </form>
+  </div>
+</RlLayout>

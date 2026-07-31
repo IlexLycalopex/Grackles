@@ -1,0 +1,91 @@
+---
+import { fieldInGroup, fieldValue } from '../../lib/forms';
+import type { Contributor, Season } from '../../lib/listening-party';
+
+/**
+ * The fields of a season. `season` null means a new one.
+ *
+ * A new season is created empty rather than pre-filled with a row per week.
+ * The 2026 and 2027 seasons were seeded that way by the importer because the
+ * YAML already said who had which week; there is no obvious rule for splitting
+ * 52 weeks between three people, and inventing one here would put 52 rows in
+ * the database that somebody then has to correct.
+ */
+interface Props {
+  season: Season | null;
+  contributors: Contributor[];
+  /** Contributor ids already playing this season. */
+  roster: string[];
+  nextSortOrder: number;
+  submitted?: FormData | null;
+}
+
+const { season, contributors, roster, nextSortOrder, submitted = null } = Astro.props;
+
+const v = (key: string, stored?: string | number | null, fallback: string | number = '') =>
+  fieldValue(submitted, key, stored, fallback);
+
+const status = v('status', season?.status, 'upcoming');
+---
+
+<div class="pick-form__row">
+  <label class="pick-form__field">
+    <span class="pick-form__label">Name</span>
+    <input class="pick-form__input" type="text" name="slug" value={v('slug', season?.slug)} placeholder="2028" required />
+    <span class="pick-form__hint">This becomes the address: /lp/…/2028.</span>
+  </label>
+
+  <label class="pick-form__field">
+    <span class="pick-form__label">Weeks</span>
+    <input class="pick-form__input" type="number" name="total_weeks" min="1" value={v('total_weeks', season?.totalWeeks, 52)} required />
+  </label>
+</div>
+
+<label class="pick-form__field">
+  <span class="pick-form__label">Title</span>
+  <input class="pick-form__input" type="text" name="title" value={v('title', season?.title)} placeholder="Listening Party 2028" required />
+</label>
+
+<label class="pick-form__field">
+  <span class="pick-form__label">Description</span>
+  <textarea class="pick-form__input" name="description" rows="2">{v('description', season?.description)}</textarea>
+</label>
+
+<div class="pick-form__row">
+  <label class="pick-form__field">
+    <span class="pick-form__label">Status</span>
+    <select class="pick-form__input" name="status">
+      <option value="upcoming" selected={status === 'upcoming'}>Upcoming</option>
+      <option value="active" selected={status === 'active'}>Active</option>
+      <option value="complete" selected={status === 'complete'}>Complete</option>
+    </select>
+    <span class="pick-form__hint">The app opens on the last active season.</span>
+  </label>
+
+  <label class="pick-form__field">
+    <span class="pick-form__label">Order</span>
+    <input class="pick-form__input" type="number" name="sort_order" value={v('sort_order', season?.sortOrder, nextSortOrder)} />
+    <span class="pick-form__hint">Where it sits in the season list, lowest first.</span>
+  </label>
+</div>
+
+<fieldset class="pick-form__group">
+  <legend class="pick-form__label">Playing this season</legend>
+  <span class="pick-form__hint">Only these people can be given a week in it.</span>
+  <div class="pick-form__checks">
+    {
+      contributors.map(c => (
+        <label class="pick-form__check">
+          <input
+            type="checkbox"
+            name="roster"
+            value={c.id}
+            checked={fieldInGroup(submitted, 'roster', c.id, roster)}
+          />
+          <span class="pick-form__dot" style={`background:${c.color}`} />
+          <span>{c.name}</span>
+        </label>
+      ))
+    }
+  </div>
+</fieldset>

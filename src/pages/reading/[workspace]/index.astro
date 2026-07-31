@@ -62,6 +62,19 @@ for (const b of allBooks) {
     </div>
 
     {
+      workspace.canWrite && (
+        <div class="record-actions">
+          <a class="record-actions__btn record-actions__btn--primary" href={`${base}/book/new`}>
+            + Add a book
+          </a>
+          <a class="record-actions__btn" href={`${base}/year/new`}>
+            Add a year
+          </a>
+        </div>
+      )
+    }
+
+    {
       nowReading.length > 0 && (
         <section aria-label="Now reading">
           <h2 class="section-label">Now reading</h2>

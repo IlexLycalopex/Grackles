@@ -1,22 +1,25 @@
 ---
 import LpLayout from '../../../../layouts/LpLayout.astro';
-import { resolveWorkspace } from '../../../../lib/workspace';
+import SelectionFields from '../../../../components/lp/SelectionFields.astro';
+import { requireWrite } from '../../../../lib/workspace';
 import { loadContributors, loadSeasons, loadSelection } from '../../../../lib/listening-party';
+import { readSelection } from '../../../../lib/records/selection';
+import { describeWriteError } from '../../../../lib/records/save';
 
 export const prerender = false;
 
 const { supabase, user } = Astro.locals;
 const { workspace: wsSlug, selection: selectionId } = Astro.params;
 
-const workspace = await resolveWorkspace(supabase, 'listening-party', wsSlug!, user?.id ?? null);
-if (!workspace) return new Response('Not found', { status: 404 });
-
-if (!user) {
-  return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
-}
-// A viewer following a stale link should be told, not shown a form that will
-// fail on submit. The database would reject the write regardless.
-if (!workspace.canWrite) return new Response('Forbidden', { status: 403 });
+const gate = await requireWrite(
+  supabase,
+  'listening-party',
+  wsSlug!,
+  user?.id ?? null,
+  Astro.url.pathname + Astro.url.search
+);
+if (!gate.ok) return gate.response;
+const workspace = gate.workspace;
 
 const [seasons, contributors] = await Promise.all([
   loadSeasons(supabase, workspace.id),
@@ -28,45 +31,32 @@ if (!pick) return new Response('Not found', { status: 404 });
 
 const base = `/lp/${workspace.slug}`;
 let error: string | null = null;
+let submitted: FormData | null = null;
 
 if (Astro.request.method === 'POST') {
-  const form = await Astro.request.formData();
-  const str = (k: string) => String(form.get(k) ?? '').trim();
+  submitted = await Astro.request.formData();
+  const parsed = readSelection(submitted);
 
-  const album = str('album');
-  const artist = str('artist');
-  const status = str('status') === 'completed' ? 'completed' : 'upcoming';
-
-  // Mirrors the CHECK constraint on lp_selections. Catching it here means a
-  // readable message instead of a raw constraint violation; the constraint is
-  // still what actually guarantees it.
-  if (status === 'completed' && (!album || !artist)) {
-    error = 'A completed week needs both an album and an artist.';
+  if (!parsed.ok) {
+    error = parsed.error;
   } else {
     const { error: writeError } = await supabase
       .from('lp_selections')
-      .update({
-        album,
-        artist,
-        status,
-        notes: str('notes'),
-        link_wikipedia: str('link_wikipedia'),
-        link_spotify: str('link_spotify'),
-        link_youtube: str('link_youtube'),
-        // Clearing the artwork URL is how you ask for it to be re-fetched,
-        // exactly as it was in the YAML.
-        artwork_url: str('artwork_url'),
-      })
+      .update(parsed.values)
       .eq('id', pick.id);
 
     if (writeError) {
-      error = writeError.message;
+      error = describeWriteError(writeError, 'lp_selections update');
     } else {
-      return Astro.redirect(`${base}/${pick.seasonSlug}#now-playing`);
+      // The season is editable now, so a pick can be moved between them.
+      return Astro.redirect(
+        `${base}/${seasons.find(s => s.id === parsed.values.season_id)?.slug ?? pick.seasonSlug}#now-playing`
+      );
     }
   }
 
-  // Re-read so the form shows what is actually stored after a failed write.
+  // Re-read so the page around the form describes what is actually stored. The
+  // form itself keeps showing the rejected submission — see `submitted`.
   pick = (await loadSelection(supabase, pick.id)) ?? pick;
 }
 ---
@@ -98,48 +88,12 @@ if (Astro.request.method === 'POST') {
       {error && <p class="form-error" role="alert">{error}</p>}
 
       <form method="POST" class="pick-form">
-        <label class="pick-form__field">
-          <span class="pick-form__label">Album</span>
-          <input class="pick-form__input" type="text" name="album" value={pick.album} autofocus />
-        </label>
-
-        <label class="pick-form__field">
-          <span class="pick-form__label">Artist</span>
-          <input class="pick-form__input" type="text" name="artist" value={pick.artist} />
-        </label>
-
-        <label class="pick-form__field">
-          <span class="pick-form__label">Status</span>
-          <select class="pick-form__input" name="status">
-            <option value="upcoming" selected={pick.status === 'upcoming'}>Upcoming</option>
-            <option value="completed" selected={pick.status === 'completed'}>Completed</option>
-          </select>
-          <span class="pick-form__hint">
-            Completed picks appear on the season page; upcoming ones stay hidden behind a padlock.
-          </span>
-        </label>
-
-        <label class="pick-form__field">
-          <span class="pick-form__label">Notes</span>
-          <textarea class="pick-form__input" name="notes" rows="3">{pick.notes}</textarea>
-          <span class="pick-form__hint">Shown behind the notes icon — e.g. what else was in the running.</span>
-        </label>
-
-        <fieldset class="pick-form__group">
-          <legend class="pick-form__label">Links</legend>
-          <span class="pick-form__hint">
-            Leave blank and the buttons fall back to a search for the album, so they always work.
-          </span>
-          <input class="pick-form__input" type="url" name="link_wikipedia" value={pick.links.wikipedia} placeholder="Wikipedia URL" />
-          <input class="pick-form__input" type="url" name="link_spotify" value={pick.links.spotify} placeholder="Spotify URL" />
-          <input class="pick-form__input" type="url" name="link_youtube" value={pick.links.youtube} placeholder="YouTube Music URL" />
-        </fieldset>
-
-        <label class="pick-form__field">
-          <span class="pick-form__label">Artwork URL</span>
-          <input class="pick-form__input" type="url" name="artwork_url" value={pick.artworkUrl} placeholder="Left blank, this is filled in automatically" />
-          <span class="pick-form__hint">Clear this to have the artwork looked up again.</span>
-        </label>
+        <SelectionFields
+          pick={pick}
+          seasons={seasons}
+          contributors={contributors}
+          submitted={submitted}
+        />
 
         <div class="pick-form__actions">
           <button class="pick-form__submit" type="submit">Save week {pick.week}</button>

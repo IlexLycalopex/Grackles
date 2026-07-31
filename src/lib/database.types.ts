@@ -457,6 +457,20 @@ export type Database = {
     Views: { [_ in never]: never };
     Functions: {
       accept_invite: { Args: { invite_token: string }; Returns: string };
+      smoke_from_humidor: {
+        Args: {
+          p_cigar_id: string;
+          p_slug: string;
+          p_date_smoked: string;
+          p_smoked_at?: string;
+          p_pairing?: string;
+          p_note?: string;
+          p_rating?: number | null;
+          p_tasting_notes?: string;
+        };
+        /** The id of the smoked entry — the row itself, or the one split off it. */
+        Returns: string;
+      };
     };
     Enums: {
       app_slug: 'listening-party' | 'reading-list' | 'cigar-lounge';

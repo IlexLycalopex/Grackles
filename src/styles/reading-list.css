@@ -810,3 +810,56 @@ textarea.book-form__input { resize: vertical; line-height: 1.55; }
 }
 
 .book-form__cancel:hover { color: var(--text); }
+
+/* ── Creating records ─────────────────────────────────────────────
+   Same element names as the listening party and cigar lounge, dressed
+   in this app's palette. See the note in listening-party.css. */
+
+.record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.record-actions__btn {
+  padding: 9px 18px;
+  font-family: var(--display);
+  font-size: 14px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: color var(--transition), border-color var(--transition);
+}
+
+.record-actions__btn:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+.record-actions__btn--primary {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.record-actions__btn--primary:hover {
+  color: var(--bg);
+  opacity: 0.88;
+}
+
+.book-form__hint {
+  font-size: 12.5px;
+  color: var(--text-faint, var(--text-muted));
+  line-height: 1.5;
+}
+
+/* A readonly field is still a field, but it should not invite typing. */
+.book-form__input[readonly] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

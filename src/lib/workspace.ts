@@ -65,30 +65,51 @@ export async function resolveWorkspace(
   };
 }
 
+export type WriteGate =
+  | { ok: true; workspace: ResolvedWorkspace }
+  | { ok: false; response: Response };
+
 /**
- * The same lookup, but for a route that is about to write. Throws a Response
- * so a page or endpoint can `throw` it directly.
+ * The same lookup, for a route that exists in order to write.
  *
- * This is a courtesy, not a security boundary — the write would be rejected by
- * RLS regardless. It exists so an editor sees a sensible page instead of a
- * database error.
+ * Every create and edit page opens with the same three checks in the same
+ * order, and the order is the point: a workspace that may not be seen 404s
+ * before anything else happens, so a private project never reveals itself by
+ * redirecting an anonymous visitor to the login page.
+ *
+ * This is a courtesy, not a security boundary — RLS rejects the write whether
+ * or not the page checked. It exists so an editor gets a sensible page instead
+ * of a database error, and so a viewer following a stale link is told rather
+ * than shown a form that cannot save.
+ *
+ * It returns the failure rather than throwing it: Astro renders a `return`ed
+ * Response from a page, and a thrown one is an unhandled error.
  */
-export async function requireWritableWorkspace(
+export async function requireWrite(
   supabase: SupabaseClient<Database>,
   app: AppSlug,
   slug: string,
-  userId: string | null
-): Promise<ResolvedWorkspace> {
-  const ws = await resolveWorkspace(supabase, app, slug, userId);
-  if (!ws) throw new Response('Not found', { status: 404 });
+  userId: string | null,
+  /** Where to come back to after signing in — the current path and query. */
+  returnTo: string
+): Promise<WriteGate> {
+  const workspace = await resolveWorkspace(supabase, app, slug, userId);
 
-  if (!userId) {
-    throw new Response(null, {
-      status: 302,
-      headers: { Location: `/login?next=/${app}/${slug}` },
-    });
+  if (!workspace) {
+    return { ok: false, response: new Response('Not found', { status: 404 }) };
   }
-  if (!ws.canWrite) throw new Response('Forbidden', { status: 403 });
+  if (!userId) {
+    return {
+      ok: false,
+      response: new Response(null, {
+        status: 302,
+        headers: { Location: `/login?next=${encodeURIComponent(returnTo)}` },
+      }),
+    };
+  }
+  if (!workspace.canWrite) {
+    return { ok: false, response: new Response('Forbidden', { status: 403 }) };
+  }
 
-  return ws;
+  return { ok: true, workspace };
 }

@@ -1,0 +1,158 @@
+---
+import { fieldValue } from '../../lib/forms';
+import type { Cigar } from '../../lib/cigar-lounge';
+import { STRENGTHS } from '../../lib/records/cigar';
+
+/**
+ * The fields of a cigar. `cigar` null means a new entry.
+ *
+ * One table holds both the humidor and the log, so this is one form with a
+ * status on it rather than two. The status decides which date is required, and
+ * the database enforces the same pairing — a smoked entry must carry a date
+ * smoked and must be a single cigar.
+ */
+interface Props {
+  cigar: Cigar | null;
+  /** For a new entry: which half of the app it was started from. */
+  defaults?: { status?: 'humidor' | 'smoked'; dateSmoked?: string };
+  submitted?: FormData | null;
+}
+
+const { cigar, defaults = {}, submitted = null } = Astro.props;
+
+const d = cigar?.data;
+const iso = (date?: Date) => (date ? date.toISOString().slice(0, 10) : undefined);
+
+const v = (key: string, stored?: string | number | null, fallback: string | number = '') =>
+  fieldValue(submitted, key, stored, fallback);
+
+const status = v('status', d?.status, defaults.status ?? 'smoked');
+const rating = v('rating', d?.rating);
+const strength = v('strength', d?.strength);
+---
+
+<div class="cigar-form__row">
+  <label class="cigar-form__field">
+    <span class="cigar-form__label">Name</span>
+    <input class="cigar-form__input" type="text" name="name" value={v('name', d?.name)} required />
+  </label>
+  <label class="cigar-form__field">
+    <span class="cigar-form__label">Brand</span>
+    <input class="cigar-form__input" type="text" name="brand" value={v('brand', d?.brand)} />
+  </label>
+</div>
+
+<div class="cigar-form__row">
+  <label class="cigar-form__field">
+    <span class="cigar-form__label">Status</span>
+    <select class="cigar-form__input" name="status">
+      <option value="humidor" selected={status === 'humidor'}>In humidor</option>
+      <option value="smoked" selected={status === 'smoked'}>Smoked</option>
+    </select>
+  </label>
+  <label class="cigar-form__field">
+    <span class="cigar-form__label">Quantity</span>
+    <input class="cigar-form__input" type="number" name="quantity" min="1" value={v('quantity', d?.quantity, 1)} />
+    <span class="cigar-form__hint">A smoked entry is always one.</span>
+  </label>
+</div>
+
+<div class="cigar-form__row">
+  <label class="cigar-form__field">
+    <span class="cigar-form__label">Vitola</span>
+    <input class="cigar-form__input" type="text" name="vitola" value={v('vitola', d?.vitola)} />
+  </label>
+  <label class="cigar-form__field">
+    <span class="cigar-form__label">Wrapper</span>
+    <input class="cigar-form__input" type="text" name="wrapper" value={v('wrapper', d?.wrapper)} />
+  </label>
+  <label class="cigar-form__field">
+    <span class="cigar-form__label">Country</span>
+    <input class="cigar-form__input" type="text" name="country" value={v('country', d?.country)} />
+  </label>
+</div>
+
+<div class="cigar-form__row">
+  <label class="cigar-form__field">
+    <span class="cigar-form__label">Length</span>
+    <input class="cigar-form__input" type="text" name="length_text" value={v('length_text', d?.length)} placeholder='4 7/8"' />
+    <span class="cigar-form__hint">As written on the box.</span>
+  </label>
+  <label class="cigar-form__field">
+    <span class="cigar-form__label">Ring gauge</span>
+    <input class="cigar-form__input" type="number" name="ring_gauge" min="1" value={v('ring_gauge', d?.ringGauge)} />
+  </label>
+  <label class="cigar-form__field">
+    <span class="cigar-form__label">Strength</span>
+    <select class="cigar-form__input" name="strength">
+      <option value="" selected={!strength}>—</option>
+      {
+        STRENGTHS.map(s => (
+          <option value={s} selected={strength === s}>
+            {s}
+          </option>
+        ))
+      }
+    </select>
+  </label>
+</div>
+
+<div class="cigar-form__row">
+  <label class="cigar-form__field">
+    <span class="cigar-form__label">Acquired</span>
+    <input class="cigar-form__input" type="date" name="date_acquired" value={v('date_acquired', iso(d?.dateAcquired))} />
+  </label>
+  <label class="cigar-form__field">
+    <span class="cigar-form__label">Smoked</span>
+    <input class="cigar-form__input" type="date" name="date_smoked" value={v('date_smoked', iso(d?.dateSmoked), defaults.dateSmoked ?? '')} />
+    <span class="cigar-form__hint">Required once the status is smoked; leave blank in the humidor.</span>
+  </label>
+</div>
+
+<div class="cigar-form__row">
+  <label class="cigar-form__field">
+    <span class="cigar-form__label">Bought at</span>
+    <input class="cigar-form__input" type="text" name="bought_at" value={v('bought_at', d?.boughtAt)} />
+  </label>
+  <label class="cigar-form__field">
+    <span class="cigar-form__label">Smoked at</span>
+    <input class="cigar-form__input" type="text" name="smoked_at" value={v('smoked_at', d?.smokedAt)} />
+  </label>
+</div>
+
+<div class="cigar-form__row">
+  <label class="cigar-form__field">
+    <span class="cigar-form__label">Price paid</span>
+    <input class="cigar-form__input" type="text" name="price_text" value={v('price_text', d?.pricePaid)} placeholder="£32.50, ~£25, >£40" />
+    <span class="cigar-form__hint">Kept exactly as typed; a figure is read out of it for the stats.</span>
+  </label>
+  <label class="cigar-form__field">
+    <span class="cigar-form__label">Rating</span>
+    <select class="cigar-form__input" name="rating">
+      <option value="" selected={rating === ''}>Unrated</option>
+      {
+        [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map(r => (
+          <option value={r} selected={rating !== '' && Number(rating) === r}>
+            {r.toFixed(1)}
+          </option>
+        ))
+      }
+    </select>
+  </label>
+</div>
+
+<label class="cigar-form__field">
+  <span class="cigar-form__label">Pairing</span>
+  <input class="cigar-form__input" type="text" name="pairing" value={v('pairing', d?.pairing)} />
+</label>
+
+<label class="cigar-form__field">
+  <span class="cigar-form__label">Note</span>
+  <input class="cigar-form__input" type="text" name="note" value={v('note', d?.note)} />
+  <span class="cigar-form__hint">A one-line aside — who you smoked it with, the occasion.</span>
+</label>
+
+<label class="cigar-form__field">
+  <span class="cigar-form__label">Tasting notes</span>
+  <textarea class="cigar-form__input" name="tasting_notes" rows="5">{v('tasting_notes', cigar?.body)}</textarea>
+</label>

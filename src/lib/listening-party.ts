@@ -32,6 +32,8 @@ export interface Selection {
   contributor: Contributor;
   /** Season slug, e.g. '2026'. The artists page spans seasons and needs it. */
   seasonSlug: string;
+  /** Season primary key, so the edit form can offer to move a pick. */
+  seasonId: string;
 }
 
 export interface Season {
@@ -54,7 +56,7 @@ const SELECTION_COLUMNS = `
   id, week, year_slot, album, artist, status, artwork_url,
   link_wikipedia, link_spotify, link_youtube, notes,
   lp_contributors ( ${CONTRIBUTOR_COLUMNS} ),
-  lp_seasons ( slug )
+  lp_seasons ( id, slug )
 `;
 
 type RawContributor = {
@@ -101,6 +103,7 @@ function toSelection(row: any): Selection {
     notes: row.notes ?? '',
     contributor: row.lp_contributors ? toContributor(row.lp_contributors) : UNKNOWN_CONTRIBUTOR,
     seasonSlug: row.lp_seasons?.slug ?? '',
+    seasonId: row.lp_seasons?.id ?? '',
   };
 }
 

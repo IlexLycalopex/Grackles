@@ -29,6 +29,19 @@ const humidor = humidorFrom(await loadCigars(supabase, workspace.id));
     </div>
 
     {
+      workspace.canWrite && (
+        <div class="record-actions">
+          <a class="record-actions__btn record-actions__btn--primary" href={`${base}/new?status=humidor`}>
+            + Add to humidor
+          </a>
+          <a class="record-actions__btn" href={`${base}/new?status=smoked`}>
+            Log a smoke
+          </a>
+        </div>
+      )
+    }
+
+    {
       humidor.length === 0 ? (
         <p class="empty-state">The humidor is empty.</p>
       ) : (
@@ -38,6 +51,7 @@ const humidor = humidorFrom(await loadCigars(supabase, workspace.id));
               cigar={cigar}
               base={base}
               editHref={workspace.canWrite ? `${base}/edit/${cigar.id}` : undefined}
+              smokeHref={workspace.canWrite ? `${base}/smoke/${cigar.id}` : undefined}
             />
           ))}
         </div>

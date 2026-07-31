@@ -1,0 +1,100 @@
+---
+import ClLayout from '../../../layouts/ClLayout.astro';
+import CigarFields from '../../../components/cl/CigarFields.astro';
+import { requireWrite } from '../../../lib/workspace';
+import { loadCigars } from '../../../lib/cigar-lounge';
+import { cigarSlug, readCigar } from '../../../lib/records/cigar';
+import { describeWriteError } from '../../../lib/records/save';
+import { uniqueSlug } from '../../../lib/slug';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const gate = await requireWrite(
+  supabase,
+  'cigar-lounge',
+  wsSlug,
+  user?.id ?? null,
+  Astro.url.pathname + Astro.url.search
+);
+if (!gate.ok) return gate.response;
+const workspace = gate.workspace;
+
+const base = `/cigars/${workspace.slug}`;
+const today = new Date().toISOString().slice(0, 10);
+
+// Which half of the app the button was pressed on. The humidor adds something
+// resting; the log records something smoked. It is one form either way, because
+// it is one table — the status just starts in the right place.
+const wanted = Astro.url.searchParams.get('status');
+const startStatus = wanted === 'humidor' ? 'humidor' : 'smoked';
+
+let error: string | null = null;
+let submitted: FormData | null = null;
+
+if (Astro.request.method === 'POST') {
+  submitted = await Astro.request.formData();
+  const parsed = readCigar(submitted);
+
+  if (!parsed.ok) {
+    error = parsed.error;
+  } else {
+    // Slugs follow the convention the markdown filenames set — dated, so the
+    // same cigar smoked twice does not collide. Read the taken ones now rather
+    // than at page load, so a slug minted here reflects anything added since.
+    const existing = await loadCigars(supabase, workspace.id);
+    const slug = uniqueSlug(
+      cigarSlug(parsed.values, today),
+      existing.map(c => c.id)
+    );
+
+    const { error: writeError } = await supabase
+      .from('cl_cigars')
+      .insert({ workspace_id: workspace.id, slug, ...parsed.values });
+
+    if (writeError) {
+      error = describeWriteError(writeError, 'cl_cigars insert');
+    } else {
+      return Astro.redirect(parsed.values.status === 'humidor' ? `${base}/humidor` : base);
+    }
+  }
+}
+---
+
+<ClLayout title={`Add a cigar · ${workspace.name}`} workspace={workspace}>
+  <div class="container">
+    <div class="page-header">
+      <p class="eyebrow">{startStatus === 'humidor' ? 'To the humidor' : 'To the log'}</p>
+      <h1>Add a cigar</h1>
+      <p class="subtitle">
+        {
+          startStatus === 'humidor'
+            ? 'Something new to rest. Give it a quantity if there is more than one.'
+            : 'One you have smoked. It needs the date, and a rating if you have one.'
+        }
+      </p>
+    </div>
+
+    {error && <p class="form-error" role="alert">{error}</p>}
+
+    <form method="POST" class="cigar-form">
+      <CigarFields
+        cigar={null}
+        defaults={{
+          status: startStatus,
+          dateSmoked: startStatus === 'smoked' ? today : '',
+        }}
+        submitted={submitted}
+      />
+
+      <div class="cigar-form__actions">
+        <button class="cigar-form__submit" type="submit">Add</button>
+        <a class="cigar-form__cancel" href={startStatus === 'humidor' ? `${base}/humidor` : base}>
+          Cancel
+        </a>
+      </div>
+    </form>
+  </div>
+</ClLayout>

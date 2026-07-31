@@ -89,6 +89,30 @@ const editHref = (id: string) => (workspace.canWrite ? `${base}/pick/${id}` : un
 
 <ProgressBar completed={completed.length} total={season.totalWeeks} />
 
+{
+  workspace.canWrite && (
+    <div class="container">
+      <div class="record-actions">
+        <a
+          class="record-actions__btn record-actions__btn--primary"
+          href={`${base}/pick/new?season=${season.slug}`}
+        >
+          + Add a pick
+        </a>
+        <a class="record-actions__btn" href={`${base}/season/${season.slug}`}>
+          Season settings
+        </a>
+        <a class="record-actions__btn" href={`${base}/season/new`}>
+          New season
+        </a>
+        <a class="record-actions__btn" href={`${base}/contributor/new`}>
+          Add someone
+        </a>
+      </div>
+    </div>
+  )
+}
+
 <main class="seasons-grid">
   <div class="container">
     {
@@ -128,7 +152,7 @@ const editHref = (id: string) => (workspace.canWrite ? `${base}/pick/${id}` : un
     <span class="site-footer__hint">
       {
         workspace.canWrite
-          ? 'Click the pencil on any card to set that week’s pick'
+          ? 'Add a pick above, or click the pencil on any card to change one'
           : `You have read-only access to this ${workspace.visibility} project`
       }
     </span>

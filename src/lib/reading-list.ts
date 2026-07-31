@@ -19,6 +19,8 @@ export interface Book {
   date_started: string | null;
   date_finished: string | null;
   year_read: number;
+  /** The rl_years primary key, so the edit form can offer to move a book. */
+  year_id: string;
   order_read: number;
   format: 'print' | 'audio' | 'graphic';
   genre: string | null;
@@ -52,7 +54,7 @@ const BOOK_COLUMNS = `
   year_published, genre, publisher, publisher_normalised, cover_url, isbn,
   description, tags, notes, reading, coming_up,
   link_openlibrary, link_wikipedia,
-  rl_years ( year )
+  rl_years ( id, year )
 `;
 
 function toBook(row: any): Book {
@@ -65,6 +67,7 @@ function toBook(row: any): Book {
     date_started: row.date_started,
     date_finished: row.date_finished,
     year_read: row.rl_years?.year ?? 0,
+    year_id: row.rl_years?.id ?? row.year_id ?? '',
     order_read: row.order_read,
     format: (['print', 'audio', 'graphic'] as const).includes(row.format) ? row.format : 'print',
     genre: row.genre || null,

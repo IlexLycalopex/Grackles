@@ -43,6 +43,19 @@ const stats = statsFor(yearData.books);
       </p>
     </div>
 
+    {
+      workspace.canWrite && (
+        <div class="record-actions">
+          <a class="record-actions__btn record-actions__btn--primary" href={`${base}/book/new?year=${year}`}>
+            + Add a book
+          </a>
+          <a class="record-actions__btn" href={`${base}/year/${year}`}>
+            Year settings
+          </a>
+        </div>
+      )
+    }
+
     <FilterBar />
 
     <div class="book-grid" id="book-grid">

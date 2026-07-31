@@ -617,3 +617,66 @@ textarea.cigar-form__input { resize: vertical; line-height: 1.55; }
 
 .cigar-form__submit:hover { opacity: 0.7; }
 .cigar-form__cancel { font-size: 0.85rem; opacity: 0.6; }
+
+/* ── Creating records ─────────────────────────────────────────────
+   Same element names as the listening party and reading list, in this
+   app's quieter register. See the note in listening-party.css. */
+
+.record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+}
+
+.record-actions__btn {
+  padding: 0.55rem 1.2rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: inherit;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 6px;
+  opacity: 0.7;
+  transition: opacity 0.18s ease, border-color 0.18s ease;
+}
+
+.record-actions__btn:hover {
+  opacity: 1;
+  border-color: currentColor;
+}
+
+.record-actions__btn--primary {
+  border-color: currentColor;
+  opacity: 1;
+}
+
+.record-actions__btn--primary:hover { opacity: 0.7; }
+
+/* The shortcut out of the humidor, sitting opposite the edit pencil. It takes
+   the same dark chip as the pencil rather than the page's own colours: both
+   can land on top of a photo, where a translucent grey is unreadable. */
+.cigar-card__smoke {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.cigar-card:hover .cigar-card__smoke,
+.cigar-card__smoke:focus-visible { opacity: 1; }
+
+/* Touch has no hover, so the shortcut has to be visible to be usable. */
+@media (hover: none) {
+  .cigar-card__smoke { opacity: 1; }
+}

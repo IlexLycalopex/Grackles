@@ -1,0 +1,143 @@
+---
+import { fieldChecked, fieldValue } from '../../lib/forms';
+import type { Book, YearData } from '../../lib/reading-list';
+import { BOOK_FORMATS } from '../../lib/records/book';
+
+/**
+ * The fields of a book. `book` null means a new one.
+ *
+ * `description` is deliberately absent: it comes from Open Library, is a
+ * paragraph long, and nobody wants to scroll past it to reach the notes. The
+ * column keeps whatever was fetched, and editing here leaves it alone.
+ */
+interface Props {
+  book: Book | null;
+  years: YearData[];
+  /** For a new book: the year it is being added to and its position in it. */
+  defaults?: { yearId?: string; orderRead?: number };
+  submitted?: FormData | null;
+}
+
+const { book, years, defaults = {}, submitted = null } = Astro.props;
+
+const v = (key: string, stored?: string | number | null, fallback: string | number = '') =>
+  fieldValue(submitted, key, stored, fallback);
+
+const yearId = v('year_id', book?.year_id, defaults.yearId ?? '');
+const format = v('format', book?.format, 'print');
+---
+
+<div class="book-form__row">
+  <label class="book-form__field">
+    <span class="book-form__label">Year read</span>
+    <select class="book-form__input" name="year_id" required>
+      {years.map(y => <option value={y.id} selected={y.id === yearId}>{y.year}</option>)}
+    </select>
+  </label>
+
+  <label class="book-form__field">
+    <span class="book-form__label">Position</span>
+    <input class="book-form__input" type="number" name="order_read" min="1" value={v('order_read', book?.order_read, defaults.orderRead ?? '')} required />
+    <span class="book-form__hint">Which book of the year this was. Each position is used once.</span>
+  </label>
+</div>
+
+<label class="book-form__field">
+  <span class="book-form__label">Title</span>
+  <input class="book-form__input" type="text" name="title" value={v('title', book?.title)} required />
+</label>
+
+<label class="book-form__field">
+  <span class="book-form__label">Author</span>
+  <input class="book-form__input" type="text" name="author" value={v('author', book?.author)} />
+</label>
+
+<div class="book-form__row">
+  <label class="book-form__field">
+    <span class="book-form__label">Pages</span>
+    <input class="book-form__input" type="number" name="pages" min="1" value={v('pages', book?.pages)} />
+  </label>
+  <label class="book-form__field">
+    <span class="book-form__label">Published</span>
+    <input class="book-form__input" type="number" name="year_published" value={v('year_published', book?.year_published)} />
+  </label>
+  <label class="book-form__field">
+    <span class="book-form__label">Format</span>
+    <select class="book-form__input" name="format">
+      {
+        BOOK_FORMATS.map(f => (
+          <option value={f} selected={format === f}>
+            {f}
+          </option>
+        ))
+      }
+    </select>
+  </label>
+</div>
+
+<div class="book-form__row">
+  <label class="book-form__field">
+    <span class="book-form__label">Started</span>
+    <input class="book-form__input" type="date" name="date_started" value={v('date_started', book?.date_started)} />
+  </label>
+  <label class="book-form__field">
+    <span class="book-form__label">Finished</span>
+    <input class="book-form__input" type="date" name="date_finished" value={v('date_finished', book?.date_finished)} />
+    <span class="book-form__hint">Leave blank while you are still reading it.</span>
+  </label>
+</div>
+
+<div class="book-form__row">
+  <label class="book-form__field">
+    <span class="book-form__label">Publisher</span>
+    <input class="book-form__input" type="text" name="publisher" value={v('publisher', book?.publisher)} />
+    <span class="book-form__hint">Imprints are grouped with their parent house automatically.</span>
+  </label>
+  <label class="book-form__field">
+    <span class="book-form__label">Genre</span>
+    <input class="book-form__input" type="text" name="genre" value={v('genre', book?.genre)} />
+  </label>
+</div>
+
+<label class="book-form__field">
+  <span class="book-form__label">Tags</span>
+  <input class="book-form__input" type="text" name="tags" value={v('tags', book?.tags.join(', '))} placeholder="comma, separated" />
+</label>
+
+<label class="book-form__field">
+  <span class="book-form__label">Notes</span>
+  <textarea class="book-form__input" name="notes" rows="3">{v('notes', book?.notes)}</textarea>
+</label>
+
+<div class="book-form__row">
+  <label class="book-form__check">
+    <input type="checkbox" name="reading" checked={fieldChecked(submitted, 'reading', book?.reading)} />
+    <span>Currently reading</span>
+  </label>
+  <label class="book-form__check">
+    <input type="checkbox" name="coming_up" checked={fieldChecked(submitted, 'coming_up', book?.coming_up)} />
+    <span>Coming up</span>
+  </label>
+</div>
+
+<div class="book-form__row">
+  <label class="book-form__field">
+    <span class="book-form__label">ISBN</span>
+    <input class="book-form__input" type="text" name="isbn" value={v('isbn', book?.isbn)} />
+  </label>
+  <label class="book-form__field">
+    <span class="book-form__label">Cover URL</span>
+    <input class="book-form__input" type="url" name="cover_url" value={v('cover_url', book?.cover_url)} />
+  </label>
+</div>
+
+<div class="book-form__row">
+  <label class="book-form__field">
+    <span class="book-form__label">Open Library</span>
+    <input class="book-form__input" type="url" name="link_openlibrary" value={v('link_openlibrary', book?.links.openlibrary)} />
+  </label>
+  <label class="book-form__field">
+    <span class="book-form__label">Wikipedia</span>
+    <input class="book-form__input" type="url" name="link_wikipedia" value={v('link_wikipedia', book?.links.wikipedia)} />
+  </label>
+</div>
