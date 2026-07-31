@@ -39,10 +39,24 @@ if (Astro.request.method === 'POST') {
       },
     });
 
-    // Deliberately not distinguishing "no such account" from success — that
-    // difference would turn this form into a way to test whether an address
-    // is registered.
-    if (authError && authError.status !== 400) {
+    if (authError) {
+      // Whatever happened, it is worth reading later: this branch once hid a
+      // 500 from GoTrue for a week's worth of guessing.
+      console.error('signInWithOtp failed', {
+        status: authError.status,
+        code: authError.code,
+        message: authError.message,
+      });
+    }
+
+    // 400 and 422 are the "we will not send to that address" answers — no such
+    // account, or shouldCreateUser: false. Both are reported as success on
+    // purpose: telling them apart would turn this form into a way to test
+    // whether an address is registered. Anything else is a genuine fault and
+    // should say so rather than pretend a link is on its way.
+    const declined = authError?.status === 400 || authError?.status === 422;
+
+    if (authError && !declined) {
       error = 'Something went wrong sending that link. Try again in a moment.';
     } else {
       sent = true;
