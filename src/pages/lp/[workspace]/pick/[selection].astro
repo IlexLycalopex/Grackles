@@ -8,7 +8,7 @@ export const prerender = false;
 const { supabase, user } = Astro.locals;
 const { workspace: wsSlug, selection: selectionId } = Astro.params;
 
-const workspace = await resolveWorkspace(supabase, 'listening-party', wsSlug!);
+const workspace = await resolveWorkspace(supabase, 'listening-party', wsSlug!, user?.id ?? null);
 if (!workspace) return new Response('Not found', { status: 404 });
 
 if (!user) {

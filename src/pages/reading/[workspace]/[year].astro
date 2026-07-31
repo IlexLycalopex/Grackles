@@ -7,10 +7,10 @@ import { loadYear, loadYears, statsFor } from '../../../lib/reading-list';
 
 export const prerender = false;
 
-const { supabase } = Astro.locals;
+const { supabase, user } = Astro.locals;
 const { workspace: wsSlug, year: yearParam } = Astro.params;
 
-const workspace = await resolveWorkspace(supabase, 'reading-list', wsSlug!);
+const workspace = await resolveWorkspace(supabase, 'reading-list', wsSlug!, user?.id ?? null);
 if (!workspace) return new Response('Not found', { status: 404 });
 
 const year = Number(yearParam);

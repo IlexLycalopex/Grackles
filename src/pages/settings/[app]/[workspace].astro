@@ -12,7 +12,7 @@ const { app: appPath, workspace: wsSlug } = Astro.params;
 const app = appByPath(appPath!);
 if (!app) return new Response('Not found', { status: 404 });
 
-let workspace = await resolveWorkspace(supabase, app.slug, wsSlug!);
+let workspace = await resolveWorkspace(supabase, app.slug, wsSlug!, user?.id ?? null);
 if (!workspace) return new Response('Not found', { status: 404 });
 
 if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
@@ -96,7 +96,7 @@ if (Astro.request.method === 'POST') {
       error = e?.message ?? null;
       if (!e) {
         notice = `This project is now ${visibility}.`;
-        workspace = (await resolveWorkspace(supabase, app.slug, wsSlug!)) ?? workspace;
+        workspace = (await resolveWorkspace(supabase, app.slug, wsSlug!, user?.id ?? null)) ?? workspace;
       }
     }
   }

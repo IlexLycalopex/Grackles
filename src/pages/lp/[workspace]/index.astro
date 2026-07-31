@@ -12,10 +12,10 @@ import {
 
 export const prerender = false;
 
-const { supabase } = Astro.locals;
+const { supabase, user } = Astro.locals;
 const slug = Astro.params.workspace!;
 
-const workspace = await resolveWorkspace(supabase, 'listening-party', slug);
+const workspace = await resolveWorkspace(supabase, 'listening-party', slug, user?.id ?? null);
 // Missing and forbidden are the same answer on purpose — a private workspace
 // should not confirm its own existence.
 if (!workspace) return new Response('Not found', { status: 404 });

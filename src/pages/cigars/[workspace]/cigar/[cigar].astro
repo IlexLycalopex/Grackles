@@ -8,10 +8,10 @@ import { formatDate, formatDuration, formatSize, photoUrl, restingDays } from '.
 
 export const prerender = false;
 
-const { supabase } = Astro.locals;
+const { supabase, user } = Astro.locals;
 const { workspace: wsSlug, cigar: cigarSlug } = Astro.params;
 
-const workspace = await resolveWorkspace(supabase, 'cigar-lounge', wsSlug!);
+const workspace = await resolveWorkspace(supabase, 'cigar-lounge', wsSlug!, user?.id ?? null);
 if (!workspace) return new Response('Not found', { status: 404 });
 
 const cigar = await loadCigar(supabase, workspace.id, cigarSlug!);

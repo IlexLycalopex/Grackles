@@ -9,7 +9,7 @@ export const prerender = false;
 const { supabase, user } = Astro.locals;
 const { workspace: wsSlug, cigar: cigarSlug } = Astro.params;
 
-const workspace = await resolveWorkspace(supabase, 'cigar-lounge', wsSlug!);
+const workspace = await resolveWorkspace(supabase, 'cigar-lounge', wsSlug!, user?.id ?? null);
 if (!workspace) return new Response('Not found', { status: 404 });
 
 if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);

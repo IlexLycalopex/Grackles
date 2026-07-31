@@ -76,9 +76,12 @@ security decides what comes back. If a page can see a row, the database said so.
 
 That has a few consequences worth knowing before adding a page:
 
-- **Do not filter by user.** `select()` on `workspace_members` returns only the
-  caller's memberships already. Adding `.eq('user_id', …)` duplicates a rule the
-  database enforces, and the duplicate is the one that will drift.
+- **RLS decides what you *may* see, not what you *want*.** Do not assume a
+  policy narrows a query to one row. `workspace_members` is readable by every
+  member of a workspace, by design, so a lookup of "my role" must still say
+  `.eq('user_id', …)`. Getting this wrong once already shipped a bug: a public
+  workspace reported `owner` to anonymous visitors, and the query would have
+  started erroring outright as soon as a second member joined.
 - **Anonymous visitors are a supported case,** not an error to guard against.
   They see workspaces marked `public` — which is how the Listening Party stays
   readable at a shareable URL.

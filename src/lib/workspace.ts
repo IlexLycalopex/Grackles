@@ -27,7 +27,8 @@ export interface ResolvedWorkspace {
 export async function resolveWorkspace(
   supabase: SupabaseClient<Database>,
   app: AppSlug,
-  slug: string
+  slug: string,
+  userId: string | null
 ): Promise<ResolvedWorkspace | null> {
   const { data: ws } = await supabase
     .from('workspaces')
@@ -38,15 +39,23 @@ export async function resolveWorkspace(
 
   if (!ws) return null;
 
-  // RLS on workspace_members limits this to the caller's own row, so a match
-  // means "I am a member"; no match means anonymous or public-only access.
-  const { data: membership } = await supabase
-    .from('workspace_members')
-    .select('role')
-    .eq('workspace_id', ws.id)
-    .maybeSingle();
+  // Filter by user explicitly. An earlier version leaned on RLS to return only
+  // the caller's row, which was wrong twice over: the members_read policy also
+  // exposes the roster to anyone who can read the workspace, so a public
+  // workspace handed its owner's row to anonymous visitors — and once a
+  // workspace has two members, maybeSingle() errors on the multi-row result.
+  let role: MemberRole | null = null;
 
-  const role = membership?.role ?? null;
+  if (userId) {
+    const { data: membership } = await supabase
+      .from('workspace_members')
+      .select('role')
+      .eq('workspace_id', ws.id)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    role = membership?.role ?? null;
+  }
 
   return {
     ...ws,
@@ -68,12 +77,12 @@ export async function requireWritableWorkspace(
   supabase: SupabaseClient<Database>,
   app: AppSlug,
   slug: string,
-  user: unknown | null
+  userId: string | null
 ): Promise<ResolvedWorkspace> {
-  const ws = await resolveWorkspace(supabase, app, slug);
+  const ws = await resolveWorkspace(supabase, app, slug, userId);
   if (!ws) throw new Response('Not found', { status: 404 });
 
-  if (!user) {
+  if (!userId) {
     throw new Response(null, {
       status: 302,
       headers: { Location: `/login?next=/${app}/${slug}` },

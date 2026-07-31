@@ -7,10 +7,10 @@ import { totalCigars } from '../../../lib/cigar-helpers';
 
 export const prerender = false;
 
-const { supabase } = Astro.locals;
+const { supabase, user } = Astro.locals;
 const wsSlug = Astro.params.workspace!;
 
-const workspace = await resolveWorkspace(supabase, 'cigar-lounge', wsSlug);
+const workspace = await resolveWorkspace(supabase, 'cigar-lounge', wsSlug, user?.id ?? null);
 if (!workspace) return new Response('Not found', { status: 404 });
 
 const base = `/cigars/${workspace.slug}`;

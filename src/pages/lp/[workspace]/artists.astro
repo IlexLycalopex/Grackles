@@ -6,10 +6,10 @@ import { groupByArtist, loadAllSelections, loadContributors, loadSeasons } from 
 
 export const prerender = false;
 
-const { supabase } = Astro.locals;
+const { supabase, user } = Astro.locals;
 const wsSlug = Astro.params.workspace!;
 
-const workspace = await resolveWorkspace(supabase, 'listening-party', wsSlug);
+const workspace = await resolveWorkspace(supabase, 'listening-party', wsSlug, user?.id ?? null);
 if (!workspace) return new Response('Not found', { status: 404 });
 
 const [seasons, contributors, allSelections] = await Promise.all([

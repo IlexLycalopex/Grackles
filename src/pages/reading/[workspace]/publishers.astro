@@ -6,10 +6,10 @@ import { groupByPublisher, loadAllBooks, loadYears } from '../../../lib/reading-
 
 export const prerender = false;
 
-const { supabase } = Astro.locals;
+const { supabase, user } = Astro.locals;
 const wsSlug = Astro.params.workspace!;
 
-const workspace = await resolveWorkspace(supabase, 'reading-list', wsSlug);
+const workspace = await resolveWorkspace(supabase, 'reading-list', wsSlug, user?.id ?? null);
 if (!workspace) return new Response('Not found', { status: 404 });
 
 const [years, books] = await Promise.all([
