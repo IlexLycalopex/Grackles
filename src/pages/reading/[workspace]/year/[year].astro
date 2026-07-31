@@ -3,8 +3,9 @@ import RlLayout from '../../../../layouts/RlLayout.astro';
 import YearFields from '../../../../components/rl/YearFields.astro';
 import { requireWrite } from '../../../../lib/workspace';
 import { loadYear, loadYears } from '../../../../lib/reading-list';
+import ConfirmDelete from '../../../../components/ConfirmDelete.astro';
 import { readYear } from '../../../../lib/records/year';
-import { describeWriteError } from '../../../../lib/records/save';
+import { NOTHING_DELETED, describeDeleteError, describeWriteError } from '../../../../lib/records/save';
 
 export const prerender = false;
 
@@ -30,34 +31,59 @@ const years = await loadYears(supabase, workspace.id);
 let year = await loadYear(supabase, workspace.id, yearNumber);
 if (!year) return new Response('Not found', { status: 404 });
 
+const confirmingDelete = Astro.url.searchParams.get('delete') === '1';
+
 let error: string | null = null;
 let submitted: FormData | null = null;
 
 if (Astro.request.method === 'POST') {
   submitted = await Astro.request.formData();
-  const parsed = readYear(submitted);
 
-  if (!parsed.ok) {
-    error = parsed.error;
-  } else {
-    // `year` is deliberately dropped. The field is readonly on the form, but a
-    // readonly input is a hint to a browser and nothing more — leaving the
-    // column out of the update is what actually keeps the year fixed.
-    const { status, total_books } = parsed.values;
-
-    const { error: writeError } = await supabase
+  if (submitted.get('intent') === 'delete') {
+    // rl_books.year_id is ON DELETE CASCADE, so this takes the year's books
+    // with it. The confirmation says how many.
+    const { data: removed, error: deleteError } = await supabase
       .from('rl_years')
-      .update({ status, total_books })
-      .eq('id', year.id);
+      .delete()
+      .eq('id', year.id)
+      .select('id');
 
-    if (writeError) {
-      error = describeWriteError(writeError, 'rl_years update');
+    if (deleteError) {
+      error = describeDeleteError(deleteError, 'rl_years delete');
+      submitted = null;
+    } else if (!removed || removed.length === 0) {
+      // RLS does not refuse a delete, it narrows it to nothing. Saying
+      // \"deleted\" here would be a lie the page could not detect.
+      error = NOTHING_DELETED;
+      submitted = null;
     } else {
-      return Astro.redirect(`${base}/${year.year}`);
+      return Astro.redirect(base);
     }
+  } else {
+    const parsed = readYear(submitted);
 
-    year = (await loadYear(supabase, workspace.id, yearNumber)) ?? year;
+    if (!parsed.ok) {
+      error = parsed.error;
+    } else {
+      // `year` is deliberately dropped. The field is readonly on the form, but
+      // a readonly input is a hint to a browser and nothing more — leaving the
+      // column out of the update is what actually keeps the year fixed.
+      const { status, total_books } = parsed.values;
+
+      const { error: writeError } = await supabase
+        .from('rl_years')
+        .update({ status, total_books })
+        .eq('id', year.id);
+
+      if (writeError) {
+        error = describeWriteError(writeError, 'rl_years update');
+      } else {
+        return Astro.redirect(`${base}/${year.year}`);
+      }
+    }
   }
+
+  year = (await loadYear(supabase, workspace.id, yearNumber)) ?? year;
 }
 ---
 
@@ -72,13 +98,33 @@ if (Astro.request.method === 'POST') {
 
     {error && <p class="form-error" role="alert">{error}</p>}
 
-    <form method="POST" class="book-form">
-      <YearFields year={year} defaultYear={year.year} submitted={submitted} />
+    {
+      confirmingDelete ? (
+        <ConfirmDelete
+          prefix="book-form"
+          title={String(year.year)}
+          consequences={
+            year.books.length > 0
+              ? [
+                  `All ${year.books.length} book${year.books.length === 1 ? '' : 's'} recorded in ${year.year} will be deleted with it.`,
+                  'They will disappear from the author and publisher pages too.',
+                ]
+              : ['Nothing has been recorded in this year yet.']
+          }
+          cancelHref={`${base}/year/${year.year}`}
+          buttonLabel={`Delete ${year.year}`}
+        />
+      ) : (
+        <form method="POST" class="book-form">
+          <YearFields year={year} defaultYear={year.year} submitted={submitted} />
 
-      <div class="book-form__actions">
-        <button class="book-form__submit" type="submit">Save</button>
-        <a class="book-form__cancel" href={`${base}/${year.year}`}>Cancel</a>
-      </div>
-    </form>
+          <div class="book-form__actions">
+            <button class="book-form__submit" type="submit">Save</button>
+            <a class="book-form__cancel" href={`${base}/${year.year}`}>Cancel</a>
+            <a class="book-form__delete" href={`${base}/year/${year.year}?delete=1`}>Delete</a>
+          </div>
+        </form>
+      )
+    }
   </div>
 </RlLayout>

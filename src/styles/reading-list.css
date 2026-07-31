@@ -863,3 +863,54 @@ textarea.book-form__input { resize: vertical; line-height: 1.55; }
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* ── Deleting records ─────────────────────────────────────────────
+   Outlined, not filled — see the note in listening-party.css. */
+
+:root { --danger: #e2564a; }
+
+.book-form__delete {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--text-faint);
+  transition: color var(--transition);
+}
+
+.book-form__delete:hover { color: var(--danger); }
+
+.book-form__submit--danger {
+  color: var(--danger);
+  background: transparent;
+  border: 1px solid var(--danger);
+}
+
+.book-form__submit--danger:hover {
+  color: var(--bg);
+  background: var(--danger);
+  opacity: 1;
+}
+
+.confirm-delete {
+  padding: 18px 20px;
+  border: 1px solid var(--danger);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+
+.confirm-delete__title {
+  margin: 6px 0 2px;
+  font-family: var(--display);
+  font-size: 21px;
+  letter-spacing: 0.03em;
+  color: var(--text);
+}
+
+.confirm-delete__consequences {
+  margin: 12px 0 4px;
+  padding-left: 18px;
+  list-style: disc;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}

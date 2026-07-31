@@ -1,0 +1,185 @@
+---
+import LpLayout from '../../../../layouts/LpLayout.astro';
+import ConfirmDelete from '../../../../components/ConfirmDelete.astro';
+import { fieldValue } from '../../../../lib/forms';
+import { requireWrite } from '../../../../lib/workspace';
+import { loadContributors, loadSeasons } from '../../../../lib/listening-party';
+import { readContributor } from '../../../../lib/records/contributor';
+import { NOTHING_DELETED, describeDeleteError, describeWriteError } from '../../../../lib/records/save';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const { workspace: wsSlug, contributor: contributorSlug } = Astro.params;
+
+const gate = await requireWrite(
+  supabase,
+  'listening-party',
+  wsSlug!,
+  user?.id ?? null,
+  Astro.url.pathname + Astro.url.search
+);
+if (!gate.ok) return gate.response;
+const workspace = gate.workspace;
+
+const base = `/lp/${workspace.slug}`;
+
+let [seasons, contributors] = await Promise.all([
+  loadSeasons(supabase, workspace.id),
+  loadContributors(supabase, workspace.id),
+]);
+
+let contributor = contributors.find(c => c.slug === contributorSlug);
+if (!contributor) return new Response('Not found', { status: 404 });
+
+const confirmingDelete = Astro.url.searchParams.get('delete') === '1';
+
+// lp_selections.contributor_id is ON DELETE RESTRICT — the database refuses to
+// remove someone who has picks, rather than cascading and taking the picks with
+// them. That is the right default for a person: their weeks are the record.
+// Counting here lets the page say so before the button is pressed.
+const { count: pickCount } = await supabase
+  .from('lp_selections')
+  .select('id', { count: 'exact', head: true })
+  .eq('contributor_id', contributor.id);
+
+const hasPicks = (pickCount ?? 0) > 0;
+
+let error: string | null = null;
+let submitted: FormData | null = null;
+
+if (Astro.request.method === 'POST') {
+  submitted = await Astro.request.formData();
+
+  if (submitted.get('intent') === 'delete') {
+    const { data: removed, error: deleteError } = await supabase
+      .from('lp_contributors')
+      .delete()
+      .eq('id', contributor.id)
+      .select('id');
+
+    if (deleteError) {
+      error = hasPicks
+        ? `${contributor.name} has ${pickCount} pick${pickCount === 1 ? '' : 's'}, so they cannot be removed. Move or delete those first.`
+        : describeDeleteError(deleteError, 'lp_contributors delete');
+      submitted = null;
+    } else if (!removed || removed.length === 0) {
+      // RLS does not refuse a delete, it narrows it to nothing. Saying
+      // \"deleted\" here would be a lie the page could not detect.
+      error = NOTHING_DELETED;
+      submitted = null;
+    } else {
+      return Astro.redirect(base);
+    }
+  } else {
+    const parsed = readContributor(submitted);
+
+    if (!parsed.ok) {
+      error = parsed.error;
+    } else {
+      const { error: writeError } = await supabase
+        .from('lp_contributors')
+        .update(parsed.values)
+        .eq('id', contributor.id);
+
+      if (writeError) {
+        error = describeWriteError(writeError, 'lp_contributors update');
+      } else {
+        return Astro.redirect(`${base}/contributors/${parsed.values.slug}`);
+      }
+    }
+
+    contributors = await loadContributors(supabase, workspace.id);
+    contributor = contributors.find(c => c.id === contributor!.id) ?? contributor;
+  }
+}
+
+const v = (key: string, stored?: string | number | null, fallback: string | number = '') =>
+  fieldValue(submitted, key, stored, fallback);
+---
+
+<LpLayout
+  title={`${contributor.name} | ${workspace.name}`}
+  workspace={workspace}
+  seasons={seasons}
+  contributors={contributors}
+>
+  <div class="page-hero">
+    <div class="container">
+      <a href={`${base}/contributors/${contributor.slug}`} class="artist-detail__back">
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+          <path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        Back to {contributor.name}
+      </a>
+      <h1 class="page-hero__title">{contributor.name}</h1>
+      <p class="page-hero__sub">
+        <span class="pick-row__dot" style={`background:${contributor.color}`}></span>
+        {pickCount ?? 0} pick{pickCount === 1 ? '' : 's'}
+      </p>
+    </div>
+  </div>
+
+  <main>
+    <div class="container">
+      {error && <p class="form-error" role="alert">{error}</p>}
+
+      {
+        confirmingDelete ? (
+          <ConfirmDelete
+            prefix="pick-form"
+            title={contributor.name}
+            detail={hasPicks ? undefined : 'They have no picks, so nothing else goes with them.'}
+            consequences={
+              hasPicks
+                ? [
+                    `${contributor.name} has ${pickCount} pick${pickCount === 1 ? '' : 's'}, and the database will refuse to remove them.`,
+                    'Move those picks to someone else, or delete them, and come back.',
+                  ]
+                : []
+            }
+            cancelHref={`${base}/contributor/${contributor.slug}`}
+            buttonLabel={`Remove ${contributor.name}`}
+          />
+        ) : (
+          <form method="POST" class="pick-form">
+            <label class="pick-form__field">
+              <span class="pick-form__label">Name</span>
+              <input class="pick-form__input" type="text" name="name" value={v('name', contributor.name)} required />
+            </label>
+
+            <label class="pick-form__field">
+              <span class="pick-form__label">URL name</span>
+              <input class="pick-form__input" type="text" name="slug" value={v('slug', contributor.slug)} />
+              <span class="pick-form__hint">
+                Their page lives at /lp/{workspace.slug}/contributors/{contributor.slug}. Changing
+                this moves it.
+              </span>
+            </label>
+
+            <div class="pick-form__row">
+              <label class="pick-form__field">
+                <span class="pick-form__label">Colour</span>
+                <input class="pick-form__input" type="color" name="color" value={v('color', contributor.color)} />
+                <span class="pick-form__hint">The dot beside their picks.</span>
+              </label>
+
+              <label class="pick-form__field">
+                <span class="pick-form__label">Order</span>
+                <input class="pick-form__input" type="number" name="sort_order" value={v('sort_order', contributors.indexOf(contributor))} />
+              </label>
+            </div>
+
+            <div class="pick-form__actions">
+              <button class="pick-form__submit" type="submit">Save</button>
+              <a class="pick-form__cancel" href={`${base}/contributors/${contributor.slug}`}>Cancel</a>
+              <a class="pick-form__delete" href={`${base}/contributor/${contributor.slug}?delete=1`}>
+                Remove
+              </a>
+            </div>
+          </form>
+        )
+      }
+    </div>
+  </main>
+</LpLayout>

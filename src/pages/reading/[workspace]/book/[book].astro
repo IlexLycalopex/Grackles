@@ -3,8 +3,9 @@ import RlLayout from '../../../../layouts/RlLayout.astro';
 import BookFields from '../../../../components/rl/BookFields.astro';
 import { requireWrite } from '../../../../lib/workspace';
 import { loadBook, loadYears } from '../../../../lib/reading-list';
+import ConfirmDelete from '../../../../components/ConfirmDelete.astro';
 import { readBook } from '../../../../lib/records/book';
-import { describeWriteError } from '../../../../lib/records/save';
+import { NOTHING_DELETED, describeDeleteError, describeWriteError } from '../../../../lib/records/save';
 
 export const prerender = false;
 
@@ -26,29 +27,54 @@ let book = await loadBook(supabase, bookId!);
 if (!book) return new Response('Not found', { status: 404 });
 
 const base = `/reading/${workspace.slug}`;
+const confirmingDelete = Astro.url.searchParams.get('delete') === '1';
+
 let error: string | null = null;
 let submitted: FormData | null = null;
 
 if (Astro.request.method === 'POST') {
   submitted = await Astro.request.formData();
-  const parsed = readBook(submitted);
 
-  if (!parsed.ok) {
-    error = parsed.error;
-  } else {
-    const { error: writeError } = await supabase
+  if (submitted.get('intent') === 'delete') {
+    const { data: removed, error: deleteError } = await supabase
       .from('rl_books')
-      .update(parsed.values)
-      .eq('id', book.id);
+      .delete()
+      .eq('id', book.id)
+      .select('id');
 
-    if (writeError) {
-      error = describeWriteError(writeError, 'rl_books update');
+    if (deleteError) {
+      error = describeDeleteError(deleteError, 'rl_books delete');
+      // The delete form carries only its intent, so leaving it in place would
+      // blank every field behind the confirmation.
+      submitted = null;
+    } else if (!removed || removed.length === 0) {
+      // RLS does not refuse a delete, it narrows it to nothing. Saying
+      // \"deleted\" here would be a lie the page could not detect.
+      error = NOTHING_DELETED;
+      submitted = null;
     } else {
-      // The year is editable now, so a book filed under the wrong one can be
-      // moved rather than deleted and retyped.
-      return Astro.redirect(
-        `${base}/${years.find(y => y.id === parsed.values.year_id)?.year ?? book.year_read}`
-      );
+      return Astro.redirect(`${base}/${book.year_read}`);
+    }
+  } else {
+    const parsed = readBook(submitted);
+
+    if (!parsed.ok) {
+      error = parsed.error;
+    } else {
+      const { error: writeError } = await supabase
+        .from('rl_books')
+        .update(parsed.values)
+        .eq('id', book.id);
+
+      if (writeError) {
+        error = describeWriteError(writeError, 'rl_books update');
+      } else {
+        // The year is editable now, so a book filed under the wrong one can be
+        // moved rather than deleted and retyped.
+        return Astro.redirect(
+          `${base}/${years.find(y => y.id === parsed.values.year_id)?.year ?? book.year_read}`
+        );
+      }
     }
   }
 
@@ -65,13 +91,28 @@ if (Astro.request.method === 'POST') {
 
     {error && <p class="form-error" role="alert">{error}</p>}
 
-    <form method="POST" class="book-form">
-      <BookFields book={book} years={years} submitted={submitted} />
+    {
+      confirmingDelete ? (
+        <ConfirmDelete
+          prefix="book-form"
+          title={book.author ? `${book.title} — ${book.author}` : book.title}
+          detail={`Book ${book.order_read} of ${book.year_read}`}
+          consequences={[
+            'The books after it keep their positions, so there will be a gap in the numbering.',
+          ]}
+          cancelHref={`${base}/book/${book.id}`}
+        />
+      ) : (
+        <form method="POST" class="book-form">
+          <BookFields book={book} years={years} submitted={submitted} />
 
-      <div class="book-form__actions">
-        <button class="book-form__submit" type="submit">Save</button>
-        <a class="book-form__cancel" href={`${base}/${book.year_read}`}>Cancel</a>
-      </div>
-    </form>
+          <div class="book-form__actions">
+            <button class="book-form__submit" type="submit">Save</button>
+            <a class="book-form__cancel" href={`${base}/${book.year_read}`}>Cancel</a>
+            <a class="book-form__delete" href={`${base}/book/${book.id}?delete=1`}>Delete</a>
+          </div>
+        </form>
+      )
+    }
   </div>
 </RlLayout>

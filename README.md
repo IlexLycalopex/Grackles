@@ -43,6 +43,7 @@ five sites that have not moved; the three that have now point at in-app routes.
 /lp/:workspace/season/new          start a season
 /lp/:workspace/season/:slug        season settings and roster
 /lp/:workspace/contributor/new     add someone who picks
+/lp/:workspace/contributor/:slug   rename, recolour or remove them
 
 /reading/:workspace                Reading List — years overview
 /reading/:workspace/:year          a year's books
@@ -66,6 +67,9 @@ Static segments beat dynamic ones in Astro's routing, so `pick/new` wins over
 `pick/[selection]`. That is load-bearing — do not give a create route a name a
 record id could also match.
 
+Every record's own page also answers `?delete=1`, which swaps the form for a
+confirmation. There is no separate delete route.
+
 Each app keeps its own visual identity: its layout loads only its own
 stylesheet, so there are no shared tokens underneath to fight in the cascade.
 The three stylesheets are the originals, with the editing UI appended below a
@@ -82,7 +86,8 @@ following the shape rather than inventing one.
 | `lib/forms.ts` | reads a `FormData` — `str`, `int`, `date`, `bool`, `list`, `choice` — and decides what a field displays: the rejected submission, else what is stored, else a default |
 | `lib/records/<thing>.ts` | one `read<Thing>(form)` per record type, returning either the row to write or one sentence to show. Every rule that mirrors a database constraint lives here, once |
 | `components/<app>/<Thing>Fields.astro` | the fields themselves, rendered by both the create and the edit route |
-| `lib/records/save.ts` | turns a rejected write into a sentence and logs the original |
+| `lib/records/save.ts` | turns a rejected write or delete into a sentence and logs the original |
+| `components/ConfirmDelete.astro` | the confirmation step, shared by all three apps |
 
 The point of the third one is that **create and edit are the same form**. A page
 passes `null` for the record and it is a create form; it passes the record and
@@ -103,6 +108,27 @@ Two things are deliberate and easy to undo by accident:
 - **`requireWrite()` checks in a fixed order** — unreadable workspace 404s
   *before* the signed-out redirect, so a private project never announces itself
   by bouncing a stranger to the login page.
+
+## Deleting a record
+
+`?delete=1` on a record's own page swaps the form for a confirmation; the
+button POSTs `intent=delete` back to the same URL. Both halves are deliberate.
+A GET that deletes is one link prefetcher away from emptying the humidor, and a
+`confirm()` dialog is not a confirmation on the day the script fails to load.
+
+Two foreign keys cascade, so the confirmation counts what goes with the record:
+deleting a season deletes its picks, and deleting a year deletes its books. A
+third is `ON DELETE RESTRICT` — `lp_selections.contributor_id` — so the database
+refuses to remove someone who has picks rather than taking their weeks with
+them. Their picks are the record; the page says so before the button is pressed.
+
+**Every delete asks for the removed rows back and checks it got one.** This is
+not defensive habit, it is required: a delete blocked by row-level security does
+not raise, it narrows the statement to zero rows and reports success. Without
+the check, a viewer whose role changed mid-session would be told the record was
+deleted while it sat there untouched.
+
+## One write that is not a statement
 
 Taking a cigar out of the humidor is the one write that is not a single
 statement: smoking one of three has to add a log entry *and* leave two behind.

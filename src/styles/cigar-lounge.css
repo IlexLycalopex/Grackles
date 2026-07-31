@@ -680,3 +680,55 @@ textarea.cigar-form__input { resize: vertical; line-height: 1.55; }
 @media (hover: none) {
   .cigar-card__smoke { opacity: 1; }
 }
+
+/* ── Deleting records ─────────────────────────────────────────────
+   Everything in this app is gold on burgundy, so a destructive control
+   has to break the palette to read as one. A muted brick red is the
+   only non-gold thing on the page, which is the point. */
+
+:root { --danger: #e8776a; }
+
+.cigar-form__delete {
+  margin-left: auto;
+  font-size: 0.85rem;
+  opacity: 0.45;
+  color: var(--danger);
+  transition: opacity 0.18s ease;
+}
+
+.cigar-form__delete:hover { opacity: 1; }
+
+.cigar-form__submit--danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.cigar-form__submit--danger:hover {
+  color: var(--bg-deep);
+  background: var(--danger);
+  opacity: 1;
+}
+
+.confirm-delete {
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--danger);
+  border-left-width: 3px;
+  border-radius: 6px;
+  background: rgba(232, 119, 106, 0.06);
+}
+
+.confirm-delete__title {
+  margin: 0.35rem 0 0.15rem;
+  font-family: var(--display);
+  font-size: 1.25rem;
+  color: var(--text);
+}
+
+.confirm-delete__consequences {
+  margin: 0.75rem 0 0.25rem;
+  padding-left: 1.1rem;
+  list-style: disc;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}

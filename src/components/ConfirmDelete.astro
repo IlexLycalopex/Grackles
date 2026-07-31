@@ -1,0 +1,72 @@
+---
+/**
+ * The confirmation step before a record is destroyed.
+ *
+ * Deletes are reached at `?delete=1` on the record's own page and submitted as
+ * a POST carrying `intent=delete`. Both halves matter: a GET that deletes is
+ * one link prefetcher away from emptying the humidor, and a confirmation that
+ * lives in a `confirm()` dialog is no confirmation at all on the day the script
+ * fails to load.
+ *
+ * This is the one component shared across all three apps, parameterised by
+ * class prefix. That works here because the three stylesheets already use the
+ * same element names for the same jobs — `__label`, `__hint`, `__actions`,
+ * `__submit`, `__cancel` — and differ only in what those look like. Anywhere
+ * else a shared component would force a shared appearance, which is precisely
+ * what these three apps are not.
+ */
+interface Props {
+  /** `pick-form`, `book-form` or `cigar-form` — whichever app this is in. */
+  prefix: string;
+  /** The record, named the way its own page names it. */
+  title: string;
+  /** A line of context under the title. */
+  detail?: string;
+  /**
+   * What else goes with it. Two foreign keys cascade — deleting a season takes
+   * its picks, deleting a year takes its books — so this is the only warning
+   * anyone gets before a season's worth of records disappears.
+   */
+  consequences?: string[];
+  cancelHref: string;
+  buttonLabel?: string;
+}
+
+const {
+  prefix,
+  title,
+  detail,
+  consequences = [],
+  cancelHref,
+  buttonLabel = 'Delete',
+} = Astro.props;
+---
+
+<form method="POST" class={prefix}>
+  <input type="hidden" name="intent" value="delete" />
+
+  <div class={`${prefix}__field confirm-delete`}>
+    <span class={`${prefix}__label`}>Delete this?</span>
+    <p class="confirm-delete__title">{title}</p>
+    {detail && <p class={`${prefix}__hint`}>{detail}</p>}
+
+    {
+      consequences.length > 0 && (
+        <ul class="confirm-delete__consequences">
+          {consequences.map(line => (
+            <li>{line}</li>
+          ))}
+        </ul>
+      )
+    }
+
+    <p class={`${prefix}__hint`}>This cannot be undone.</p>
+  </div>
+
+  <div class={`${prefix}__actions`}>
+    <button class={`${prefix}__submit ${prefix}__submit--danger`} type="submit">
+      {buttonLabel}
+    </button>
+    <a class={`${prefix}__cancel`} href={cancelHref}>Cancel</a>
+  </div>
+</form>

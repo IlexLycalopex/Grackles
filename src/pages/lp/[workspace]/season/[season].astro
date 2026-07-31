@@ -1,10 +1,11 @@
 ---
 import LpLayout from '../../../../layouts/LpLayout.astro';
 import SeasonFields from '../../../../components/lp/SeasonFields.astro';
+import ConfirmDelete from '../../../../components/ConfirmDelete.astro';
 import { requireWrite } from '../../../../lib/workspace';
 import { loadContributors, loadSeasons } from '../../../../lib/listening-party';
 import { readSeason } from '../../../../lib/records/season';
-import { describeWriteError } from '../../../../lib/records/save';
+import { NOTHING_DELETED, describeDeleteError, describeWriteError } from '../../../../lib/records/save';
 
 export const prerender = false;
 
@@ -42,6 +43,15 @@ async function loadRoster(seasonId: string): Promise<string[]> {
 
 let roster = await loadRoster(season.id);
 
+const confirmingDelete = Astro.url.searchParams.get('delete') === '1';
+
+// lp_selections.season_id is ON DELETE CASCADE, so removing a season takes
+// every pick in it. Count them so the confirmation can say how many.
+const { count: pickCount } = await supabase
+  .from('lp_selections')
+  .select('id', { count: 'exact', head: true })
+  .eq('season_id', season.id);
+
 // Set when creating the season saved it but the roster write did not.
 let error: string | null =
   Astro.url.searchParams.get('roster') === 'failed'
@@ -51,51 +61,72 @@ let submitted: FormData | null = null;
 
 if (Astro.request.method === 'POST') {
   submitted = await Astro.request.formData();
-  const parsed = readSeason(submitted);
 
-  if (!parsed.ok) {
-    error = parsed.error;
-  } else {
-    const { roster: wanted, ...values } = parsed.values;
-
-    const { error: writeError } = await supabase
+  if (submitted.get('intent') === 'delete') {
+    const { data: removed, error: deleteError } = await supabase
       .from('lp_seasons')
-      .update(values)
-      .eq('id', season.id);
+      .delete()
+      .eq('id', season.id)
+      .select('id');
 
-    if (writeError) {
-      error = describeWriteError(writeError, 'lp_seasons update');
+    if (deleteError) {
+      error = describeDeleteError(deleteError, 'lp_seasons delete');
+      submitted = null;
+    } else if (!removed || removed.length === 0) {
+      // RLS does not refuse a delete, it narrows it to nothing. Saying
+      // \"deleted\" here would be a lie the page could not detect.
+      error = NOTHING_DELETED;
+      submitted = null;
     } else {
-      // Reconcile the roster rather than replacing it wholesale: deleting every
-      // row and re-inserting would work, but a delete that succeeds followed by
-      // an insert that fails empties the season.
-      const added = wanted.filter(id => !roster.includes(id));
-      const removed = roster.filter(id => !wanted.includes(id));
-
-      if (added.length > 0) {
-        await supabase.from('lp_season_contributors').insert(
-          added.map(contributor_id => ({ season_id: season!.id, contributor_id }))
-        );
-      }
-      if (removed.length > 0) {
-        // Any pick they already have keeps them in the season regardless — the
-        // foreign key from lp_selections is what actually holds it together, so
-        // this only changes who is offered next time.
-        await supabase
-          .from('lp_season_contributors')
-          .delete()
-          .eq('season_id', season.id)
-          .in('contributor_id', removed);
-      }
-
-      return Astro.redirect(`${base}/${parsed.values.slug}`);
+      return Astro.redirect(base);
     }
+  } else {
+    const parsed = readSeason(submitted);
 
-    // Re-read so the page reflects what is stored after a failed write.
-    seasons = await loadSeasons(supabase, workspace.id);
-    season = seasons.find(s => s.id === season!.id) ?? season;
-    roster = await loadRoster(season.id);
+    if (!parsed.ok) {
+      error = parsed.error;
+    } else {
+      const { roster: wanted, ...values } = parsed.values;
+
+      const { error: writeError } = await supabase
+        .from('lp_seasons')
+        .update(values)
+        .eq('id', season.id);
+
+      if (writeError) {
+        error = describeWriteError(writeError, 'lp_seasons update');
+      } else {
+        // Reconcile the roster rather than replacing it wholesale: deleting
+        // every row and re-inserting would work, but a delete that succeeds
+        // followed by an insert that fails empties the season.
+        const added = wanted.filter(id => !roster.includes(id));
+        const removed = roster.filter(id => !wanted.includes(id));
+
+        if (added.length > 0) {
+          await supabase.from('lp_season_contributors').insert(
+            added.map(contributor_id => ({ season_id: season!.id, contributor_id }))
+          );
+        }
+        if (removed.length > 0) {
+          // Any pick they already have keeps them in the season regardless —
+          // the foreign key from lp_selections is what actually holds it
+          // together, so this only changes who is offered next time.
+          await supabase
+            .from('lp_season_contributors')
+            .delete()
+            .eq('season_id', season.id)
+            .in('contributor_id', removed);
+        }
+
+        return Astro.redirect(`${base}/${parsed.values.slug}`);
+      }
+    }
   }
+
+  // Re-read so the page reflects what is stored after a failed write.
+  seasons = await loadSeasons(supabase, workspace.id);
+  season = seasons.find(s => s.id === season!.id) ?? season;
+  roster = await loadRoster(season.id);
 }
 ---
 
@@ -122,20 +153,43 @@ if (Astro.request.method === 'POST') {
     <div class="container">
       {error && <p class="form-error" role="alert">{error}</p>}
 
-      <form method="POST" class="pick-form">
-        <SeasonFields
-          season={season}
-          contributors={contributors}
-          roster={roster}
-          nextSortOrder={season.sortOrder}
-          submitted={submitted}
-        />
+      {
+        confirmingDelete ? (
+          <ConfirmDelete
+            prefix="pick-form"
+            title={season.title}
+            detail={`Season ${season.slug}`}
+            consequences={
+              pickCount
+                ? [
+                    `${pickCount} pick${pickCount === 1 ? '' : 's'} in this season will be deleted with it.`,
+                    'The people who made them stay on the roster.',
+                  ]
+                : ['This season has no picks in it yet.']
+            }
+            cancelHref={`${base}/season/${season.slug}`}
+            buttonLabel={`Delete season ${season.slug}`}
+          />
+        ) : (
+          <form method="POST" class="pick-form">
+            <SeasonFields
+              season={season}
+              contributors={contributors}
+              roster={roster}
+              nextSortOrder={season.sortOrder}
+              submitted={submitted}
+            />
 
-        <div class="pick-form__actions">
-          <button class="pick-form__submit" type="submit">Save season</button>
-          <a class="pick-form__cancel" href={`${base}/${season.slug}`}>Cancel</a>
-        </div>
-      </form>
+            <div class="pick-form__actions">
+              <button class="pick-form__submit" type="submit">Save season</button>
+              <a class="pick-form__cancel" href={`${base}/${season.slug}`}>Cancel</a>
+              <a class="pick-form__delete" href={`${base}/season/${season.slug}?delete=1`}>
+                Delete
+              </a>
+            </div>
+          </form>
+        )
+      }
     </div>
   </main>
 </LpLayout>

@@ -1128,3 +1128,56 @@ input[type='color'].pick-form__input {
   height: 42px;
   cursor: pointer;
 }
+
+/* ── Deleting records ─────────────────────────────────────────────
+   Destructive controls are outlined, never filled. The accent here is
+   already a burnt orange, so hue alone would not tell a delete apart
+   from the primary save — the difference has to be the shape too. */
+
+:root { --danger: #e2564a; }
+
+.pick-form__delete {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--text-faint);
+  transition: color var(--transition);
+}
+
+.pick-form__delete:hover { color: var(--danger); }
+
+.pick-form__submit--danger {
+  color: var(--danger);
+  background: transparent;
+  border: 1px solid var(--danger);
+}
+
+.pick-form__submit--danger:hover {
+  color: var(--bg);
+  background: var(--danger);
+  opacity: 1;
+}
+
+.confirm-delete {
+  padding: 20px 22px;
+  border: 1px solid var(--danger);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+
+.confirm-delete__title {
+  margin: 6px 0 2px;
+  font-family: var(--display);
+  font-size: 22px;
+  letter-spacing: 0.03em;
+  color: var(--text);
+}
+
+.confirm-delete__consequences {
+  margin: 12px 0 4px;
+  padding-left: 18px;
+  list-style: disc;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}

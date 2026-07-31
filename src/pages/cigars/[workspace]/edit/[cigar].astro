@@ -3,8 +3,9 @@ import ClLayout from '../../../../layouts/ClLayout.astro';
 import CigarFields from '../../../../components/cl/CigarFields.astro';
 import { requireWrite } from '../../../../lib/workspace';
 import { loadCigar } from '../../../../lib/cigar-lounge';
+import ConfirmDelete from '../../../../components/ConfirmDelete.astro';
 import { readCigar } from '../../../../lib/records/cigar';
-import { describeWriteError } from '../../../../lib/records/save';
+import { NOTHING_DELETED, describeDeleteError, describeWriteError } from '../../../../lib/records/save';
 
 export const prerender = false;
 
@@ -25,28 +26,51 @@ let cigar = await loadCigar(supabase, workspace.id, cigarSlug!);
 if (!cigar) return new Response('Not found', { status: 404 });
 
 const base = `/cigars/${workspace.slug}`;
+const confirmingDelete = Astro.url.searchParams.get('delete') === '1';
+
 let error: string | null = null;
 let submitted: FormData | null = null;
 
 if (Astro.request.method === 'POST') {
   submitted = await Astro.request.formData();
-  const parsed = readCigar(submitted);
 
-  if (!parsed.ok) {
-    error = parsed.error;
-  } else {
-    // The slug is not in the payload: it is the URL of this page and of the
-    // entry, and it was minted from the date and name when the record was
-    // created. Renaming a cigar should not move a page somebody has open.
-    const { error: writeError } = await supabase
+  if (submitted.get('intent') === 'delete') {
+    const { data: removed, error: deleteError } = await supabase
       .from('cl_cigars')
-      .update(parsed.values)
-      .eq('id', cigar.rowId);
+      .delete()
+      .eq('id', cigar.rowId)
+      .select('id');
 
-    if (writeError) {
-      error = describeWriteError(writeError, 'cl_cigars update');
+    if (deleteError) {
+      error = describeDeleteError(deleteError, 'cl_cigars delete');
+      submitted = null;
+    } else if (!removed || removed.length === 0) {
+      // RLS does not refuse a delete, it narrows it to nothing. Saying
+      // \"deleted\" here would be a lie the page could not detect.
+      error = NOTHING_DELETED;
+      submitted = null;
     } else {
-      return Astro.redirect(parsed.values.status === 'humidor' ? `${base}/humidor` : base);
+      return Astro.redirect(cigar.data.status === 'humidor' ? `${base}/humidor` : base);
+    }
+  } else {
+    const parsed = readCigar(submitted);
+
+    if (!parsed.ok) {
+      error = parsed.error;
+    } else {
+      // The slug is not in the payload: it is the URL of this page and of the
+      // entry, and it was minted from the date and name when the record was
+      // created. Renaming a cigar should not move a page somebody has open.
+      const { error: writeError } = await supabase
+        .from('cl_cigars')
+        .update(parsed.values)
+        .eq('id', cigar.rowId);
+
+      if (writeError) {
+        error = describeWriteError(writeError, 'cl_cigars update');
+      } else {
+        return Astro.redirect(parsed.values.status === 'humidor' ? `${base}/humidor` : base);
+      }
     }
   }
 
@@ -65,13 +89,29 @@ const d = cigar.data;
 
     {error && <p class="form-error" role="alert">{error}</p>}
 
-    <form method="POST" class="cigar-form">
-      <CigarFields cigar={cigar} submitted={submitted} />
+    {
+      confirmingDelete ? (
+        <ConfirmDelete
+          prefix="cigar-form"
+          title={[d.brand, d.name].filter(Boolean).join(' ')}
+          detail={
+            d.status === 'humidor'
+              ? `${d.quantity} in the humidor — all of them go.`
+              : 'This entry leaves the log, and the stats with it.'
+          }
+          cancelHref={`${base}/edit/${cigar.id}`}
+        />
+      ) : (
+        <form method="POST" class="cigar-form">
+          <CigarFields cigar={cigar} submitted={submitted} />
 
-      <div class="cigar-form__actions">
-        <button class="cigar-form__submit" type="submit">Save</button>
-        <a class="cigar-form__cancel" href={base}>Cancel</a>
-      </div>
-    </form>
+          <div class="cigar-form__actions">
+            <button class="cigar-form__submit" type="submit">Save</button>
+            <a class="cigar-form__cancel" href={base}>Cancel</a>
+            <a class="cigar-form__delete" href={`${base}/edit/${cigar.id}?delete=1`}>Delete</a>
+          </div>
+        </form>
+      )
+    }
   </div>
 </ClLayout>

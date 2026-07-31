@@ -3,8 +3,9 @@ import LpLayout from '../../../../layouts/LpLayout.astro';
 import SelectionFields from '../../../../components/lp/SelectionFields.astro';
 import { requireWrite } from '../../../../lib/workspace';
 import { loadContributors, loadSeasons, loadSelection } from '../../../../lib/listening-party';
+import ConfirmDelete from '../../../../components/ConfirmDelete.astro';
 import { readSelection } from '../../../../lib/records/selection';
-import { describeWriteError } from '../../../../lib/records/save';
+import { NOTHING_DELETED, describeDeleteError, describeWriteError } from '../../../../lib/records/save';
 
 export const prerender = false;
 
@@ -30,28 +31,53 @@ let pick = await loadSelection(supabase, selectionId!);
 if (!pick) return new Response('Not found', { status: 404 });
 
 const base = `/lp/${workspace.slug}`;
+const confirmingDelete = Astro.url.searchParams.get('delete') === '1';
+
 let error: string | null = null;
 let submitted: FormData | null = null;
 
 if (Astro.request.method === 'POST') {
   submitted = await Astro.request.formData();
-  const parsed = readSelection(submitted);
 
-  if (!parsed.ok) {
-    error = parsed.error;
-  } else {
-    const { error: writeError } = await supabase
+  if (submitted.get('intent') === 'delete') {
+    const { data: removed, error: deleteError } = await supabase
       .from('lp_selections')
-      .update(parsed.values)
-      .eq('id', pick.id);
+      .delete()
+      .eq('id', pick.id)
+      .select('id');
 
-    if (writeError) {
-      error = describeWriteError(writeError, 'lp_selections update');
+    if (deleteError) {
+      error = describeDeleteError(deleteError, 'lp_selections delete');
+      // The delete form carries only its intent, so leaving it in place would
+      // blank every field behind the confirmation.
+      submitted = null;
+    } else if (!removed || removed.length === 0) {
+      // RLS does not refuse a delete, it narrows it to nothing. Saying
+      // \"deleted\" here would be a lie the page could not detect.
+      error = NOTHING_DELETED;
+      submitted = null;
     } else {
-      // The season is editable now, so a pick can be moved between them.
-      return Astro.redirect(
-        `${base}/${seasons.find(s => s.id === parsed.values.season_id)?.slug ?? pick.seasonSlug}#now-playing`
-      );
+      return Astro.redirect(`${base}/${pick.seasonSlug}`);
+    }
+  } else {
+    const parsed = readSelection(submitted);
+
+    if (!parsed.ok) {
+      error = parsed.error;
+    } else {
+      const { error: writeError } = await supabase
+        .from('lp_selections')
+        .update(parsed.values)
+        .eq('id', pick.id);
+
+      if (writeError) {
+        error = describeWriteError(writeError, 'lp_selections update');
+      } else {
+        // The season is editable now, so a pick can be moved between them.
+        return Astro.redirect(
+          `${base}/${seasons.find(s => s.id === parsed.values.season_id)?.slug ?? pick.seasonSlug}#now-playing`
+        );
+      }
     }
   }
 
@@ -87,19 +113,36 @@ if (Astro.request.method === 'POST') {
     <div class="container">
       {error && <p class="form-error" role="alert">{error}</p>}
 
-      <form method="POST" class="pick-form">
-        <SelectionFields
-          pick={pick}
-          seasons={seasons}
-          contributors={contributors}
-          submitted={submitted}
-        />
+      {
+        confirmingDelete ? (
+          <ConfirmDelete
+            prefix="pick-form"
+            title={
+              pick.album
+                ? `Week ${pick.week} — ${pick.album} by ${pick.artist}`
+                : `Week ${pick.week} — ${pick.contributor.name}'s unfilled pick`
+            }
+            detail={`${pick.contributor.name} · ${pick.yearSlot} · season ${pick.seasonSlug}`}
+            cancelHref={`${base}/pick/${pick.id}`}
+            buttonLabel={`Delete week ${pick.week}`}
+          />
+        ) : (
+          <form method="POST" class="pick-form">
+            <SelectionFields
+              pick={pick}
+              seasons={seasons}
+              contributors={contributors}
+              submitted={submitted}
+            />
 
-        <div class="pick-form__actions">
-          <button class="pick-form__submit" type="submit">Save week {pick.week}</button>
-          <a class="pick-form__cancel" href={`${base}/${pick.seasonSlug}`}>Cancel</a>
-        </div>
-      </form>
+            <div class="pick-form__actions">
+              <button class="pick-form__submit" type="submit">Save week {pick.week}</button>
+              <a class="pick-form__cancel" href={`${base}/${pick.seasonSlug}`}>Cancel</a>
+              <a class="pick-form__delete" href={`${base}/pick/${pick.id}?delete=1`}>Delete</a>
+            </div>
+          </form>
+        )
+      }
     </div>
   </main>
 </LpLayout>

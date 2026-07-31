@@ -84,3 +84,43 @@ export function describeWriteError(error: WriteError, context: string): string {
 
   return 'That could not be saved, so nothing has changed. The problem has been logged.';
 }
+
+/**
+ * The same, for a delete.
+ *
+ * Worth its own function for one error code. On an insert, 23503 means the
+ * parent is missing; on a delete it means the opposite — something still points
+ * at this row and the database will not orphan it. `lp_selections.contributor_id`
+ * is ON DELETE RESTRICT exactly so a person cannot be removed out from under
+ * their picks, and that refusal deserves an explanation rather than the generic
+ * "could not be saved".
+ */
+/**
+ * What to say when a delete removed nothing.
+ *
+ * A delete blocked by RLS does not raise — the policy filters the row out of
+ * the statement's scope, so the delete succeeds against zero rows and returns
+ * no error at all. Every delete therefore asks for the removed rows back and
+ * checks it actually got one; without that a viewer whose role changed mid
+ * session would be told the record was deleted while it sat there untouched.
+ */
+export const NOTHING_DELETED =
+  'Nothing was deleted. It may already be gone, or your access may have changed — reload and check.';
+
+export function describeDeleteError(error: WriteError, context: string): string {
+  console.error(`delete failed (${context})`, {
+    code: error.code,
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+  });
+
+  if (error.code === '23503') {
+    return 'Something still refers to this, so it cannot be deleted yet.';
+  }
+  if (error.code === '42501' || error.message.includes('row-level security')) {
+    return 'You no longer have permission to delete this.';
+  }
+
+  return 'That could not be deleted, so nothing has changed. The problem has been logged.';
+}
