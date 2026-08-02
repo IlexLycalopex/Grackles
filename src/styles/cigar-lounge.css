@@ -654,15 +654,26 @@ textarea.cigar-form__input { resize: vertical; line-height: 1.55; }
 
 .record-actions__btn--primary:hover { opacity: 0.7; }
 
-/* The shortcut out of the humidor, sitting opposite the edit pencil. It takes
-   the same dark chip as the pencil rather than the page's own colours: both
-   can land on top of a photo, where a translucent grey is unreadable. */
+/* The shortcut out of the humidor. It takes the same dark chip as the pencil
+   rather than the page's own colours: both can land on top of a photo, where a
+   translucent grey is unreadable.
+
+   It sits immediately left of the pencil rather than in the opposite corner.
+   The card's first line is the brand kicker, and on an entry with no photo
+   there is no image for these controls to overlay — a left-hand chip lands
+   squarely on the brand and hides it, permanently so on touch, where the chip
+   never fades out. Clustering both actions on the right keeps them clear of
+   text that is always left-aligned. */
 .cigar-card__smoke {
   position: absolute;
   top: 10px;
-  left: 10px;
+  /* 10px pencil offset + its 28px width + an 8px gap. */
+  right: 46px;
   z-index: 2;
-  padding: 0.25rem 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 0.6rem;
   font-size: 0.65rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -676,9 +687,13 @@ textarea.cigar-form__input { resize: vertical; line-height: 1.55; }
 .cigar-card:hover .cigar-card__smoke,
 .cigar-card__smoke:focus-visible { opacity: 1; }
 
-/* Touch has no hover, so the shortcut has to be visible to be usable. */
+/* Touch has no hover, so the shortcuts have to be visible to be usable. Both
+   are listed: they are rendered together and now sit together, so revealing
+   only one leaves a gap where the other should be — and left the pencil with
+   no way at all to be reached on a phone. */
 @media (hover: none) {
-  .cigar-card__smoke { opacity: 1; }
+  .cigar-card__smoke,
+  .cigar-card__edit { opacity: 1; }
 }
 
 /* ── Deleting records ─────────────────────────────────────────────

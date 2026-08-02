@@ -45,13 +45,19 @@ const {
 const spec = [vitola, wrapper].filter(Boolean).join(' · ');
 const inHumidor = status === 'humidor';
 
+// With no photo there is nothing for the corner controls to overlay, so they
+// sit on the card body instead — and the brand kicker is the line they land
+// on. Reserve room for them on that line only when they are actually there.
+const showsSmoke = Boolean(smokeHref) && inHumidor;
+const actionsOverlayBody = !photo && (Boolean(editHref) || showsSmoke);
+
 // The date each view sorts and filters on: when it was smoked, or when it
 // went into the humidor.
 const sortDate = inHumidor ? dateAcquired : dateSmoked;
 const resting = inHumidor ? restingDays(cigar) : null;
 ---
 <article
-  class="cigar-card"
+  class:list={['cigar-card', actionsOverlayBody && 'cigar-card--inset-actions']}
   data-brand={brand}
   data-bought-at={boughtAt}
   data-smoked-at={smokedAt}
@@ -166,6 +172,11 @@ const resting = inHumidor ? restingDays(cigar) : null;
     text-transform: uppercase;
     color: #b98a54;
   }
+
+  /* Clears the smoke chip and the edit pencil, which on a photoless card are
+     positioned over this line. Only the kicker is indented — the title below
+     it starts at the card's edge like every other card. */
+  .cigar-card--inset-actions .cigar-card__brand { padding-right: 6rem; }
 
   .cigar-card__name {
     font-family: var(--display);
