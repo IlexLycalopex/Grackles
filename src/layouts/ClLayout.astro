@@ -29,6 +29,15 @@ const links = [
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical.href} />
     <link rel="icon" href="/grackles-logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    {/* The four faces cigar-lounge.css names in --display/--font/--mono/--numeral.
+        Without these the whole app silently fell back to system sans, which cost
+        the Oxblood Foil design every bit of its typographic character. */}
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Jost:wght@300;400;500&family=Marcellus&family=Space+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
     {workspace.visibility !== 'public' && <meta name="robots" content="noindex, nofollow" />}
   </head>
   <body>

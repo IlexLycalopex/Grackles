@@ -60,17 +60,22 @@ const facts = [
         <h1 class="entry__name foil">{d.name}</h1>
         {spec && <p class="entry__spec">{spec}</p>}
 
+        {
+          d.rating !== undefined && (
+            <div class="entry__score">
+              <span class="score score--lg">
+                {/* Sized down from the 1rem default: five diamonds at full size
+                    are wider than the 88px medallion they sit in. */}
+                <StarRating rating={d.rating} size="0.6rem" />
+                <span class="score__value">{d.rating.toFixed(1)}</span>
+              </span>
+            </div>
+          )
+        }
+
         <div class="entry__meta">
           {inHumidor && <span class="entry__badge entry__badge--quiet">In humidor</span>}
           {d.strength && <StrengthChip strength={d.strength} />}
-          {
-            d.rating !== undefined && (
-              <span class="score score--lg">
-                <StarRating rating={d.rating} />
-                <span class="score__value">{d.rating.toFixed(1)}</span>
-              </span>
-            )
-          }
           {
             workspace.canWrite && (
               <a class="entry__badge" href={`${base}/edit/${cigar.id}`}>
@@ -106,11 +111,14 @@ const facts = [
 
       {
         cigar.body && (
-          <div class="entry__notes prose">
-            {cigar.body.split(/\n{2,}/).map(para => (
-              <p>{para}</p>
-            ))}
-          </div>
+          <section class="entry__notes">
+            <p class="eyebrow entry__notes-label">Tasting notes</p>
+            <div class="prose">
+              {cigar.body.split(/\n{2,}/).map(para => (
+                <p>{para}</p>
+              ))}
+            </div>
+          </section>
         )
       }
     </article>
@@ -137,3 +145,248 @@ const facts = [
     }
   </div>
 </ClLayout>
+
+<style>
+  /* The record card. This page was shipped with its markup complete but no
+     styles at all — none of the .entry* names below resolved anywhere in
+     cigar-lounge.css, so it rendered as bare HTML. The composition follows
+     the Oxblood Foil pattern used by the log and stats screens: a centred
+     masthead, Space Mono micro-labels doing the signposting, and gold
+     hairlines separating the movements. */
+
+  .back-link {
+    display: inline-block;
+    margin-top: 2.25rem;
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    transition: color var(--transition);
+  }
+
+  .back-link:hover { color: var(--foil); }
+
+  /* Capped well short of the 1160px container: this page is a reading page,
+     and both the tasting note and the fact grid fall apart at full width. */
+  .entry {
+    max-width: 62rem;
+    margin: 0 auto;
+  }
+
+  /* ── Masthead ───────────────────────────────────────────────────── */
+  .entry__header {
+    text-align: center;
+    padding: 2.5rem 0 2.75rem;
+  }
+
+  .entry__brand {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--gold-label);
+  }
+
+  .entry__name {
+    margin-top: 0.85rem;
+    font-size: clamp(2.4rem, 6.5vw, 4.25rem);
+    line-height: 1.02;
+  }
+
+  .entry__spec {
+    margin-top: 0.9rem;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    color: var(--text-muted);
+  }
+
+  .entry__score {
+    display: flex;
+    justify-content: center;
+    margin-top: 1.9rem;
+  }
+
+  /* The medallion stacks diamonds over numeral; without a gap they collide,
+     because .score sets line-height 0.8 to tighten the numeral itself. */
+  .entry__score .score { gap: 0.35rem; }
+
+  .entry__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.85rem;
+    margin-top: 1.6rem;
+  }
+
+  .entry__badge {
+    padding: 0.42rem 0.95rem;
+    border: 1px solid var(--border-gold);
+    border-radius: 22px;
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--foil);
+    transition: color var(--transition), background var(--transition);
+  }
+
+  a.entry__badge:hover {
+    background: var(--bg-hover);
+    color: var(--foil-light);
+  }
+
+  /* "In humidor" is a state, not an action. It drops the gold edge so the
+     only gold-ringed chip on the page is the one you can actually click. */
+  .entry__badge--quiet {
+    border-color: var(--border);
+    color: var(--gold-muted);
+  }
+
+  /* ── Photo ──────────────────────────────────────────────────────── */
+  .entry__photo {
+    margin-bottom: 2.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--bg-card);
+  }
+
+  .entry__photo img {
+    width: 100%;
+    height: auto;
+    /* Phone photos of a single cigar are often tall; unbounded they push the
+       specification off the first screen, which is the thing worth seeing. */
+    max-height: 30rem;
+    object-fit: cover;
+  }
+
+  /* ── Specification ──────────────────────────────────────────────── */
+  /* auto-fit rather than a fixed column count: entries carry anywhere from
+     two facts to eleven, and a fixed grid strands a lone item on a wide row. */
+  .entry__facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 1.65rem 1.75rem;
+    padding: 2.1rem 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .entry__fact {
+    display: flex;
+    flex-direction: column;
+    gap: 0.42rem;
+    min-width: 0;
+  }
+
+  .entry__fact dt {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold-label);
+  }
+
+  .entry__fact dd {
+    font-family: var(--display);
+    font-size: 1.15rem;
+    line-height: 1.3;
+    color: var(--text);
+    /* Shop names and pairings run long and there is no room to scroll here. */
+    overflow-wrap: anywhere;
+  }
+
+  /* ── Aside and tasting notes ────────────────────────────────────── */
+  /* The one-liner — who you smoked it with, which order it came in. Centred
+     serif so it reads as a caption rather than the start of the body copy. */
+  .entry__note {
+    max-width: 46ch;
+    margin: 2.4rem auto 0;
+    font-family: var(--display);
+    font-style: italic;
+    font-size: 1.2rem;
+    line-height: 1.55;
+    text-align: center;
+    color: var(--text-muted);
+  }
+
+  .entry__notes {
+    max-width: 40rem;
+    margin: 3rem auto 0;
+  }
+
+  .entry__notes-label {
+    text-align: center;
+    margin-bottom: 1.1rem;
+  }
+
+  .prose p {
+    font-size: 1.02rem;
+    line-height: 1.85;
+    color: var(--text-2);
+  }
+
+  .prose p + p { margin-top: 1.15rem; }
+
+  /* ── Previous / next ────────────────────────────────────────────── */
+  .entry-nav {
+    display: flex;
+    justify-content: space-between;
+    gap: 1.5rem;
+    max-width: 62rem;
+    margin: 3.75rem auto 0;
+    padding-top: 1.85rem;
+    border-top: 1px solid var(--border);
+  }
+
+  /* The placeholder the template renders when there is no previous entry. */
+  .entry-nav > span:empty { display: none; }
+
+  .entry-nav__link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.42rem;
+    max-width: 45%;
+  }
+
+  .entry-nav__link--next {
+    margin-left: auto;
+    text-align: right;
+  }
+
+  .entry-nav__dir {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    transition: color var(--transition);
+  }
+
+  .entry-nav__name {
+    font-family: var(--display);
+    font-size: 1.15rem;
+    line-height: 1.25;
+    color: var(--text-muted);
+    transition: color var(--transition);
+  }
+
+  .entry-nav__link:hover .entry-nav__dir { color: var(--gold-label); }
+  .entry-nav__link:hover .entry-nav__name { color: var(--foil); }
+
+  @media (max-width: 640px) {
+    .entry__header { padding: 1.75rem 0 2rem; }
+    .entry__facts { gap: 1.35rem; padding: 1.75rem 0; }
+    .entry-nav { flex-direction: column; }
+
+    .entry-nav__link,
+    .entry-nav__link--next {
+      max-width: none;
+      margin-left: 0;
+      text-align: left;
+    }
+  }
+</style>
