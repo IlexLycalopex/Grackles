@@ -108,7 +108,13 @@ export async function sendInviteEmail(invite: {
     year: 'numeric',
   });
 
-  const what = `${invite.workspaceName} (${invite.appName})`;
+  // A workspace is often named after the app it belongs to, and "Listening
+  // Party (Listening Party)" reads like a mistake. Naming it twice only helps
+  // when the two actually differ.
+  const what =
+    invite.workspaceName === invite.appName
+      ? invite.workspaceName
+      : `${invite.workspaceName} (${invite.appName})`;
   const capability =
     invite.role === 'viewer'
       ? 'You will be able to read everything and change nothing.'
