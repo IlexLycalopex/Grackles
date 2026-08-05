@@ -54,6 +54,30 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `GRK04` | That app/slug pair is taken |
 | `42501` | Not signed in |
 
+## Applied
+
+All six are live on `ophmsvqtzffrjmyjyzza` as of 2026-08-05, recorded there as
+`20260805170356` … `20260805171217`. The filenames here keep their original
+`1200xx` ordering; the versions in the database are the times they actually ran.
+
+### `search_path` and citext
+
+`citext` lives in the `extensions` schema, not `public`. A `SECURITY DEFINER`
+function whose `SET search_path` omits `extensions` cannot resolve the type
+when plpgsql compiles its body, and fails with `42704: type "citext" does not
+exist` — at *call* time, not creation time, so it looks fine until someone uses
+it.
+
+The previous `accept_invite` had exactly this fault and had therefore never
+worked: the invitation pending since July was failing on it rather than merely
+waiting. `20260805120300` fixes it, and `create_workspace` carries the same
+path for the same reason.
+
+A policy expression that mentions citext gets away with it, because it is
+resolved against the session path when the policy is created. Only function
+bodies are affected. `tests/baseline.sql` installs the extension into
+`extensions` specifically so this asymmetry is reproduced rather than hidden.
+
 ## Applying
 
 Ordering matters in one place: `20260805120000` backfills entitlements for

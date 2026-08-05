@@ -11,8 +11,13 @@
 
 drop function if exists public.accept_invite(text);
 
+-- `extensions` is in the search_path because citext lives there on Supabase,
+-- and plpgsql resolves the types in DECLARE against the function's own path
+-- when the body is validated. Without it this fails to create at all, with
+-- "type citext does not exist" — a policy expression referring to citext gets
+-- away with the session path, a function body does not.
 create function public.accept_invite(invite_token text) returns jsonb
-language plpgsql security definer set search_path = public, pg_temp as $$
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare
   inv      public.workspace_invites;
   me       uuid := auth.uid();

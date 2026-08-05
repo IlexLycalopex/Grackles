@@ -14,7 +14,10 @@ create function public.create_workspace(
   p_name       text,
   p_visibility visibility default 'private'
 ) returns uuid
-language plpgsql security definer set search_path = public, pg_temp as $$
+-- `extensions` is in the path for the same reason accept_invite has it: the
+-- citext type lives there, and a body that cannot resolve its own types fails
+-- at compile time rather than anywhere useful. Nothing here needs it today.
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare
   me     uuid := auth.uid();
   new_id uuid;

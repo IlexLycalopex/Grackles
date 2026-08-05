@@ -8,7 +8,26 @@
 --
 -- Run this against a throwaway cluster only — never a Supabase instance.
 
-create extension if not exists citext;
+-- citext goes in `extensions`, as it does on Supabase — not `public`, which is
+-- where a bare CREATE EXTENSION would put it. The difference is not cosmetic:
+-- a SECURITY DEFINER function whose search_path omits `extensions` cannot
+-- resolve the type when its body is validated, so a migration that passes
+-- against a public-schema citext still fails in production.
+create schema if not exists extensions;
+create extension if not exists citext with schema extensions;
+grant usage on schema extensions to anon, authenticated, service_role;
+
+-- Ordinary sessions see `extensions`, as they do on Supabase, so plain DDL can
+-- name citext. A function with its own `SET search_path` does not inherit this
+-- — which is the asymmetry the harness exists to reproduce. Set for the
+-- database as well as this session, so the migrations and tests that follow in
+-- separate psql sessions get it too.
+set search_path = public, extensions;
+do $$
+begin
+  execute format('alter database %I set search_path to public, extensions', current_database());
+end
+$$;
 
 -- Roles are cluster-wide, so they may already exist from an earlier run.
 do $$
@@ -224,8 +243,13 @@ $$;
 create trigger workspaces_add_owner after insert on public.workspaces
   for each row execute function public.handle_new_workspace();
 
+-- Production's copy of this has `search_path = public, pg_temp`, which cannot
+-- resolve citext and so fails to compile the moment it is called — the invite
+-- that had been sitting unaccepted since July was hitting exactly this. It is
+-- given a working path here because the harness needs the starting shape to
+-- exist in order to test replacing it; 20260805120300 drops it either way.
 create function public.accept_invite(invite_token text) returns uuid
-language plpgsql security definer set search_path = public, pg_temp as $$
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare
   inv      public.workspace_invites;
   me       uuid := auth.uid();
