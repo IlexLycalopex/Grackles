@@ -139,6 +139,32 @@ check "unknown token is refused" GRK01 \
 check "invite cannot be redeemed twice" GRK01 \
   "select public.accept_invite('TOKEN_BOTH'); select public.accept_invite('TOKEN_BOTH');" "$as_rob"
 
+echo "── resolving an invitation before sign-in"
+# The signed-out half of the flow: anon holds a token and nothing else, and has
+# to be able to learn which address to send a sign-in link to.
+check "anon resolves a pending invite from its token" ok \
+  "do \$\$ declare r jsonb; begin
+     r := public.invite_email_for_token('TOKEN_BOTH');
+     if r is null then raise exception 'no invite returned'; end if;
+     if r->>'email' <> 'rob@example.com' then raise exception 'wrong email: %', r->>'email'; end if;
+     if r->>'workspace_name' is null then raise exception 'no workspace name'; end if;
+   end \$\$;" "$as_anon"
+check "unknown token resolves to nothing" ok \
+  "do \$\$ begin if public.invite_email_for_token('nope') is not null
+     then raise exception 'leaked'; end if; end \$\$;" "$as_anon"
+check "accepted invite no longer resolves" ok \
+  "do \$\$ begin
+     update public.workspace_invites set accepted_at = now() where token = 'TOKEN_GRANT';
+     if public.invite_email_for_token('TOKEN_GRANT') is not null
+       then raise exception 'spent invite still resolves'; end if; end \$\$;" "$as_jamie"
+check "expired invite no longer resolves" ok \
+  "do \$\$ begin
+     update public.workspace_invites set expires_at = now() - interval '1 day' where token = 'TOKEN_BOTH';
+     if public.invite_email_for_token('TOKEN_BOTH') is not null
+       then raise exception 'expired invite still resolves'; end if; end \$\$;" "$as_jamie"
+check "anon still cannot read the invites table" "permission denied" \
+  "select count(*) from public.workspace_invites;" "$as_anon"
+
 echo "── quota after acceptance"
 check "granted user creates exactly one, then is capped" GRK03 \
   "select public.accept_invite('TOKEN_BOTH');

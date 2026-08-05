@@ -1,0 +1,207 @@
+---
+import AppShell from '../../layouts/AppShell.astro';
+import { appBySlug, workspaceHref } from '../../lib/apps';
+import { describeGrantError } from '../../lib/grants';
+import type { AppSlug, MemberRole } from '../../lib/database.types';
+
+export const prerender = false;
+
+/**
+ * Accepting an invitation.
+ *
+ * All the checking — is the token real, unexpired, unused, and addressed to
+ * this person — happens inside accept_invite(), so there is one implementation
+ * of the rule rather than one here and one in the database.
+ *
+ * The signed-out case is the whole reason this is a page rather than an API
+ * route. Sending people to /login did not work: that form declines to create
+ * accounts, so an invited address that had never signed in got a 422 back and
+ * — because the form reports that as success, to avoid confirming whether an
+ * address is registered — a page saying a link was on its way. Nothing ever
+ * arrived, and no invitation had ever been accepted.
+ *
+ * Here the token identifies who the invitation is for, and holding it is the
+ * authorisation to create that account. The link goes to the invited address;
+ * they never type it.
+ */
+
+interface Accepted {
+  workspace_id: string | null;
+  role: MemberRole | null;
+  granted_apps: AppSlug[];
+}
+
+interface Pending {
+  email: string;
+  role: MemberRole | null;
+  workspace_name: string | null;
+  app: AppSlug | null;
+  granted_apps: AppSlug[];
+}
+
+const { supabase, user } = Astro.locals;
+const token = Astro.params.token!;
+
+let mismatch: string | null = null;
+let pending: Pending | null = null;
+let sent = false;
+let error: string | null = null;
+
+/** Where to go once redeemed — the project joined, or the form to make one. */
+async function destination(accepted: Accepted): Promise<string> {
+  if (accepted.workspace_id) {
+    const { data } = await supabase
+      .from('workspaces')
+      .select('app, slug')
+      .eq('id', accepted.workspace_id)
+      .maybeSingle();
+
+    // Readable now the membership row exists. If it somehow is not, the
+    // dashboard still lists it, so that is the fallback rather than a 404.
+    return data ? `${workspaceHref(data.app, data.slug)}?joined=1` : '/dashboard?joined=1';
+  }
+
+  if (accepted.granted_apps.length > 0) {
+    return `/new?granted=${encodeURIComponent(accepted.granted_apps.join(','))}`;
+  }
+
+  return '/dashboard';
+}
+
+if (user) {
+  // Signed in: redeem and go. Both verbs, because the dashboard's invitation
+  // card POSTs here and the link in the email is a GET.
+  const { data, error: rpcError } = await supabase.rpc('accept_invite', { invite_token: token });
+
+  if (!rpcError) return Astro.redirect(await destination(data as Accepted));
+
+  // GRK02 — signed in as somebody else — is the one worth staying on this page
+  // for, because the fix is to sign out and that needs saying. Everything else
+  // belongs on the dashboard beside their other projects.
+  if (rpcError.code !== 'GRK02') {
+    const reason = rpcError.code ? `&reason=${encodeURIComponent(rpcError.code)}` : '';
+    return Astro.redirect(`/dashboard?invite=failed${reason}`);
+  }
+
+  mismatch = describeGrantError(rpcError);
+} else {
+  const { data } = await supabase.rpc('invite_email_for_token', { p_token: token });
+  pending = (data as Pending | null) ?? null;
+
+  if (Astro.request.method === 'POST') {
+    if (!pending) {
+      error = 'That invitation is no longer valid — it may have expired or already been used.';
+    } else {
+      // Back to this page once signed in, so the branch above redeems it and
+      // they land in the project rather than on a dashboard wondering what
+      // became of the invitation.
+      const redirectTo = new URL('/auth/callback', Astro.url.origin);
+      redirectTo.searchParams.set('next', `/invite/${token}`);
+
+      const { error: authError } = await supabase.auth.signInWithOtp({
+        email: pending.email,
+        options: {
+          emailRedirectTo: redirectTo.href,
+          // The opposite of the sign-in form, deliberately: there, an unknown
+          // address must not be able to make itself an account. Here the
+          // caller holds an unexpired invitation addressed to this exact
+          // address, which is precisely the permission to have one.
+          shouldCreateUser: true,
+        },
+      });
+
+      if (authError) {
+        console.error('invite signInWithOtp failed', {
+          status: authError.status,
+          code: authError.code,
+          message: authError.message,
+        });
+        error = 'Something went wrong sending that link. Try again in a moment.';
+      } else {
+        sent = true;
+      }
+    }
+  }
+}
+
+const joinsName = pending?.workspace_name ?? null;
+const joinsApp = pending?.app ? (appBySlug(pending.app)?.name ?? pending.app) : null;
+const grants = (pending?.granted_apps ?? []).map(a => appBySlug(a)?.name ?? a);
+---
+
+<AppShell title="Your invitation · Grackles">
+  <h1 class="page-title">Your invitation</h1>
+
+  {
+    mismatch && (
+      <>
+        <p class="notice notice--error" role="alert">
+          {mismatch}
+        </p>
+        <p class="page-intro">
+          You are signed in as <strong>{user?.email}</strong>. Sign out and open the link again
+          from the address it was sent to.
+        </p>
+        <form method="POST" action="/logout">
+          <button class="button" type="submit">Sign out</button>
+        </form>
+      </>
+    )
+  }
+
+  {
+    !user && !pending && (
+      <div class="empty">
+        <p>That invitation is no longer valid.</p>
+        <p>It may have expired, or already been used. Ask whoever invited you to send another.</p>
+      </div>
+    )
+  }
+
+  {
+    !user && pending && sent && (
+      <>
+        <p class="page-intro">
+          A sign-in link is on its way to <strong>{pending.email}</strong>. Open it and the
+          invitation is accepted for you — there is no password to set.
+        </p>
+        <p class="page-intro">It is good for one use and expires in an hour.</p>
+      </>
+    )
+  }
+
+  {
+    !user && pending && !sent && (
+      <>
+        {(joinsName || grants.length > 0) && (
+          <p class="page-intro">
+            {joinsName && (
+              <>
+                You have been invited to <strong>{joinsName}</strong>
+                {joinsApp && ` on ${joinsApp}`}
+                {pending.role && ` as ${pending.role}`}.
+              </>
+            )}
+            {joinsName && grants.length > 0 && ' '}
+            {grants.length > 0 && <>It also lets you start your own {grants.join(' and ')}.</>}
+          </p>
+        )}
+
+        {error && (
+          <p class="notice notice--error" role="alert">
+            {error}
+          </p>
+        )}
+
+        <p class="page-intro">
+          It was sent to <strong>{pending.email}</strong>. We will email that address a link that
+          signs you in and accepts the invitation in one go.
+        </p>
+
+        <form method="POST">
+          <button class="button" type="submit">Email me a sign-in link</button>
+        </form>
+      </>
+    )
+  }
+</AppShell>

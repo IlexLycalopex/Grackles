@@ -19,6 +19,7 @@ The files in `migrations/` are the additions from 2026-08-05, in apply order:
 | `20260805120300_accept_invite_grants` | `accept_invite` redeems membership and/or creation grants, returns `jsonb` |
 | `20260805120400_create_workspace_rpc` | `create_workspace()` — entitlement check, slug handling, default seeding |
 | `20260805120500_tighten_anon_grants` | Withdraws unused write privileges from `anon` (independent of the above) |
+| `20260805120600_invite_lookup` | `invite_email_for_token()` — who an invitation is for, resolved before sign-in |
 
 ### What changed conceptually
 
@@ -56,8 +57,7 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 
 ## Applied
 
-All six are live on `ophmsvqtzffrjmyjyzza` as of 2026-08-05, recorded there as
-`20260805170356` … `20260805171217`. The filenames here keep their original
+All seven are live on `ophmsvqtzffrjmyjyzza` as of 2026-08-05. The filenames here keep their original
 `1200xx` ordering; the versions in the database are the times they actually ran.
 
 ### `search_path` and citext
@@ -118,8 +118,8 @@ tests/test.sh
 ```
 
 The baseline seeds current production data (one profile, three workspaces, one
-pending invite) so the backfill is exercised against real shape. 32 assertions,
-all passing as of `20260805120500`.
+pending invite) so the backfill is exercised against real shape. 37 assertions,
+all passing as of `20260805120600`.
 
 ## Two security fixes worth noting
 
@@ -143,11 +143,31 @@ These migrations ship with the code that uses them:
 - `src/lib/grants.ts` — what the signed-in user may create, and the SQLSTATEs
   as sentences.
 - `src/pages/new.astro` — calls `create_workspace()`.
-- `src/pages/invite/[token].ts` — calls `accept_invite()` and routes on what
+- `src/pages/invite/[token].astro` — calls `accept_invite()` and routes on what
   came back: into the project when it granted membership, to `/new` when it
-  granted the right to make one.
+  granted the right to make one. Signed out, it calls
+  `invite_email_for_token()` and sends a magic link to that address.
 - `src/pages/settings/[app]/[workspace].astro` — the `grant_apps` control,
   rendered only for platform admins because that is what the RLS policy allows.
+
+### How someone with no account gets one
+
+`/login` sends magic links with `shouldCreateUser: false`, so an address that
+has never signed in cannot make itself an account — which is the point, since
+creation is meant to be by invitation. But nothing turned an invitation *into*
+an account, so every invitee hit `422 otp_disabled`, and the form reports that
+as success to avoid confirming whether an address is registered. Two invitations
+sat unredeemed with nobody able to see why.
+
+The invitation link now carries the whole flow. `/invite/<token>` resolves the
+token to its address and emails a link there with `shouldCreateUser: true`; the
+callback returns to the same URL, now signed in, and the invitation is redeemed
+on that request. The invitee never types their address.
+
+Holding the token is the authorisation — 64 hex characters, only ever sent to
+the invited address. Keying it on the token rather than an email is deliberate:
+`has_pending_invite(email)` would let anyone with the publishable key test
+whether an address had been invited.
 
 `accept_invite`'s return type changed from `uuid` to `jsonb` in
 `20260805120300`. Its callers changed in the same commit; anything else calling

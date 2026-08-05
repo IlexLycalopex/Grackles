@@ -501,6 +501,24 @@ export type Database = {
         };
       };
       /**
+       * Who a pending invitation is for, resolved from its token.
+       *
+       * Callable by `anon` on purpose: the caller has no session yet, and the
+       * token — unguessable, and only ever sent to the invited address — is
+       * the authorisation. Null for a token that is unknown, expired or spent;
+       * the three are not distinguished.
+       */
+      invite_email_for_token: {
+        Args: { p_token: string };
+        Returns: {
+          email: string;
+          role: Database['public']['Enums']['member_role'] | null;
+          workspace_name: string | null;
+          app: Database['public']['Enums']['app_slug'] | null;
+          granted_apps: Database['public']['Enums']['app_slug'][];
+        } | null;
+      };
+      /**
        * Creates a workspace, seeds its defaults, and makes the caller owner.
        *
        * GRK03 no entitlement for this app (or quota used up), GRK04 slug taken.

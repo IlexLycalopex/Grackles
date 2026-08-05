@@ -8,6 +8,22 @@
 --
 -- Run this against a throwaway cluster only — never a Supabase instance.
 
+-- Roles first: everything below grants to them. They are cluster-wide, so they
+-- may already exist from an earlier run against the same server.
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'anon') then
+    create role anon nologin;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+    create role authenticated nologin;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'service_role') then
+    create role service_role nologin bypassrls;
+  end if;
+end
+$$;
+
 -- citext goes in `extensions`, as it does on Supabase — not `public`, which is
 -- where a bare CREATE EXTENSION would put it. The difference is not cosmetic:
 -- a SECURITY DEFINER function whose search_path omits `extensions` cannot
@@ -26,21 +42,6 @@ set search_path = public, extensions;
 do $$
 begin
   execute format('alter database %I set search_path to public, extensions', current_database());
-end
-$$;
-
--- Roles are cluster-wide, so they may already exist from an earlier run.
-do $$
-begin
-  if not exists (select 1 from pg_roles where rolname = 'anon') then
-    create role anon nologin;
-  end if;
-  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
-    create role authenticated nologin;
-  end if;
-  if not exists (select 1 from pg_roles where rolname = 'service_role') then
-    create role service_role nologin bypassrls;
-  end if;
 end
 $$;
 grant usage on schema public to anon, authenticated, service_role;
