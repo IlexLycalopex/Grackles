@@ -1,19 +1,23 @@
 ---
 import AppShell from '../layouts/AppShell.astro';
 import { appBySlug, workspaceHref } from '../lib/apps';
+import { loadEntitlements, describeGrantError } from '../lib/grants';
 
 export const prerender = false;
 
 const { user, supabase } = Astro.locals;
 if (!user) return Astro.redirect('/login?next=/dashboard');
 
-// No `.eq('user_id', …)` anywhere below. The membership rows a user can see
-// are already limited by RLS to their own, so filtering here would be
-// duplicating a rule the database already enforces — and the version that
-// matters is the database's.
+// The `.eq('user_id', …)` is load-bearing, despite RLS. members_read allows
+// `user_id = auth.uid() OR workspace_role(workspace_id) IS NOT NULL` — the
+// second half exposes the whole roster to anyone in the project, so without
+// this filter a project would appear once per member the moment it had two,
+// each time labelled with somebody else's role. resolveWorkspace() had the
+// same bug and the same fix.
 const { data: memberships, error } = await supabase
   .from('workspace_members')
   .select('role, workspaces(id, app, slug, name, description, visibility)')
+  .eq('user_id', user.id)
   .order('created_at', { ascending: true });
 
 // `workspaces` is nullable in the join's type even though the FK is NOT NULL,
@@ -24,12 +28,33 @@ const rows = (memberships ?? []).flatMap(({ role, workspaces }) =>
 
 // Pending invites addressed to this account. The RLS policy on
 // workspace_invites already scopes these to the caller's email.
+//
+// Expired ones are filtered out rather than shown greyed: accept_invite()
+// refuses them, so leaving them on the page is offering a button that cannot
+// work. workspace_id is null on an invitation that only grants the right to
+// create, which is why the embedded workspace is optional here.
 const { data: invites } = await supabase
   .from('workspace_invites')
-  .select('id, token, role, workspaces(name, app)')
-  .is('accepted_at', null);
+  .select('id, token, role, grant_apps, workspaces(name, app)')
+  .is('accepted_at', null)
+  .gt('expires_at', new Date().toISOString());
 
 const pending = invites ?? [];
+
+// What this account may start on its own, which is a different question from
+// what it is a member of — someone can have one, both, or neither.
+const { creatable } = await loadEntitlements(supabase, user.id);
+
+// Set by /invite/[token] when redemption failed, so the reason can be worded
+// here rather than in a redirect.
+const inviteFailed = Astro.url.searchParams.get('invite') === 'failed';
+const failureReason = Astro.url.searchParams.get('reason');
+const inviteError = inviteFailed
+  ? describeGrantError({
+      code: failureReason ?? undefined,
+      message: 'That invitation could not be accepted.',
+    })
+  : null;
 ---
 
 <AppShell title="Your projects · Grackles">
@@ -39,29 +64,61 @@ const pending = invites ?? [];
   </p>
 
   {error && <p class="notice notice--error" role="alert">Could not load your projects: {error.message}</p>}
+  {inviteError && <p class="notice notice--error" role="alert">{inviteError}</p>}
 
   {
     pending.length > 0 && (
       <>
         <p class="section-label">Invitations</p>
         <ul class="ws-grid">
-          {pending.map(invite => (
-            <li>
-              <form method="POST" action={`/invite/${invite.token}`}>
-                <div class="ws-card">
-                  <span class="ws-card__app">
-                    {invite.workspaces ? appBySlug(invite.workspaces.app)?.name : 'Project'}
-                  </span>
-                  <span class="ws-card__name">{invite.workspaces?.name ?? 'A project'}</span>
-                  <span class="ws-card__desc">You have been invited as {invite.role}.</span>
-                  <div class="ws-card__meta">
-                    <button class="button" type="submit">Accept</button>
+          {pending.map(invite => {
+            // An invitation does one of two things, or both, and the card has
+            // to say which — "invited as viewer" on an invitation that grants
+            // no membership would be a lie, and one that only grants
+            // membership should not promise a project of their own.
+            const joins = invite.workspaces;
+            const grants = invite.grant_apps.map(a => appBySlug(a)?.name ?? a);
+
+            return (
+              <li>
+                <form method="POST" action={`/invite/${invite.token}`}>
+                  <div class="ws-card">
+                    <span class="ws-card__app">
+                      {joins ? (appBySlug(joins.app)?.name ?? joins.app) : 'Grackles'}
+                    </span>
+                    <span class="ws-card__name">
+                      {joins?.name ?? `Start your own ${grants.join(' or ')}`}
+                    </span>
+                    <span class="ws-card__desc">
+                      {joins && `You have been invited as ${invite.role}.`}
+                      {joins && grants.length > 0 && ' '}
+                      {grants.length > 0 &&
+                        `You can also start your own ${grants.join(' and ')}.`}
+                    </span>
+                    <div class="ws-card__meta">
+                      <button class="button" type="submit">
+                        Accept
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </form>
-            </li>
-          ))}
+                </form>
+              </li>
+            );
+          })}
         </ul>
+      </>
+    )
+  }
+
+  {
+    creatable.length > 0 && (
+      <>
+        <p class="section-label">Start something</p>
+        <p class="page-intro">
+          You can start your own{' '}
+          {creatable.map(c => appBySlug(c.app)?.name ?? c.app).join(', ')}.{' '}
+          <a href="/new">Set one up</a>.
+        </p>
       </>
     )
   }

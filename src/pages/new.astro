@@ -1,0 +1,150 @@
+---
+import AppShell from '../layouts/AppShell.astro';
+import { appBySlug, workspaceHref } from '../lib/apps';
+import { loadEntitlements, describeGrantError } from '../lib/grants';
+import { FormValues, fieldValue } from '../lib/forms';
+import { slugify } from '../lib/slug';
+import type { AppSlug, Visibility } from '../lib/database.types';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname + Astro.url.search)}`);
+
+const { creatable } = await loadEntitlements(supabase, user.id);
+const allowed = creatable.map(c => c.app);
+
+// Arriving straight from an accepted invitation, which names what it granted
+// so the right app is already chosen. Only honoured if the grant really landed
+// — the query string is the invitation being helpful, not the authority.
+const suggested = (Astro.url.searchParams.get('granted') ?? '')
+  .split(',')
+  .filter((a): a is AppSlug => allowed.includes(a as AppSlug));
+
+const VISIBILITIES: Visibility[] = ['private', 'unlisted', 'public'];
+
+let error: string | null = null;
+let submitted: FormData | null = null;
+
+if (Astro.request.method === 'POST' && allowed.length > 0) {
+  submitted = await Astro.request.formData();
+  const form = new FormValues(submitted);
+
+  const app = form.choice('app', allowed, allowed[0]);
+  const name = form.str('name');
+  // An empty slug field means "use the name" — the common case, and one fewer
+  // decision to make. Typing one is for when the tidy version of a long name
+  // is not what you would have chosen.
+  const slug = slugify(form.str('slug') || name);
+  const visibility = form.choice('visibility', VISIBILITIES, 'private');
+
+  if (!name) {
+    error = 'Give the project a name.';
+  } else if (!slug) {
+    error = 'That name has no letters or numbers in it, so it cannot become an address. Set one below.';
+  } else {
+    // create_workspace() re-checks the entitlement. This page filtering the
+    // list of apps is a courtesy; the function is the boundary, because
+    // SECURITY DEFINER means RLS is not going to catch anything here.
+    const { data: id, error: e } = await supabase.rpc('create_workspace', {
+      p_app: app,
+      p_slug: slug,
+      p_name: name,
+      p_visibility: visibility,
+    });
+
+    if (e) error = describeGrantError(e);
+    else if (id) return Astro.redirect(`${workspaceHref(app, slug)}?created=1`);
+  }
+}
+
+const chosenApp = fieldValue(submitted, 'app', suggested[0] ?? allowed[0] ?? '');
+---
+
+<AppShell title="Start a project · Grackles">
+  <h1 class="page-title">Start a project</h1>
+
+  {
+    allowed.length === 0 ? (
+      <div class="empty">
+        <p>You do not have permission to create a project yet.</p>
+        <p>
+          Creating one is granted per app, by invitation. If you are expecting to be able to
+          make one, ask whoever invited you — and if you have a pending invitation, it is on
+          your <a href="/dashboard">projects page</a>.
+        </p>
+      </div>
+    ) : (
+      <>
+        <p class="page-intro">
+          {suggested.length > 0
+            ? 'Your invitation included the right to run one of these. This is where it starts.'
+            : 'A project is one instance of one app — your own log, with its own members.'}
+        </p>
+
+        {error && (
+          <p class="notice notice--error" role="alert">
+            {error}
+          </p>
+        )}
+
+        <form method="POST">
+          <label class="field">
+            <span class="field__label">App</span>
+            <select class="field__input" name="app">
+              {creatable.map(({ app, remaining }) => (
+                <option value={app} selected={chosenApp === app}>
+                  {appBySlug(app)?.name ?? app}
+                  {remaining !== null && remaining === 1 ? ' — one left' : ''}
+                  {remaining !== null && remaining > 1 ? ` — ${remaining} left` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field__label">Name</span>
+            <input
+              class="field__input"
+              type="text"
+              name="name"
+              value={fieldValue(submitted, 'name', '')}
+              placeholder="Rob's Cigar Lounge"
+              required
+            />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Address (optional)</span>
+            <input
+              class="field__input"
+              type="text"
+              name="slug"
+              value={fieldValue(submitted, 'slug', '')}
+              placeholder="taken from the name if you leave this blank"
+            />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Who can see it</span>
+            <select class="field__input" name="visibility">
+              {VISIBILITIES.map(v => (
+                <option value={v} selected={fieldValue(submitted, 'visibility', 'private') === v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <p class="page-intro">
+            <strong>private</strong> — members only. <strong>unlisted</strong> — anyone with the
+            link. <strong>public</strong> — readable by anyone. You can change this later.
+          </p>
+
+          <button class="button" type="submit">Create</button>
+          <a class="button button--quiet" href="/dashboard">Cancel</a>
+        </form>
+      </>
+    )
+  }
+</AppShell>

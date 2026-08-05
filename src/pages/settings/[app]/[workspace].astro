@@ -1,9 +1,10 @@
 ---
 import AppShell from '../../../layouts/AppShell.astro';
-import { appByPath, workspaceHref } from '../../../lib/apps';
+import { APPS, appByPath, appBySlug, workspaceHref } from '../../../lib/apps';
 import { resolveWorkspace } from '../../../lib/workspace';
+import { loadEntitlements } from '../../../lib/grants';
 import { sendInviteEmail } from '../../../lib/email';
-import type { MemberRole, Visibility } from '../../../lib/database.types';
+import type { AppSlug, MemberRole, Visibility } from '../../../lib/database.types';
 
 export const prerender = false;
 
@@ -23,6 +24,12 @@ if (!workspace.isOwner) return new Response('Forbidden', { status: 403 });
 const ROLES: MemberRole[] = ['owner', 'editor', 'viewer'];
 const VISIBILITIES: Visibility[] = ['private', 'unlisted', 'public'];
 
+// Only a platform admin may attach creation rights to an invitation — the RLS
+// policy on workspace_invites enforces it, and an owner who tried would have
+// the insert refused. Reading the flag here is what keeps the control off the
+// page for everyone else rather than offering something that cannot work.
+const { isPlatformAdmin } = await loadEntitlements(supabase, user.id);
+
 let error: string | null = null;
 let notice: string | null = null;
 
@@ -34,6 +41,16 @@ if (Astro.request.method === 'POST') {
   if (action === 'invite') {
     const email = str('email').toLowerCase();
     const role = ROLES.includes(str('role') as MemberRole) ? (str('role') as MemberRole) : 'viewer';
+
+    // Creation rights are a separate grant from membership, and only an admin
+    // can give them. Filtering here rather than trusting the form means a
+    // hand-posted `grant_apps` from an owner is dropped before the insert,
+    // which turns an RLS refusal into simply not happening.
+    const grantApps = isPlatformAdmin
+      ? form.getAll('grant_apps').map(String).filter((a): a is AppSlug =>
+          APPS.some(known => known.slug === a)
+        )
+      : [];
 
     if (!email) {
       error = 'Enter an email address to invite.';
@@ -47,9 +64,10 @@ if (Astro.request.method === 'POST') {
           workspace_id: workspace.id,
           email,
           role,
+          grant_apps: grantApps,
           invited_by: user.id,
         })
-        .select('token, expires_at')
+        .select('token, expires_at, grant_apps')
         .single();
 
       // The partial unique index only allows one un-accepted invite per
@@ -67,6 +85,7 @@ if (Astro.request.method === 'POST') {
           role,
           invitedBy: user.email!,
           expiresAt: created.expires_at,
+          grantedApps: (created.grant_apps ?? []).map(a => appBySlug(a)?.name ?? a),
         });
 
         // A send that fails leaves a perfectly good invitation behind, so this
@@ -84,7 +103,7 @@ if (Astro.request.method === 'POST') {
     // would change the token and break a link that may already have been sent.
     const { data: invite, error: e } = await supabase
       .from('workspace_invites')
-      .select('email, role, token, expires_at')
+      .select('email, role, token, expires_at, grant_apps')
       .eq('id', str('invite_id'))
       .is('accepted_at', null)
       .single();
@@ -100,6 +119,7 @@ if (Astro.request.method === 'POST') {
         role: invite.role,
         invitedBy: user.email!,
         expiresAt: invite.expires_at,
+        grantedApps: (invite.grant_apps ?? []).map(a => appBySlug(a)?.name ?? a),
       });
 
       if (sent.ok) notice = `Invitation to ${invite.email} sent again.`;
@@ -161,7 +181,7 @@ const { data: members } = await supabase
 
 const { data: invites } = await supabase
   .from('workspace_invites')
-  .select('id, email, role, token, expires_at')
+  .select('id, email, role, token, expires_at, grant_apps')
   .eq('workspace_id', workspace.id)
   .is('accepted_at', null);
 
@@ -251,6 +271,49 @@ const ownerCount = (members ?? []).filter(m => m.role === 'owner').length;
   </p>
 
   {
+    /* Two different things, deliberately on one invitation: joining this
+       project, and being able to start one of your own. Inviting someone as a
+       viewer here says nothing about whether they can run their own lounge —
+       that is what these boxes are for. Admin-only, matching the RLS rule. */
+    isPlatformAdmin && (
+      <>
+        <p class="section-label">…and let them start their own</p>
+        <form method="POST" class="inline-form">
+          <input type="hidden" name="action" value="invite" />
+          <input
+            class="field__input"
+            type="email"
+            name="email"
+            placeholder="their@email.com"
+            required
+          />
+          <select class="field__input field__input--auto" name="role">
+            <option value="viewer" selected>
+              viewer
+            </option>
+            <option value="editor">editor</option>
+            <option value="owner">owner</option>
+          </select>
+          <button class="button" type="submit">Invite</button>
+          <span class="grant-picker">
+            {APPS.map(a => (
+              <label class="grant-picker__option">
+                <input type="checkbox" name="grant_apps" value={a.slug} />
+                {a.name}
+              </label>
+            ))}
+          </span>
+        </form>
+        <p class="page-intro">
+          The invitation still adds them to <strong>{workspace.name}</strong> with the role
+          chosen above. Anything ticked additionally lets them create a project of their own in
+          that app — one each.
+        </p>
+      </>
+    )
+  }
+
+  {
     (invites ?? []).length > 0 && (
       <>
         <p class="section-label">Pending invitations</p>
@@ -261,6 +324,10 @@ const ownerCount = (members ?? []).filter(m => m.role === 'owner').length;
                 <span class="member__name">{inv.email}</span>
                 <span class="member__email">
                   {inv.role} · expires {new Date(inv.expires_at).toLocaleDateString('en-GB')}
+                  {inv.grant_apps.length > 0 &&
+                    ` · may start their own ${inv.grant_apps
+                      .map(a => appBySlug(a)?.name ?? a)
+                      .join(', ')}`}
                 </span>
                 {/* The invitation is emailed on creation. The link stays here
                     because it is the fallback when a send fails, and because

@@ -232,6 +232,22 @@
 .inline-form .field__input { flex: 1 1 14rem; }
 .field__input--auto { flex: 0 0 auto; width: auto; }
 
+/* The checkbox group takes the whole row under the fields it qualifies, so a
+   narrow window does not leave a lone box stranded beside the button. */
+.grant-picker {
+  flex: 1 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  font-size: 0.875rem;
+}
+
+.grant-picker__option {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .button--quiet {
   color: var(--ink);
   background: transparent;

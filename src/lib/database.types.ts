@@ -25,6 +25,7 @@ export type Database = {
           email: string;
           display_name: string;
           avatar_url: string | null;
+          is_platform_admin: boolean;
           created_at: string;
         };
         Insert: {
@@ -32,16 +33,38 @@ export type Database = {
           email: string;
           display_name?: string;
           avatar_url?: string | null;
+          is_platform_admin?: boolean;
           created_at?: string;
         };
+        // display_name and avatar_url are the only columns `authenticated` may
+        // write; email and is_platform_admin are revoked at the grant level.
         Update: {
-          id?: string;
-          email?: string;
           display_name?: string;
           avatar_url?: string | null;
-          created_at?: string;
         };
         Relationships: [];
+      };
+      app_grants: {
+        Row: {
+          user_id: string;
+          app: Database['public']['Enums']['app_slug'];
+          max_workspaces: number;
+          granted_by: string | null;
+          created_at: string;
+        };
+        // Written only by accept_invite() and service_role — there is no
+        // insert/update/delete policy for `authenticated`.
+        Insert: never;
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: 'app_grants_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       workspaces: {
         Row: {
@@ -118,11 +141,15 @@ export type Database = {
         ];
       };
       workspace_invites: {
+        // workspace_id is null on a creation-only invite — one that grants the
+        // right to make a project rather than membership of an existing one.
+        // grant_apps is empty unless the sender is a platform admin.
         Row: {
           id: string;
-          workspace_id: string;
+          workspace_id: string | null;
           email: string;
           role: Database['public']['Enums']['member_role'];
+          grant_apps: Database['public']['Enums']['app_slug'][];
           token: string;
           invited_by: string;
           created_at: string;
@@ -132,9 +159,10 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          workspace_id: string;
+          workspace_id?: string | null;
           email: string;
           role?: Database['public']['Enums']['member_role'];
+          grant_apps?: Database['public']['Enums']['app_slug'][];
           token?: string;
           invited_by: string;
           created_at?: string;
@@ -144,9 +172,10 @@ export type Database = {
         };
         Update: {
           id?: string;
-          workspace_id?: string;
+          workspace_id?: string | null;
           email?: string;
           role?: Database['public']['Enums']['member_role'];
+          grant_apps?: Database['public']['Enums']['app_slug'][];
           token?: string;
           invited_by?: string;
           created_at?: string;
@@ -456,7 +485,35 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
-      accept_invite: { Args: { invite_token: string }; Returns: string };
+      /**
+       * Redeems membership, creation rights, or both. workspace_id is null
+       * when the invite only granted the right to create.
+       *
+       * Raises with a custom SQLSTATE the caller can branch on:
+       * GRK01 invalid/expired/used, GRK02 addressed to someone else.
+       */
+      accept_invite: {
+        Args: { invite_token: string };
+        Returns: {
+          workspace_id: string | null;
+          role: Database['public']['Enums']['member_role'] | null;
+          granted_apps: Database['public']['Enums']['app_slug'][];
+        };
+      };
+      /**
+       * Creates a workspace, seeds its defaults, and makes the caller owner.
+       *
+       * GRK03 no entitlement for this app (or quota used up), GRK04 slug taken.
+       */
+      create_workspace: {
+        Args: {
+          p_app: Database['public']['Enums']['app_slug'];
+          p_slug: string;
+          p_name: string;
+          p_visibility?: Database['public']['Enums']['visibility'];
+        };
+        Returns: string;
+      };
       smoke_from_humidor: {
         Args: {
           p_cigar_id: string;

@@ -32,6 +32,12 @@ function env(name: string): string | undefined {
   return process.env[name] ?? (import.meta.env as Record<string, string | undefined>)[name];
 }
 
+/** "a", "a and b", "a, b and c" — for reading aloud, not for parsing. */
+function listSentence(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -101,6 +107,8 @@ export async function sendInviteEmail(invite: {
   role: string;
   invitedBy: string;
   expiresAt: string;
+  /** Apps the invitation also lets them start a project of, if any. */
+  grantedApps?: string[];
 }): Promise<SendResult> {
   const expires = new Date(invite.expiresAt).toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -122,9 +130,20 @@ export async function sendInviteEmail(invite: {
         ? 'You will be able to read and change entries.'
         : 'You will be able to read, change, and manage who else has access.';
 
+  // Being let into someone's project and being able to run one of your own are
+  // separate things, and an invitation can carry either or both. Saying so
+  // matters most when it carries only the second: without this the mail reads
+  // as an invitation to a project that is never mentioned again.
+  const granted = invite.grantedApps ?? [];
+  const grant =
+    granted.length > 0
+      ? `It also lets you start your own: ${listSentence(granted)}.`
+      : '';
+
   const text = [
     `${invite.invitedBy} has invited you to ${what} on Grackles, as ${invite.role}.`,
     capability,
+    ...(grant ? [grant] : []),
     '',
     'Open this link to accept:',
     invite.inviteUrl,
@@ -140,7 +159,9 @@ export async function sendInviteEmail(invite: {
         <strong>${escapeHtml(invite.invitedBy)}</strong> has invited you to
         <strong>${escapeHtml(what)}</strong>, as <strong>${escapeHtml(invite.role)}</strong>.
       </p>
-      <p style="margin:0 0 1.5rem">${capability}</p>
+      <p style="margin:0 0 1.5rem">
+        ${capability}${grant ? ` ${escapeHtml(grant)}` : ''}
+      </p>
       <p style="margin:0 0 1.5rem">
         <a href="${escapeHtml(invite.inviteUrl)}"
            style="display:inline-block;background:#1e1d2e;color:#eae7e0;padding:.75rem 1.5rem;text-decoration:none;border-radius:2px">
