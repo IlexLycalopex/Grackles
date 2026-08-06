@@ -44,7 +44,10 @@ const links = [
   <body>
     <header class="site-header">
       <div class="container--wide site-header__inner">
-        <a href={base} class="site-header__brand">{workspace.name} · 1680 AM</a>
+        {/* Just the name. The workspace is called "WBPR 1680 AM", so appending
+            the frequency printed "WBPR 1680 AM · 1680 AM" — and a project that
+            renamed itself would still have had a frequency bolted on. */}
+        <a href={base} class="site-header__brand">{workspace.name}</a>
         <nav>
           <ul class="site-nav">
             {
