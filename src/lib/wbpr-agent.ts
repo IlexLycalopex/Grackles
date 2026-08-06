@@ -267,7 +267,9 @@ export const LOG_INSTRUCTION = `The broadcast is over. Write it up as JSON and n
   "personal_notes": "Oso's own account, first person, a few short paragraphs",
   "tags": ["broadcast", "void1680am", "..."],
   "blocks": [
-    { "position": 1, "notes": "what happened in this block, including the call if there was one" }
+    { "position": 1,
+      "notes": "what happened in this block, including the call if there was one",
+      "tracks": [{ "title": "exactly as the DJ gave it", "artist": "exactly as the DJ gave it" }] }
   ],
   "phenomena": [
     { "name": "Frost Manifestations", "status": "New|Active|Stable|Escalating|Resolved|Dormant",
@@ -275,4 +277,8 @@ export const LOG_INSTRUCTION = `The broadcast is over. Write it up as JSON and n
   ]
 }
 
-One blocks entry per block that happened. Only list phenomena the night actually touched — an empty list is a correct answer for a quiet night.`;
+One blocks entry per block that happened.
+
+The tracks are the DJ's, taken from what he said on the night — transcribe them, do not choose, correct or add to them. A block where he named nothing gets an empty list. This is the only place the playlist is recorded, so a track you omit is a track that never played.
+
+Only list phenomena the night actually touched — an empty list is a correct answer for a quiet night.`;

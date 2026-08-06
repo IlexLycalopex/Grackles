@@ -31,7 +31,7 @@ interface LogPayload {
   dawn_colour?: string;
   personal_notes?: string;
   tags?: string[];
-  blocks?: { position: number; notes: string }[];
+  blocks?: { position: number; notes: string; tracks?: { title?: string; artist?: string }[] }[];
   phenomena?: {
     name: string; status?: string; confidence?: string;
     locations?: string[]; notes?: string; tags?: string[];
@@ -171,6 +171,9 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   const notesFor = new Map(
     (log.blocks ?? []).map(b => [Number(b.position), String(b.notes ?? '')])
   );
+  const tracksFor = new Map(
+    (log.blocks ?? []).map(b => [Number(b.position), b.tracks ?? []])
+  );
 
   const played = (state.blocks ?? []).filter(b => b.position >= 1 && b.position <= 4);
 
@@ -211,6 +214,24 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
           tone: c.tone,
         }))
       );
+    }
+
+    // The playlist, which is the one thing in the write-up that is neither
+    // ours nor the model's invention — it is what the DJ said he was playing,
+    // transcribed back out of the conversation. Without this the soundtrack
+    // page never hears about the night at all.
+    const playlist = (tracksFor.get(record.position) ?? [])
+      .filter(t => t?.title)
+      .map((t, i) => ({
+        workspace_id: workspace.id,
+        block_id: block.id,
+        position: i + 1,
+        title: String(t.title).slice(0, 300),
+        artist: String(t.artist ?? '').slice(0, 300),
+      }));
+
+    if (playlist.length > 0) {
+      await supabase.from('wbpr_tracks').insert(playlist);
     }
   }
 

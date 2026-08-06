@@ -44,13 +44,19 @@ const catalogue = await loadPhenomenaCatalogue(supabase, workspace.id);
                   <span>
                     {p.sightings} {p.sightings === 1 ? 'sighting' : 'sightings'}
                   </span>
+                  {/* Every night it was seen, each one a link. This used to
+                      print a range with only its right-hand end linked, so a
+                      phenomenon spanning sessions 5 to 10 offered exactly one
+                      way in — the most recent — and the other four sightings
+                      were unreachable from here. */}
                   <span>
-                    {p.first_session === p.last_session
-                      ? <>session <a href={`${base}/${broadcastSlug(p.last_session)}`}>{p.last_session}</a></>
-                      : <>
-                          sessions {p.first_session}–
-                          <a href={`${base}/${broadcastSlug(p.last_session)}`}>{p.last_session}</a>
-                        </>}
+                    {p.sessions.length === 1 ? 'session ' : 'sessions '}
+                    {p.sessions.map((n, i) => (
+                      <>
+                        {i > 0 && ', '}
+                        <a href={`${base}/${broadcastSlug(n)}`}>{n}</a>
+                      </>
+                    ))}
                   </span>
                 </div>
                 {p.locations.length > 0 && (

@@ -239,6 +239,8 @@ export interface CatalogueEntry extends Phenomenon {
   first_session: number;
   last_session: number;
   sightings: number;
+  /** Every night it was seen, ascending. Each one is a link on the index. */
+  sessions: number[];
 }
 
 export async function loadPhenomenaCatalogue(
@@ -262,11 +264,13 @@ export async function loadPhenomenaCatalogue(
         first_session: session,
         last_session: session,
         sightings: 1,
+        sessions: [session],
       });
       continue;
     }
 
     existing.sightings += 1;
+    existing.sessions.push(session);
     existing.first_session = Math.min(existing.first_session, session);
     // Only a later sighting may overwrite the standing description.
     if (session >= existing.last_session) {
@@ -274,8 +278,13 @@ export async function loadPhenomenaCatalogue(
         first_session: existing.first_session,
         last_session: session,
         sightings: existing.sightings,
+        sessions: existing.sessions,
       });
     }
+  }
+
+  for (const entry of byKey.values()) {
+    entry.sessions.sort((a, b) => a - b);
   }
 
   return [...byKey.values()].sort(
