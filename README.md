@@ -20,6 +20,8 @@ several people can share a project.
 | ✅ | All three apps' routes, with creating and editing |
 | ✅ | Invites, member roles and per-workspace visibility |
 | ✅ | The launcher reads from the database; all eight sites exist as workspaces |
+| ✅ | WBPR migrated off GitHub Pages — nine sessions, five tables, editable in place |
+| ⬜ | The WBPR broadcast agent (Minimax M3) — not started |
 | ⬜ | Custom SMTP — until then invite links must be copied by hand from settings |
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
 
@@ -84,6 +86,14 @@ every value of the enum — so this is the only thing stopping it being offered.
 /cigars/:workspace/new             add to the humidor or the log
 /cigars/:workspace/edit/:slug      edit an entry
 /cigars/:workspace/smoke/:slug     take one out of the humidor
+
+/wbpr/:workspace                   WBPR — the broadcast archive
+/wbpr/:workspace/phenomena         everything seen, folded by key
+/wbpr/:workspace/soundtrack        every track played, by artist
+/wbpr/:workspace/:session          one night on air
+/wbpr/:workspace/broadcast/new     log a broadcast
+/wbpr/:workspace/broadcast/:id     its header, notes and phenomena log
+/wbpr/:workspace/block/:id         one block — cards, playlist, the call
 ```
 
 Static segments beat dynamic ones in Astro's routing, so `pick/new` wins over
@@ -150,6 +160,35 @@ not defensive habit, it is required: a delete blocked by row-level security does
 not raise, it narrows the statement to zero rows and reports success. Without
 the check, a viewer whose role changed mid-session would be told the record was
 deleted while it sat there untouched.
+
+## WBPR
+
+The fourth app, and the first of the five outside sites to actually move in.
+Its nine sessions were markdown with YAML frontmatter in a separate repo; they
+are now five tables — `wbpr_broadcasts`, and `wbpr_blocks`, `wbpr_prompts`,
+`wbpr_tracks`, `wbpr_phenomena` hanging off it. The JSON they were converted
+through is kept at `supabase/seed/wbpr-sessions.json` with the script that
+produced it, because an import you cannot re-run is one you cannot check.
+
+Two things are deliberately derived rather than stored:
+
+- **The caller count.** The markdown carried `callers: 2` in its frontmatter,
+  which is exactly the field that goes stale the first time somebody corrects a
+  die roll. The blocks are the record, so they are what gets counted.
+- **The phenomena catalogue.** There is no standing table of phenomena. A
+  sighting is logged against the night it was seen, and a phenomenon's current
+  status is whatever the most recent broadcast said — so the catalogue is the
+  log read newest-first and folded by key. Nothing can disagree with itself
+  because there is only one copy.
+
+`veil_status` is a plain text column with no CHECK, unlike `caller_type` beside
+it. Session 1 says `Normal` and later ones say `Thin`; the vocabulary drifted
+over nine broadcasts and will drift again, and a constraint that has to be
+migrated before a night can be logged is a constraint in the way.
+
+Moving the site in was one `update` clearing `external_url`, plus flipping
+`hosted` in the registry. Those two have to ship together — a cleared column
+with no routes behind it is a 404.
 
 ## Photographs
 

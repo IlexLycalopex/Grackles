@@ -1,0 +1,92 @@
+---
+import WbprLayout from '../../../../layouts/WbprLayout.astro';
+import BroadcastFields from '../../../../components/wbpr/BroadcastFields.astro';
+import { requireWrite } from '../../../../lib/workspace';
+import { readBroadcast } from '../../../../lib/records/broadcast';
+import { describeWriteError } from '../../../../lib/records/save';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const { workspace: wsSlug } = Astro.params;
+
+const gate = await requireWrite(
+  supabase, 'wbpr', wsSlug!, user?.id ?? null, Astro.url.pathname + Astro.url.search
+);
+if (!gate.ok) return gate.response;
+const workspace = gate.workspace;
+const base = `/wbpr/${workspace.slug}`;
+
+// One past the highest session logged, not one past the count — deleting a
+// broadcast must not hand the next one a number that is already taken.
+const { data: highest } = await supabase
+  .from('wbpr_broadcasts')
+  .select('session')
+  .eq('workspace_id', workspace.id)
+  .order('session', { ascending: false })
+  .limit(1)
+  .maybeSingle();
+
+const nextSession = (highest?.session ?? 0) + 1;
+
+let error: string | null = null;
+let submitted: FormData | null = null;
+
+if (Astro.request.method === 'POST') {
+  submitted = await Astro.request.formData();
+  const parsed = readBroadcast(submitted);
+
+  if (!parsed.ok) {
+    error = parsed.error;
+  } else {
+    const { data: created, error: writeError } = await supabase
+      .from('wbpr_broadcasts')
+      .insert({ ...parsed.values, workspace_id: workspace.id })
+      .select('id, slug')
+      .single();
+
+    if (writeError) {
+      // 23505 is the unique index on (workspace_id, session): two people
+      // logging the same night, or a number typed over one already used.
+      error = writeError.code === '23505'
+        ? `Session ${parsed.values.session} is already in the archive.`
+        : describeWriteError(writeError, 'wbpr_broadcasts insert');
+    } else {
+      // Four blocks, empty, because every broadcast has four and creating them
+      // by hand is bookkeeping. They are the thing being filled in next, so
+      // this lands on the broadcast with its blocks already waiting.
+      const { error: blockError } = await supabase.from('wbpr_blocks').insert(
+        [1, 2, 3, 4].map(position => ({
+          workspace_id: workspace.id,
+          broadcast_id: created.id,
+          position,
+        }))
+      );
+
+      if (blockError) {
+        error = describeWriteError(blockError, 'wbpr_blocks insert');
+      } else {
+        return Astro.redirect(`${base}/${created.slug}`);
+      }
+    }
+  }
+}
+---
+
+<WbprLayout title={`Add broadcast · ${workspace.name}`} workspace={workspace}>
+  <main class="container">
+    <p class="wbpr-log__no">New entry</p>
+    <h1>Add broadcast</h1>
+    <p class="mono">Four empty blocks come with it; fill them in from the broadcast page.</p>
+
+    {error && <p class="wbpr-notice wbpr-notice--error" role="alert">{error}</p>}
+
+    <form method="POST" class="wbpr-form" style="margin-top: 2rem">
+      <BroadcastFields broadcast={null} nextSession={nextSession} submitted={submitted} />
+      <div class="wbpr-actions">
+        <button class="wbpr-button" type="submit">Log it</button>
+        <a class="wbpr-button wbpr-button--quiet" href={base}>Cancel</a>
+      </div>
+    </form>
+  </main>
+</WbprLayout>

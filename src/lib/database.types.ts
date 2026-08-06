@@ -485,6 +485,223 @@ export type Database = {
         Update: Partial<Database['public']['Tables']['cl_cigars']['Insert']>;
         Relationships: [];
       };
+      /**
+       * WBPR — Void 1680 AM. A broadcast is a night on air; blocks, prompts,
+       * tracks and phenomena hang off it. Every child carries workspace_id
+       * alongside its parent so RLS reads one column without a join.
+       */
+      wbpr_broadcasts: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          session: number;
+          slug: string;
+          station: string;
+          call_sign: string;
+          location: string;
+          lat: number | null;
+          lon: number | null;
+          date: string;
+          start_time: string;
+          end_time: string;
+          duration_minutes: number | null;
+          atmospheric_conditions: string;
+          veil_status: string;
+          veil_intensity: number | null;
+          dawn_colour: string;
+          veil_at_close: string;
+          personal_notes: string;
+          tags: string[];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          session: number;
+          slug: string;
+          station?: string;
+          call_sign?: string;
+          location?: string;
+          lat?: number | null;
+          lon?: number | null;
+          date: string;
+          start_time?: string;
+          end_time?: string;
+          duration_minutes?: number | null;
+          atmospheric_conditions?: string;
+          veil_status?: string;
+          veil_intensity?: number | null;
+          dawn_colour?: string;
+          veil_at_close?: string;
+          personal_notes?: string;
+          tags?: string[];
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['wbpr_broadcasts']['Insert']>;
+        Relationships: [];
+      };
+      wbpr_blocks: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          broadcast_id: string;
+          position: number;
+          time_label: string;
+          caller_type: string;
+          caller_card: string;
+          caller_card_meaning: string;
+          caller_location: string;
+          caller_lat: number | null;
+          caller_lon: number | null;
+          caller_location_confidence: string;
+          phenomenon_ref: string;
+          notes: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          broadcast_id: string;
+          position: number;
+          time_label?: string;
+          caller_type?: string;
+          caller_card?: string;
+          caller_card_meaning?: string;
+          caller_location?: string;
+          caller_lat?: number | null;
+          caller_lon?: number | null;
+          caller_location_confidence?: string;
+          phenomenon_ref?: string;
+          notes?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['wbpr_blocks']['Insert']>;
+        // PostgREST resolves embedded selects from these, so they are
+        // load-bearing for types rather than documentation.
+        Relationships: [
+          {
+            foreignKeyName: 'wbpr_blocks_broadcast_id_fkey';
+            columns: ['broadcast_id'];
+            isOneToOne: false;
+            referencedRelation: 'wbpr_broadcasts';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      wbpr_prompts: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          block_id: string;
+          position: number;
+          card: string;
+          tone: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          block_id: string;
+          position: number;
+          card: string;
+          tone?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['wbpr_prompts']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'wbpr_prompts_block_id_fkey';
+            columns: ['block_id'];
+            isOneToOne: false;
+            referencedRelation: 'wbpr_blocks';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      wbpr_tracks: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          block_id: string;
+          position: number;
+          title: string;
+          artist: string;
+          url: string;
+          source: string;
+          notes: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          block_id: string;
+          position: number;
+          title: string;
+          artist?: string;
+          url?: string;
+          source?: string;
+          notes?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['wbpr_tracks']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'wbpr_tracks_block_id_fkey';
+            columns: ['block_id'];
+            isOneToOne: false;
+            referencedRelation: 'wbpr_blocks';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      wbpr_phenomena: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          broadcast_id: string;
+          key: string;
+          name: string;
+          status: string;
+          confidence: string;
+          locations: string[];
+          lat: number | null;
+          lon: number | null;
+          notes: string;
+          tags: string[];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          broadcast_id: string;
+          key: string;
+          name: string;
+          status?: string;
+          confidence?: string;
+          locations?: string[];
+          lat?: number | null;
+          lon?: number | null;
+          notes?: string;
+          tags?: string[];
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['wbpr_phenomena']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'wbpr_phenomena_broadcast_id_fkey';
+            columns: ['broadcast_id'];
+            isOneToOne: false;
+            referencedRelation: 'wbpr_broadcasts';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {

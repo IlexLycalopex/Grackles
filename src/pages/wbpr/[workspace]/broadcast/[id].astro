@@ -1,0 +1,272 @@
+---
+import WbprLayout from '../../../../layouts/WbprLayout.astro';
+import BroadcastFields from '../../../../components/wbpr/BroadcastFields.astro';
+import ConfirmDelete from '../../../../components/ConfirmDelete.astro';
+import { requireWrite } from '../../../../lib/workspace';
+import { loadBroadcast, PHENOMENON_STATUSES, CONFIDENCES } from '../../../../lib/wbpr';
+import { readBroadcast, readPhenomenon } from '../../../../lib/records/broadcast';
+import { NOTHING_DELETED, describeDeleteError, describeWriteError } from '../../../../lib/records/save';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const { workspace: wsSlug, id } = Astro.params;
+
+const gate = await requireWrite(
+  supabase, 'wbpr', wsSlug!, user?.id ?? null, Astro.url.pathname + Astro.url.search
+);
+if (!gate.ok) return gate.response;
+const workspace = gate.workspace;
+const base = `/wbpr/${workspace.slug}`;
+
+// Loaded by id first so the page works before we know the slug, then reloaded
+// by slug because that is what loadBroadcast() takes and what every link uses.
+const { data: head } = await supabase
+  .from('wbpr_broadcasts')
+  .select('slug')
+  .eq('workspace_id', workspace.id)
+  .eq('id', id!)
+  .maybeSingle();
+
+if (!head) return new Response('Not found', { status: 404 });
+
+let broadcast = await loadBroadcast(supabase, workspace.id, head.slug);
+if (!broadcast) return new Response('Not found', { status: 404 });
+
+const confirmingDelete = Astro.url.searchParams.get('delete') === '1';
+
+let error: string | null = null;
+let notice: string | null = null;
+let submitted: FormData | null = null;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const intent = String(form.get('intent') ?? '');
+
+  if (intent === 'delete') {
+    // Blocks, prompts, tracks and the phenomena log all cascade, so the
+    // confirmation says what goes with it before the button is pressed.
+    const { data: removed, error: deleteError } = await supabase
+      .from('wbpr_broadcasts')
+      .delete()
+      .eq('id', broadcast.id)
+      .select('id');
+
+    if (deleteError) error = describeDeleteError(deleteError, 'wbpr_broadcasts delete');
+    else if (!removed?.length) error = NOTHING_DELETED;
+    else return Astro.redirect(base);
+  } else if (intent === 'phenomenon') {
+    const parsed = readPhenomenon(form);
+    if (!parsed.ok) {
+      error = parsed.error;
+    } else {
+      // One row per phenomenon per night: logging the same thing twice in an
+      // evening is one observation with fuller notes, so this updates rather
+      // than adding a second.
+      const { error: e } = await supabase
+        .from('wbpr_phenomena')
+        .upsert(
+          { ...parsed.values, workspace_id: workspace.id, broadcast_id: broadcast.id },
+          { onConflict: 'broadcast_id,key' }
+        );
+      if (e) error = describeWriteError(e, 'wbpr_phenomena upsert');
+      else notice = `Logged ${parsed.values.name}.`;
+    }
+  } else if (intent === 'phenomenon-remove') {
+    const { data: removed, error: e } = await supabase
+      .from('wbpr_phenomena')
+      .delete()
+      .eq('id', String(form.get('phenomenon_id') ?? ''))
+      .select('id');
+    if (e) error = describeDeleteError(e, 'wbpr_phenomena delete');
+    else if (!removed?.length) error = NOTHING_DELETED;
+    else notice = 'Removed from the log.';
+  } else {
+    submitted = form;
+    const parsed = readBroadcast(form);
+    if (!parsed.ok) {
+      error = parsed.error;
+    } else {
+      const { data: saved, error: e } = await supabase
+        .from('wbpr_broadcasts')
+        .update(parsed.values)
+        .eq('id', broadcast.id)
+        .select('slug');
+
+      if (e) {
+        error = e.code === '23505'
+          ? `Session ${parsed.values.session} is already in the archive.`
+          : describeWriteError(e, 'wbpr_broadcasts update');
+      } else if (!saved?.length) {
+        error = 'That could not be saved — you may no longer have write access.';
+      } else {
+        return Astro.redirect(`${base}/${saved[0].slug}`);
+      }
+    }
+  }
+
+  broadcast = (await loadBroadcast(supabase, workspace.id, head.slug)) ?? broadcast;
+}
+
+const b = broadcast;
+const blockCount = b.blocks.length;
+const trackCount = b.blocks.reduce((n, k) => n + k.tracks.length, 0);
+---
+
+<WbprLayout title={`Edit session ${b.session} · ${workspace.name}`} workspace={workspace}>
+  <main class="container">
+    <p class="wbpr-log__no">Session {String(b.session).padStart(3, '0')}</p>
+    <h1>Edit broadcast</h1>
+
+    {error && <p class="wbpr-notice wbpr-notice--error" role="alert">{error}</p>}
+    {notice && <p class="wbpr-notice wbpr-notice--ok">{notice}</p>}
+
+    {
+      confirmingDelete ? (
+        <ConfirmDelete
+          prefix="wbpr"
+          title={`Delete session ${b.session}?`}
+          detail={`${blockCount} blocks and ${trackCount} tracks go with it, along with ${b.phenomena.length} phenomena entries. This cannot be undone.`}
+          cancelHref={`${base}/broadcast/${b.id}`}
+        />
+      ) : (
+        <>
+          <form method="POST" class="wbpr-form" style="margin-top: 2rem">
+            <BroadcastFields broadcast={b} submitted={submitted} />
+            <div class="wbpr-actions">
+              <button class="wbpr-button" type="submit">Save</button>
+              <a class="wbpr-button wbpr-button--quiet" href={`${base}/${b.slug}`}>Back to the night</a>
+              <a class="wbpr-button wbpr-button--danger" href={`${base}/broadcast/${b.id}?delete=1`}>
+                Delete
+              </a>
+            </div>
+          </form>
+
+          <section style="margin-top: 3rem">
+            <h2>Blocks</h2>
+            <p class="mono">Cards, playlist and caller are edited a block at a time.</p>
+            <ul class="wbpr-log" style="margin-top: 1rem">
+              {b.blocks.map(k => (
+                <li class="wbpr-log__item">
+                  <a class="wbpr-log__link" href={`${base}/block/${k.id}`}>
+                    <span class="wbpr-log__no">
+                      Block {k.position}{k.time_label && ` — ${k.time_label}`}
+                    </span>
+                    <div class="wbpr-log__meta">
+                      <span class={`badge badge--${k.caller_type}`}>{k.caller_type}</span>
+                      <span>{k.prompts.length} cards</span>
+                      <span>{k.tracks.length} tracks</span>
+                    </div>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section id="phenomena" style="margin-top: 3rem">
+            <h2>Phenomena log</h2>
+            <p class="mono">What was active tonight. One entry per phenomenon.</p>
+
+            {b.phenomena.map(p => (
+              <form method="POST" class="wbpr-form"
+                    style="border-top: 1px solid var(--color-border); padding-top: 1.5rem; margin-top: 1.5rem">
+                <input type="hidden" name="intent" value="phenomenon" />
+                <input type="hidden" name="key" value={p.key} />
+                <div class="wbpr-row">
+                  <label class="wbpr-field">
+                    <span class="wbpr-field__label">Name</span>
+                    <input class="wbpr-field__input" type="text" name="name" value={p.name} required />
+                  </label>
+                  <label class="wbpr-field">
+                    <span class="wbpr-field__label">Status</span>
+                    <select class="wbpr-field__input wbpr-field__input--mono" name="status">
+                      {PHENOMENON_STATUSES.map(s => (
+                        <option value={s} selected={p.status === s}>{s}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label class="wbpr-field">
+                    <span class="wbpr-field__label">Confidence</span>
+                    <select class="wbpr-field__input wbpr-field__input--mono" name="confidence">
+                      {CONFIDENCES.map(c => (
+                        <option value={c} selected={p.confidence === c}>{c}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div class="wbpr-row">
+                  <label class="wbpr-field">
+                    <span class="wbpr-field__label">Locations</span>
+                    <input class="wbpr-field__input" type="text" name="locations"
+                           value={p.locations.join(', ')} />
+                  </label>
+                  <label class="wbpr-field">
+                    <span class="wbpr-field__label">Latitude</span>
+                    <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="lat"
+                           value={p.lat ?? ''} />
+                  </label>
+                  <label class="wbpr-field">
+                    <span class="wbpr-field__label">Longitude</span>
+                    <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="lon"
+                           value={p.lon ?? ''} />
+                  </label>
+                </div>
+                <label class="wbpr-field">
+                  <span class="wbpr-field__label">Notes</span>
+                  <textarea class="wbpr-field__input" name="notes" rows="4">{p.notes}</textarea>
+                </label>
+                <label class="wbpr-field">
+                  <span class="wbpr-field__label">Tags</span>
+                  <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="tags"
+                         value={p.tags.join(', ')} />
+                </label>
+                <div class="wbpr-actions">
+                  <button class="wbpr-button wbpr-button--quiet" type="submit">Save entry</button>
+                  <button class="wbpr-button wbpr-button--danger" type="submit"
+                          name="intent" value="phenomenon-remove">Remove</button>
+                  <input type="hidden" name="phenomenon_id" value={p.id} />
+                </div>
+              </form>
+            ))}
+
+            <form method="POST" class="wbpr-form"
+                  style="border-top: 1px solid var(--color-border); padding-top: 1.5rem; margin-top: 1.5rem">
+              <input type="hidden" name="intent" value="phenomenon" />
+              <div class="wbpr-row">
+                <label class="wbpr-field">
+                  <span class="wbpr-field__label">Add a phenomenon</span>
+                  <input class="wbpr-field__input" type="text" name="name"
+                         placeholder="Frost Manifestations" required />
+                  <span class="wbpr-field__hint">
+                    The key is taken from the name, and joins this sighting to every other one.
+                  </span>
+                </label>
+                <label class="wbpr-field">
+                  <span class="wbpr-field__label">Status</span>
+                  <select class="wbpr-field__input wbpr-field__input--mono" name="status">
+                    {PHENOMENON_STATUSES.map(s => (
+                      <option value={s} selected={s === 'Active'}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label class="wbpr-field">
+                  <span class="wbpr-field__label">Confidence</span>
+                  <select class="wbpr-field__input wbpr-field__input--mono" name="confidence">
+                    {CONFIDENCES.map(c => (
+                      <option value={c} selected={c === 'Unconfirmed'}>{c}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <label class="wbpr-field">
+                <span class="wbpr-field__label">Notes</span>
+                <textarea class="wbpr-field__input" name="notes" rows="3"></textarea>
+              </label>
+              <button class="wbpr-button" type="submit">Log it</button>
+            </form>
+          </section>
+        </>
+      )
+    }
+  </main>
+</WbprLayout>

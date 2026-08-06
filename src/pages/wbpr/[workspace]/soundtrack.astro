@@ -1,0 +1,105 @@
+---
+import WbprLayout from '../../../layouts/WbprLayout.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const { workspace: wsSlug } = Astro.params;
+
+const workspace = await resolveWorkspace(supabase, 'wbpr', wsSlug!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const base = `/wbpr/${workspace.slug}`;
+
+// Every track ever played, with the night it went out. The join climbs two
+// levels because a track hangs off a block and a block off a broadcast — the
+// alternative is denormalising the session onto the track, which then has to
+// be kept in step with a broadcast whose number can be corrected.
+const { data } = await supabase
+  .from('wbpr_tracks')
+  .select('id, title, artist, url, wbpr_blocks(position, wbpr_broadcasts(session, slug, date))')
+  .eq('workspace_id', workspace.id);
+
+interface Play {
+  title: string;
+  url: string;
+  session: number;
+  slug: string;
+}
+
+const byArtist = new Map<string, Play[]>();
+
+for (const row of (data ?? []) as any[]) {
+  const broadcast = row.wbpr_blocks?.wbpr_broadcasts;
+  if (!broadcast) continue;
+  // An artist left blank is still a track that was played; filing it under a
+  // named unknown beats dropping it out of the record entirely.
+  const artist = row.artist?.trim() || 'Unattributed';
+  const plays = byArtist.get(artist) ?? [];
+  plays.push({ title: row.title, url: row.url ?? '', session: broadcast.session, slug: broadcast.slug });
+  byArtist.set(artist, plays);
+}
+
+const artists = [...byArtist.entries()]
+  .map(([artist, plays]) => ({
+    artist,
+    plays: plays.sort((a, b) => a.session - b.session || a.title.localeCompare(b.title, 'en')),
+  }))
+  .sort((a, b) => b.plays.length - a.plays.length || a.artist.localeCompare(b.artist, 'en'));
+
+const totalPlays = artists.reduce((n, a) => n + a.plays.length, 0);
+---
+
+<WbprLayout
+  title={`Soundtrack · ${workspace.name}`}
+  description={`${totalPlays} tracks across ${artists.length} artists.`}
+  workspace={workspace}
+>
+  <main class="container--wide">
+    <h1>Soundtrack</h1>
+    <p class="mono">
+      {totalPlays} {totalPlays === 1 ? 'track' : 'tracks'} · {artists.length}{' '}
+      {artists.length === 1 ? 'artist' : 'artists'} · most played first
+    </p>
+
+    {
+      artists.length === 0 ? (
+        <div class="wbpr-empty" style="margin-top: 2rem">
+          <p>Nothing played yet.</p>
+          <p class="mono">Tracks are recorded against the block they went out in.</p>
+        </div>
+      ) : (
+        <ul class="wbpr-log" style="margin-top: 2rem">
+          {artists.map(a => (
+            <li class="wbpr-log__item">
+              <div class="wbpr-log__link">
+                <h2 class="wbpr-log__title">{a.artist}</h2>
+                <span class="wbpr-log__no">
+                  {a.plays.length} {a.plays.length === 1 ? 'play' : 'plays'}
+                </span>
+                <ol class="wbpr-playlist" style="margin-top: 0.75rem">
+                  {a.plays.map(p => (
+                    <li>
+                      <span class="wbpr-playlist__n">{String(p.session).padStart(2, '0')}</span>
+                      <span>
+                        {p.url ? (
+                          <a href={p.url} target="_blank" rel="noopener">{p.title}</a>
+                        ) : (
+                          p.title
+                        )}
+                        <a class="wbpr-playlist__artist" href={`${base}/${p.slug}`}>
+                          {' '}· session {p.session}
+                        </a>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </main>
+</WbprLayout>

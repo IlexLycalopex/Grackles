@@ -1,0 +1,196 @@
+---
+import WbprLayout from '../../../layouts/WbprLayout.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { loadBroadcast, callerCount, renderProse } from '../../../lib/wbpr';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const { workspace: wsSlug, session } = Astro.params;
+
+const workspace = await resolveWorkspace(supabase, 'wbpr', wsSlug!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const broadcast = await loadBroadcast(supabase, workspace.id, session!);
+if (!broadcast) return new Response('Not found', { status: 404 });
+
+const base = `/wbpr/${workspace.slug}`;
+const b = broadcast;
+const callers = callerCount(b.blocks);
+
+const fmt = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+  });
+
+const facts = ([
+  ['Station', `${b.station} · 1680 AM`],
+  ['Call sign', b.call_sign],
+  ['Location', b.location],
+  ['On air', [b.start_time, b.end_time].filter(Boolean).join('–')],
+  ['Duration', b.duration_minutes !== null ? `${b.duration_minutes} min` : ''],
+  ['Veil', `${b.veil_status}${b.veil_intensity !== null ? ` · ${b.veil_intensity}/10` : ''}`],
+  ['At close', b.veil_at_close],
+  ['Dawn', b.dawn_colour],
+  ['Callers', String(callers)],
+] as [string, string][]).filter((f): f is [string, string] => Boolean(f[1]));
+
+// The archive is read for the calls, so a block says at a glance whether the
+// phone rang before anything else about it does.
+const callerLabel: Record<string, string> = {
+  none: 'No caller',
+  standard: 'Caller',
+  phenomenon: 'Caller · phenomenon',
+  emergency: 'Caller · emergency',
+};
+---
+
+<WbprLayout
+  title={`Session ${b.session} · ${workspace.name}`}
+  description={b.atmospheric_conditions}
+  workspace={workspace}
+>
+  <main class="container">
+    <p class="wbpr-log__no">Session {String(b.session).padStart(3, '0')}</p>
+    <h1>{fmt(b.date)}</h1>
+
+    {
+      workspace.canWrite && (
+        <div class="wbpr-actions" style="margin-top: 1.5rem">
+          <a class="wbpr-button wbpr-button--quiet" href={`${base}/broadcast/${b.id}`}>Edit broadcast</a>
+        </div>
+      )
+    }
+
+    <dl class="wbpr-meta-grid">
+      {facts.map(([label, value]) => (
+        <div>
+          <dt class="wbpr-meta__label">{label}</dt>
+          <dd class="wbpr-meta__value">{value}</dd>
+        </div>
+      ))}
+    </dl>
+
+    {b.atmospheric_conditions && <p>{b.atmospheric_conditions}</p>}
+
+    {
+      b.blocks.map(block => (
+        <section class="wbpr-block">
+          <div class="wbpr-block__head">
+            <span class="wbpr-block__no">
+              Block {block.position}
+              {block.time_label && ` — ${block.time_label}`}
+            </span>
+            <span>
+              <span class={`badge badge--${block.caller_type}`}>
+                {callerLabel[block.caller_type] ?? block.caller_type}
+              </span>
+              {workspace.canWrite && (
+                <>
+                  {' '}
+                  <a class="mono" href={`${base}/block/${block.id}`}>edit</a>
+                </>
+              )}
+            </span>
+          </div>
+
+          {block.prompts.length > 0 && (
+            <ul class="wbpr-prompts">
+              {block.prompts.map(p => (
+                <li class="wbpr-prompt">
+                  <span class="wbpr-prompt__card">{p.card}</span>
+                  {p.tone && <span class="wbpr-prompt__tone">{p.tone}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {block.tracks.length > 0 && (
+            <ol class="wbpr-playlist">
+              {block.tracks.map(t => (
+                <li>
+                  <span class="wbpr-playlist__n">{t.position}</span>
+                  <span>
+                    {t.url ? (
+                      <a href={t.url} target="_blank" rel="noopener">{t.title}</a>
+                    ) : (
+                      t.title
+                    )}
+                    {t.artist && <span class="wbpr-playlist__artist"> — {t.artist}</span>}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+
+          {block.caller_card && (
+            <p class="mono">
+              Caller card: {block.caller_card}
+              {block.caller_card_meaning && ` — ${block.caller_card_meaning}`}
+            </p>
+          )}
+
+          {block.caller_location && (
+            <p class="mono">
+              From {block.caller_location}
+              {block.caller_location_confidence !== 'unknown' &&
+                ` (${block.caller_location_confidence})`}
+            </p>
+          )}
+
+          {block.notes && (
+            <div class="prose" set:html={renderProse(block.notes)} />
+          )}
+        </section>
+      ))
+    }
+
+    {
+      b.personal_notes && (
+        <section class="wbpr-block">
+          <div class="wbpr-block__head">
+            <span class="wbpr-block__no">{b.call_sign} — personal notes</span>
+          </div>
+          <div class="prose" set:html={renderProse(b.personal_notes)} />
+        </section>
+      )
+    }
+
+    {
+      b.phenomena.length > 0 && (
+        <section class="wbpr-block">
+          <div class="wbpr-block__head">
+            <span class="wbpr-block__no">Phenomena log</span>
+            {workspace.canWrite && (
+              <a class="mono" href={`${base}/broadcast/${b.id}#phenomena`}>edit</a>
+            )}
+          </div>
+          {b.phenomena.map(p => (
+            <div style="margin-bottom: 1.5rem">
+              <p>
+                <strong>{p.name}</strong>{' '}
+                <span class={`badge badge--${p.status.toLowerCase()}`}>{p.status}</span>{' '}
+                <span class={`badge badge--${p.confidence.toLowerCase()}`}>{p.confidence}</span>
+              </p>
+              {p.locations.length > 0 && <p class="mono">{p.locations.join(' · ')}</p>}
+              {p.notes && <p style="color: var(--color-text-muted)">{p.notes}</p>}
+              {p.tags.length > 0 && (
+                <ul class="tag-list">
+                  {p.tags.map(t => <li class="tag">{t}</li>)}
+                </ul>
+              )}
+            </div>
+          ))}
+        </section>
+      )
+    }
+
+    {
+      b.tags.length > 0 && (
+        <ul class="tag-list" style="margin-top: 2.5rem">
+          {b.tags.map(t => <li class="tag">{t}</li>)}
+        </ul>
+      )
+    }
+  </main>
+</WbprLayout>

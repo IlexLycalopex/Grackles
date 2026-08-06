@@ -44,13 +44,19 @@ export const APPS: AppDefinition[] = [
     hosted: true,
     tagline: 'Humidor and tasting notes.',
   },
+  {
+    slug: 'wbpr',
+    path: 'wbpr',
+    name: 'WBPR 1680 AM',
+    hosted: true,
+    tagline: 'Broadcasting until the signal holds.',
+  },
   // No taglines below: an invented sentence about a site nobody has described
   // yet would read as fact. They get one when they move in.
   { slug: 'atelier-obscura', path: 'atelier', name: 'Atelier Obscura', hosted: false },
   { slug: 'lanternwood', path: 'lanternwood', name: 'Lanternwood', hosted: false },
   { slug: 'spelltome', path: 'spelltome', name: 'Spelltome', hosted: false },
   { slug: 'scoundrel', path: 'scoundrel', name: 'Scoundrel', hosted: false },
-  { slug: 'wbpr', path: 'wbpr', name: 'WBPR 1680 AM', hosted: false },
 ];
 
 /**

@@ -1,0 +1,74 @@
+---
+import WbprLayout from '../../../layouts/WbprLayout.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { loadPhenomenaCatalogue, broadcastSlug } from '../../../lib/wbpr';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const { workspace: wsSlug } = Astro.params;
+
+const workspace = await resolveWorkspace(supabase, 'wbpr', wsSlug!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const base = `/wbpr/${workspace.slug}`;
+const catalogue = await loadPhenomenaCatalogue(supabase, workspace.id);
+---
+
+<WbprLayout
+  title={`Phenomena · ${workspace.name}`}
+  description={`${catalogue.length} phenomena observed from the lookout.`}
+  workspace={workspace}
+>
+  <main class="container--wide">
+    <h1>Phenomena</h1>
+    <p class="mono">
+      {catalogue.length} tracked · a standing entry is whatever the most recent broadcast said
+    </p>
+
+    {
+      catalogue.length === 0 ? (
+        <div class="wbpr-empty" style="margin-top: 2rem">
+          <p>Nothing logged yet.</p>
+          <p class="mono">Phenomena are recorded against the night they were seen.</p>
+        </div>
+      ) : (
+        <ul class="wbpr-log" style="margin-top: 2rem">
+          {catalogue.map(p => (
+            <li class="wbpr-log__item">
+              <div class="wbpr-log__link">
+                <h2 class="wbpr-log__title">{p.name}</h2>
+                <div class="wbpr-log__meta">
+                  <span class={`badge badge--${p.status.toLowerCase()}`}>{p.status}</span>
+                  <span class={`badge badge--${p.confidence.toLowerCase()}`}>{p.confidence}</span>
+                  <span>
+                    {p.sightings} {p.sightings === 1 ? 'sighting' : 'sightings'}
+                  </span>
+                  <span>
+                    {p.first_session === p.last_session
+                      ? <>session <a href={`${base}/${broadcastSlug(p.last_session)}`}>{p.last_session}</a></>
+                      : <>
+                          sessions {p.first_session}–
+                          <a href={`${base}/${broadcastSlug(p.last_session)}`}>{p.last_session}</a>
+                        </>}
+                  </span>
+                </div>
+                {p.locations.length > 0 && (
+                  <p class="mono" style="margin-top: 0.5rem">{p.locations.join(' · ')}</p>
+                )}
+                {p.notes && (
+                  <p style="color: var(--color-text-muted); margin-top: 0.5rem">{p.notes}</p>
+                )}
+                {p.tags.length > 0 && (
+                  <ul class="tag-list" style="margin-top: 0.75rem">
+                    {p.tags.map(t => <li class="tag">{t}</li>)}
+                  </ul>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </main>
+</WbprLayout>

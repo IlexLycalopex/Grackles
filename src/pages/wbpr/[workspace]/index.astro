@@ -1,0 +1,87 @@
+---
+import WbprLayout from '../../../layouts/WbprLayout.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { loadBroadcasts } from '../../../lib/wbpr';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const { workspace: wsSlug } = Astro.params;
+
+const workspace = await resolveWorkspace(supabase, 'wbpr', wsSlug!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const base = `/wbpr/${workspace.slug}`;
+const broadcasts = await loadBroadcasts(supabase, workspace.id);
+
+const nights = broadcasts.length;
+const callers = broadcasts.reduce((n, b) => n + b.callers, 0);
+// The next session number is one past the highest, not one past the count —
+// the two differ the moment a broadcast is deleted, and reusing a number would
+// collide with the unique index rather than fail politely.
+const nextSession = broadcasts.reduce((n, b) => Math.max(n, b.session), 0) + 1;
+
+const fmt = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+  });
+---
+
+<WbprLayout
+  title={`${workspace.name} · Broadcast archive`}
+  description={`${nights} broadcasts from the lookout.`}
+  workspace={workspace}
+>
+  <main class="container--wide">
+    <h1>Broadcast archive</h1>
+    <p class="mono">
+      {nights} {nights === 1 ? 'night' : 'nights'} on air · {callers} {callers === 1 ? 'caller' : 'callers'}
+    </p>
+
+    {
+      workspace.canWrite && (
+        <div class="wbpr-actions" style="margin-top: 2rem">
+          <a class="wbpr-button" href={`${base}/broadcast/new`}>Add broadcast</a>
+          <span class="mono">Next up: session {nextSession}</span>
+        </div>
+      )
+    }
+
+    {
+      broadcasts.length === 0 ? (
+        <div class="wbpr-empty">
+          <p>Nothing logged yet.</p>
+          <p class="mono">The signal holds; nobody has written it down.</p>
+        </div>
+      ) : (
+        <ul class="wbpr-log">
+          {broadcasts.map(b => (
+            <li class="wbpr-log__item">
+              <a class="wbpr-log__link" href={`${base}/${b.slug}`}>
+                <span class="wbpr-log__no">Session {String(b.session).padStart(3, '0')}</span>
+                <h2 class="wbpr-log__title">{fmt(b.date)}</h2>
+                {b.atmospheric_conditions && (
+                  <p style="color: var(--color-text-muted)">
+                    {b.atmospheric_conditions.length > 180
+                      ? `${b.atmospheric_conditions.slice(0, 180).trimEnd()}…`
+                      : b.atmospheric_conditions}
+                  </p>
+                )}
+                <div class="wbpr-log__meta">
+                  <span class={`veil-badge veil-badge--${b.veil_status.toLowerCase().replace(/\s+/g, '-')}`}>
+                    Veil {b.veil_status}
+                    {b.veil_intensity !== null && ` ${b.veil_intensity}/10`}
+                  </span>
+                  <span>{b.start_time}–{b.end_time}</span>
+                  {b.duration_minutes !== null && <span>{b.duration_minutes} min</span>}
+                  <span>{b.callers} {b.callers === 1 ? 'caller' : 'callers'}</span>
+                  <span>{b.block_count} blocks</span>
+                </div>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </main>
+</WbprLayout>

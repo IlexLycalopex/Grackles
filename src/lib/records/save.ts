@@ -40,6 +40,22 @@ const CONSTRAINTS: Record<string, string> = {
   cl_acquired_before_smoked: 'It cannot have been smoked before it was acquired.',
   cl_cigars_quantity_check: 'The quantity has to be at least one.',
   cl_cigars_rating_check: 'A rating runs from 0 to 5, in halves.',
+  cl_cigars_photo_path_shape: 'A photo has to be a link starting http:// or https://.',
+
+  // WBPR
+  wbpr_broadcasts_workspace_id_session_key: 'That session number is already in the archive.',
+  wbpr_broadcasts_workspace_id_slug_key: 'That session number is already in the archive.',
+  wbpr_broadcasts_veil_intensity_range: 'Veil intensity runs from 1 to 10.',
+  wbpr_broadcasts_session_positive: 'Session numbers start at 1.',
+  wbpr_blocks_caller_fields:
+    'This block has no caller, so it cannot carry a caller card or a location.',
+  wbpr_blocks_caller_type: 'That is not one of the caller types.',
+  wbpr_blocks_broadcast_id_position_key: 'That block number is already on this broadcast.',
+  wbpr_tracks_url_shape: 'A track link has to start http:// or https://.',
+  wbpr_phenomena_broadcast_id_key_key:
+    'That phenomenon is already logged against this broadcast — one entry per night.',
+  wbpr_phenomena_status: 'That is not one of the phenomenon statuses.',
+  wbpr_phenomena_confidence: 'That is not one of the confidence levels.',
 };
 
 interface WriteError {

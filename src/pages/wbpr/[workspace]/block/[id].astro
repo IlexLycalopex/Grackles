@@ -1,0 +1,213 @@
+---
+import WbprLayout from '../../../../layouts/WbprLayout.astro';
+import { requireWrite } from '../../../../lib/workspace';
+import { loadBlock, CALLER_TYPES, LOCATION_CONFIDENCE } from '../../../../lib/wbpr';
+import { readBlock } from '../../../../lib/records/broadcast';
+import { describeWriteError } from '../../../../lib/records/save';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const { workspace: wsSlug, id } = Astro.params;
+
+const gate = await requireWrite(
+  supabase, 'wbpr', wsSlug!, user?.id ?? null, Astro.url.pathname + Astro.url.search
+);
+if (!gate.ok) return gate.response;
+const workspace = gate.workspace;
+const base = `/wbpr/${workspace.slug}`;
+
+let block = await loadBlock(supabase, workspace.id, id!);
+if (!block) return new Response('Not found', { status: 404 });
+
+let error: string | null = null;
+let notice: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const parsed = readBlock(form);
+
+  if (!parsed.ok) {
+    error = parsed.error;
+  } else {
+    const { data: saved, error: e } = await supabase
+      .from('wbpr_blocks')
+      .update(parsed.values.block)
+      .eq('id', block.id)
+      .select('id');
+
+    if (e) {
+      error = describeWriteError(e, 'wbpr_blocks update');
+    } else if (!saved?.length) {
+      error = 'That could not be saved — you may no longer have write access.';
+    } else {
+      // Prompts and tracks are replaced wholesale rather than diffed. They are
+      // an ordered list of at most a dozen rows with no identity of their own —
+      // nothing references a track — so matching up which row moved where would
+      // be work in service of nothing. Deleting first also frees the positions,
+      // which are unique per block and would otherwise collide on reorder.
+      const wipe = async (table: 'wbpr_prompts' | 'wbpr_tracks') =>
+        supabase.from(table).delete().eq('block_id', block!.id);
+
+      const [{ error: dp }, { error: dt }] = await Promise.all([
+        wipe('wbpr_prompts'),
+        wipe('wbpr_tracks'),
+      ]);
+
+      if (dp || dt) {
+        error = describeWriteError((dp ?? dt)!, 'wbpr prompts/tracks clear');
+      } else {
+        const rows = { workspace_id: workspace.id, block_id: block.id };
+        const [{ error: ip }, { error: it }] = await Promise.all([
+          parsed.values.prompts.length
+            ? supabase.from('wbpr_prompts').insert(parsed.values.prompts.map(p => ({ ...rows, ...p })))
+            : Promise.resolve({ error: null }),
+          parsed.values.tracks.length
+            ? supabase.from('wbpr_tracks').insert(parsed.values.tracks.map(t => ({ ...rows, ...t })))
+            : Promise.resolve({ error: null }),
+        ]);
+
+        if (ip || it) error = describeWriteError((ip ?? it)!, 'wbpr prompts/tracks insert');
+        else return Astro.redirect(`${base}/${block.broadcast_slug}#block-${block.position}`);
+      }
+    }
+  }
+
+  block = (await loadBlock(supabase, workspace.id, id!)) ?? block;
+}
+
+// Always offer three card slots and two spare track rows. The rules draw three
+// cards a block, and a playlist that cannot grow without a page reload is a
+// form you fight. Clearing a title deletes that track.
+const promptSlots = [0, 1, 2].map(i => block!.prompts[i] ?? { card: '', tone: '' });
+const trackSlots = [...block.tracks, ...Array(2).fill({ title: '', artist: '', url: '', source: '' })];
+const b = block;
+---
+
+<WbprLayout title={`Block ${b.position} · Session ${b.session}`} workspace={workspace}>
+  <main class="container">
+    <p class="wbpr-log__no">Session {String(b.session).padStart(3, '0')}</p>
+    <h1>Block {b.position}</h1>
+
+    {error && <p class="wbpr-notice wbpr-notice--error" role="alert">{error}</p>}
+    {notice && <p class="wbpr-notice wbpr-notice--ok">{notice}</p>}
+
+    <form method="POST" class="wbpr-form" style="margin-top: 2rem">
+      <label class="wbpr-field" style="max-width: 12rem">
+        <span class="wbpr-field__label">Time</span>
+        <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="time_label"
+               placeholder="23:00" value={b.time_label} />
+      </label>
+
+      <h2 style="margin-top: 2rem">Cards drawn</h2>
+      <p class="mono">Three a block. Leave a card blank to drop it.</p>
+      {
+        promptSlots.map((p, i) => (
+          <div class="wbpr-slot">
+            <span class="wbpr-slot__n">{i + 1}</span>
+            <div class="wbpr-slot__fields">
+              <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="prompt_card"
+                     placeholder="Eight of Hearts" value={p.card} />
+              <input class="wbpr-field__input" type="text" name="prompt_tone"
+                     placeholder="Something hopeful" value={p.tone} />
+            </div>
+          </div>
+        ))
+      }
+
+      <h2 style="margin-top: 2rem">Playlist</h2>
+      <p class="mono">Clear a title to remove the track. Two spare rows are always at the end.</p>
+      {
+        trackSlots.map((t, i) => (
+          <div class="wbpr-slot">
+            <span class="wbpr-slot__n">{i + 1}</span>
+            <div class="wbpr-slot__fields">
+              <input class="wbpr-field__input" type="text" name="track_title"
+                     placeholder="Title" value={t.title} />
+              <input class="wbpr-field__input" type="text" name="track_artist"
+                     placeholder="Artist" value={t.artist} />
+              <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="track_url"
+                     placeholder="https://…" value={t.url} />
+              <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="track_source"
+                     placeholder="Source" value={t.source} />
+            </div>
+          </div>
+        ))
+      }
+
+      <h2 style="margin-top: 2rem">The call</h2>
+      <div class="wbpr-row">
+        <label class="wbpr-field">
+          <span class="wbpr-field__label">Roll</span>
+          <select class="wbpr-field__input wbpr-field__input--mono" name="caller_type">
+            {CALLER_TYPES.map(t => (
+              <option value={t} selected={b.caller_type === t}>
+                {t === 'none' ? '1–3 · no caller' : t === 'standard' ? '4 · standard'
+                  : t === 'phenomenon' ? '6 · phenomenon' : '5 · urgent/distressed'}
+              </option>
+            ))}
+          </select>
+          <span class="wbpr-field__hint">No caller clears the card and location below.</span>
+        </label>
+        <label class="wbpr-field">
+          <span class="wbpr-field__label">Caller card</span>
+          <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="caller_card"
+                 placeholder="Nine of Diamonds" value={b.caller_card} />
+        </label>
+        <label class="wbpr-field">
+          <span class="wbpr-field__label">Meaning</span>
+          <input class="wbpr-field__input" type="text" name="caller_card_meaning"
+                 placeholder="Mundane life grinding them down" value={b.caller_card_meaning} />
+        </label>
+      </div>
+
+      <div class="wbpr-row">
+        <label class="wbpr-field">
+          <span class="wbpr-field__label">Called from</span>
+          <input class="wbpr-field__input" type="text" name="caller_location"
+                 value={b.caller_location} />
+        </label>
+        <label class="wbpr-field">
+          <span class="wbpr-field__label">Confidence</span>
+          <select class="wbpr-field__input wbpr-field__input--mono" name="caller_location_confidence">
+            {LOCATION_CONFIDENCE.map(c => (
+              <option value={c} selected={b.caller_location_confidence === c}>{c}</option>
+            ))}
+          </select>
+        </label>
+        <label class="wbpr-field">
+          <span class="wbpr-field__label">Latitude</span>
+          <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="caller_lat"
+                 value={b.caller_lat ?? ''} />
+        </label>
+        <label class="wbpr-field">
+          <span class="wbpr-field__label">Longitude</span>
+          <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="caller_lon"
+                 value={b.caller_lon ?? ''} />
+        </label>
+      </div>
+
+      <label class="wbpr-field">
+        <span class="wbpr-field__label">Phenomenon</span>
+        <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="phenomenon_ref"
+               placeholder="frost-manifestations" value={b.phenomenon_ref} />
+        <span class="wbpr-field__hint">
+          The key of whatever this block touched. It does not have to exist yet.
+        </span>
+      </label>
+
+      <label class="wbpr-field">
+        <span class="wbpr-field__label">What happened</span>
+        <textarea class="wbpr-field__input" name="notes" rows="10">{b.notes}</textarea>
+        <span class="wbpr-field__hint">
+          The caller, the frost, the silence. Blank lines make paragraphs.
+        </span>
+      </label>
+
+      <div class="wbpr-actions">
+        <button class="wbpr-button" type="submit">Save block</button>
+        <a class="wbpr-button wbpr-button--quiet" href={`${base}/${b.broadcast_slug}`}>Back to the night</a>
+      </div>
+    </form>
+  </main>
+</WbprLayout>

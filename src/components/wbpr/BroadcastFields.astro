@@ -1,0 +1,139 @@
+---
+import { fieldValue } from '../../lib/forms';
+import { VEIL_STATUSES, type Broadcast } from '../../lib/wbpr';
+
+/**
+ * The header of a broadcast — everything except its blocks.
+ *
+ * One component for both routes, so a create form and an edit form cannot
+ * drift: `broadcast` null means new. The blocks are edited a block at a time,
+ * on their own page; four of them with three cards and a playlist each would
+ * make this the longest form in the app and the one nobody finishes.
+ */
+interface Props {
+  broadcast: Broadcast | null;
+  /** For a new broadcast: one past the highest session logged. */
+  nextSession?: number;
+  submitted?: FormData | null;
+}
+
+const { broadcast: b, nextSession = 1, submitted = null } = Astro.props;
+
+const v = (key: string, stored?: string | number | null, fallback: string | number = '') =>
+  fieldValue(submitted, key, stored, fallback);
+
+const veil = v('veil_status', b?.veil_status, 'Thin');
+---
+
+<div class="wbpr-row">
+  <label class="wbpr-field">
+    <span class="wbpr-field__label">Session</span>
+    <input class="wbpr-field__input wbpr-field__input--mono" type="number" name="session" min="1"
+           value={v('session', b?.session, nextSession)} required />
+    <span class="wbpr-field__hint">The URL is built from this.</span>
+  </label>
+  <label class="wbpr-field">
+    <span class="wbpr-field__label">Date</span>
+    <input class="wbpr-field__input wbpr-field__input--mono" type="date" name="date"
+           value={v('date', b?.date)} required />
+  </label>
+  <label class="wbpr-field">
+    <span class="wbpr-field__label">Duration (min)</span>
+    <input class="wbpr-field__input wbpr-field__input--mono" type="number" name="duration_minutes"
+           min="0" value={v('duration_minutes', b?.duration_minutes)} />
+  </label>
+</div>
+
+<div class="wbpr-row">
+  <label class="wbpr-field">
+    <span class="wbpr-field__label">On air</span>
+    <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="start_time"
+           placeholder="23:00" value={v('start_time', b?.start_time)} />
+    <span class="wbpr-field__hint">Clock face, not a timestamp — a broadcast runs past midnight.</span>
+  </label>
+  <label class="wbpr-field">
+    <span class="wbpr-field__label">Off air</span>
+    <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="end_time"
+           placeholder="02:18" value={v('end_time', b?.end_time)} />
+  </label>
+</div>
+
+<div class="wbpr-row">
+  <label class="wbpr-field">
+    <span class="wbpr-field__label">Station</span>
+    <input class="wbpr-field__input" type="text" name="station" value={v('station', b?.station, 'WBPR')} />
+  </label>
+  <label class="wbpr-field">
+    <span class="wbpr-field__label">Call sign</span>
+    <input class="wbpr-field__input" type="text" name="call_sign" value={v('call_sign', b?.call_sign, 'Oso Sur')} />
+  </label>
+</div>
+
+<label class="wbpr-field">
+  <span class="wbpr-field__label">Location</span>
+  <input class="wbpr-field__input" type="text" name="location"
+         placeholder="Montana Fire Lookout, ~7,200ft" value={v('location', b?.location)} />
+</label>
+
+<div class="wbpr-row">
+  <label class="wbpr-field">
+    <span class="wbpr-field__label">Latitude</span>
+    <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="lat"
+           placeholder="48.20" value={v('lat', b?.lat)} />
+  </label>
+  <label class="wbpr-field">
+    <span class="wbpr-field__label">Longitude</span>
+    <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="lon"
+           placeholder="-112.90" value={v('lon', b?.lon)} />
+    <span class="wbpr-field__hint">Both or neither.</span>
+  </label>
+</div>
+
+<div class="wbpr-row">
+  <label class="wbpr-field">
+    <span class="wbpr-field__label">Veil status</span>
+    <select class="wbpr-field__input wbpr-field__input--mono" name="veil_status">
+      {VEIL_STATUSES.map(s => <option value={s} selected={veil === s}>{s}</option>)}
+    </select>
+  </label>
+  <label class="wbpr-field">
+    <span class="wbpr-field__label">Intensity</span>
+    <input class="wbpr-field__input wbpr-field__input--mono" type="number" name="veil_intensity"
+           min="1" max="10" value={v('veil_intensity', b?.veil_intensity)} />
+    <span class="wbpr-field__hint">1 to 10.</span>
+  </label>
+  <label class="wbpr-field">
+    <span class="wbpr-field__label">Veil at close</span>
+    <input class="wbpr-field__input" type="text" name="veil_at_close"
+           value={v('veil_at_close', b?.veil_at_close)} />
+  </label>
+  <label class="wbpr-field">
+    <span class="wbpr-field__label">Dawn colour</span>
+    <input class="wbpr-field__input" type="text" name="dawn_colour"
+           placeholder="Grey-blue (clean)" value={v('dawn_colour', b?.dawn_colour)} />
+  </label>
+</div>
+
+<label class="wbpr-field">
+  <span class="wbpr-field__label">Atmospheric conditions</span>
+  <textarea class="wbpr-field__input" name="atmospheric_conditions" rows="3"
+  >{v('atmospheric_conditions', b?.atmospheric_conditions)}</textarea>
+  <span class="wbpr-field__hint">Frost, wind, stars, temperature — the shape of the night.</span>
+</label>
+
+<label class="wbpr-field">
+  <span class="wbpr-field__label">Personal notes</span>
+  <textarea class="wbpr-field__input" name="personal_notes" rows="8"
+  >{v('personal_notes', b?.personal_notes)}</textarea>
+  <span class="wbpr-field__hint">
+    First person, after the fact. Blank lines make paragraphs; **bold** and *italic* work.
+  </span>
+</label>
+
+<label class="wbpr-field">
+  <span class="wbpr-field__label">Tags</span>
+  <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="tags"
+         placeholder="broadcast, void1680am, frost-manifestations"
+         value={v('tags', b?.tags.join(', '))} />
+  <span class="wbpr-field__hint">Comma separated.</span>
+</label>

@@ -1,0 +1,80 @@
+---
+import '../styles/wbpr.css';
+import type { ResolvedWorkspace } from '../lib/workspace';
+
+interface Props {
+  title: string;
+  description?: string;
+  workspace: ResolvedWorkspace;
+}
+
+const { title, description = '', workspace } = Astro.props;
+const base = `/wbpr/${workspace.slug}`;
+const pathname = Astro.url.pathname;
+const canonical = new URL(pathname, Astro.site ?? Astro.url.origin);
+const { user } = Astro.locals;
+
+const links = [
+  { href: base, label: 'Archive' },
+  { href: `${base}/phenomena`, label: 'Phenomena' },
+  { href: `${base}/soundtrack`, label: 'Soundtrack' },
+];
+---
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical.href} />
+    <link rel="icon" href="/grackles-logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    {/* The two faces wbpr.css names in --font-serif and --font-mono. The
+        original stylesheet pulled them in with an @import at the top of the
+        CSS, which blocks rendering until it resolves; a link in the head does
+        not, and is how the other three apps load theirs. */}
+    <link
+      href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    {workspace.visibility !== 'public' && <meta name="robots" content="noindex, nofollow" />}
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container--wide site-header__inner">
+        <a href={base} class="site-header__brand">{workspace.name} · 1680 AM</a>
+        <nav>
+          <ul class="site-nav">
+            {
+              links.map(l => (
+                <li>
+                  <a href={l.href} aria-current={pathname === l.href ? 'page' : undefined}>
+                    {l.label}
+                  </a>
+                </li>
+              ))
+            }
+            {workspace.role && <li><a href={`/settings/wbpr/${workspace.slug}`}>{workspace.role}</a></li>}
+            <li>
+              <a href={user ? '/dashboard' : `/login?next=${encodeURIComponent(pathname)}`}>
+                {user ? 'Projects' : 'Sign in'}
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <div class="broadcast-band"></div>
+
+    <slot />
+
+    <footer class="site-footer">
+      <div class="container--wide site-footer__inner">
+        WBPR 1680 AM · Broadcasting until the signal holds
+      </div>
+    </footer>
+  </body>
+</html>
