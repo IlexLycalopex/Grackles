@@ -702,6 +702,81 @@ export type Database = {
           },
         ];
       };
+      /**
+       * A sitting at the desk with the model, and what was said in it. Both
+       * are owner-only at the policy level, not merely in the page: this is
+       * the pair of tables that costs money to fill.
+       */
+      wbpr_agent_sessions: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          broadcast_id: string | null;
+          status: string;
+          block: number;
+          state: Json;
+          prompt_tokens: number;
+          completion_tokens: number;
+          calls: number;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          broadcast_id?: string | null;
+          status?: string;
+          block?: number;
+          state?: Json;
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          calls?: number;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['wbpr_agent_sessions']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'wbpr_agent_sessions_broadcast_id_fkey';
+            columns: ['broadcast_id'];
+            isOneToOne: false;
+            referencedRelation: 'wbpr_broadcasts';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      wbpr_agent_messages: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          session_id: string;
+          position: number;
+          role: string;
+          content: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          session_id: string;
+          position: number;
+          role: string;
+          content: string;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['wbpr_agent_messages']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'wbpr_agent_messages_session_id_fkey';
+            columns: ['session_id'];
+            isOneToOne: false;
+            referencedRelation: 'wbpr_agent_sessions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
