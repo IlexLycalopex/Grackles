@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppSlug, Database } from './database.types';
-import { APPS } from './apps';
+import { HOSTED_APPS } from './apps';
 
 /**
  * Who may create a project, and of which app.
@@ -50,8 +50,12 @@ export async function loadEntitlements(
 
   const isPlatformAdmin = profile?.is_platform_admin ?? false;
 
+  // Hosted apps only. `app.can_create()` says yes to an admin for every value
+  // of the enum, including the five that are still on GitHub Pages — and a
+  // second Scoundrel would be a workspace with nothing behind it. The database
+  // would allow it; this is what stops it being offered.
   if (isPlatformAdmin) {
-    return { isPlatformAdmin, creatable: APPS.map(a => ({ app: a.slug, remaining: null })) };
+    return { isPlatformAdmin, creatable: HOSTED_APPS.map(a => ({ app: a.slug, remaining: null })) };
   }
 
   // Quota counts what you created, not what you own the role for — being made

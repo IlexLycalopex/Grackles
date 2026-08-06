@@ -1,6 +1,6 @@
 ---
 import AppShell from '../../../layouts/AppShell.astro';
-import { APPS, appByPath, appBySlug, workspaceHref } from '../../../lib/apps';
+import { HOSTED_APPS, appByPath, appBySlug, projectHref } from '../../../lib/apps';
 import { resolveWorkspace } from '../../../lib/workspace';
 import { loadEntitlements } from '../../../lib/grants';
 import { sendInviteEmail } from '../../../lib/email';
@@ -48,7 +48,7 @@ if (Astro.request.method === 'POST') {
     // which turns an RLS refusal into simply not happening.
     const grantApps = isPlatformAdmin
       ? form.getAll('grant_apps').map(String).filter((a): a is AppSlug =>
-          APPS.some(known => known.slug === a)
+          HOSTED_APPS.some(known => known.slug === a)
         )
       : [];
 
@@ -192,7 +192,7 @@ const ownerCount = (members ?? []).filter(m => m.role === 'owner').length;
 <AppShell title={`${workspace.name} settings · Grackles`}>
   <h1 class="page-title">{workspace.name}</h1>
   <p class="page-intro">
-    {app.name} · <a href={workspaceHref(workspace.app, workspace.slug)}>open the project</a>
+    {app.name} · <a href={projectHref(workspace)}>open the project</a>
   </p>
 
   {error && <p class="notice notice--error" role="alert">{error}</p>}
@@ -296,7 +296,7 @@ const ownerCount = (members ?? []).filter(m => m.role === 'owner').length;
           </select>
           <button class="button" type="submit">Invite</button>
           <span class="grant-picker">
-            {APPS.map(a => (
+            {HOSTED_APPS.map(a => (
               <label class="grant-picker__option">
                 <input type="checkbox" name="grant_apps" value={a.slug} />
                 {a.name}

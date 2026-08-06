@@ -8,6 +8,8 @@ export interface ResolvedWorkspace {
   name: string;
   description: string;
   visibility: Visibility;
+  /** Set while the project is still served from somewhere else. See projectHref(). */
+  external_url: string;
   /** null when the viewer is not a member — i.e. reading a public workspace. */
   role: MemberRole | null;
   canWrite: boolean;
@@ -32,7 +34,7 @@ export async function resolveWorkspace(
 ): Promise<ResolvedWorkspace | null> {
   const { data: ws } = await supabase
     .from('workspaces')
-    .select('id, app, slug, name, description, visibility')
+    .select('id, app, slug, name, description, visibility, external_url')
     .eq('app', app)
     .eq('slug', slug)
     .maybeSingle();

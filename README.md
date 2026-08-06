@@ -19,11 +19,26 @@ several people can share a project.
 | ✅ | Magic-link sign-in, session cookies, `/dashboard` |
 | ✅ | All three apps' routes, with creating and editing |
 | ✅ | Invites, member roles and per-workspace visibility |
+| ✅ | The launcher reads from the database; all eight sites exist as workspaces |
 | ⬜ | Custom SMTP — until then invite links must be copied by hand from settings |
 | ⬜ | DNS cutover from GitHub Pages to Vercel |
 
-The launcher at `/` is unchanged in appearance. Its nav still links out to the
-five sites that have not moved; the three that have now point at in-app routes.
+The launcher at `/` is unchanged in appearance but no longer carries a list.
+Its nav is whatever the visitor is a member of: signed out it offers one thing,
+a way in.
+
+That is why all eight sites now exist as workspaces, including the five still
+served from GitHub Pages. Those carry a `workspaces.external_url` and the nav
+links there instead of at an in-app route. Migrating one is then a one-column
+update — clear `external_url` and the same workspace, with the same members at
+the same address, starts being served from here.
+
+`hosted` in the app registry is the other half of it: a project can *be* an
+Atelier Obscura, but one cannot be *started*, because there is one site and it
+is not served from this repo. Entitlements, `/new` and the invite grant picker
+all work from `HOSTED_APPS` rather than `APPS`. The database would allow a
+platform admin to create one — `app.can_create()` says yes to an admin for
+every value of the enum — so this is the only thing stopping it being offered.
 
 ## Routes
 
@@ -175,7 +190,7 @@ the client controls, while `getUser` verifies the token with the auth server.
 ```
 src/
 ├── lib/
-│   ├── apps.ts              app registry — slug ↔ URL path, launcher links
+│   ├── apps.ts              app registry — slug ↔ URL path, where a project lives
 │   ├── database.types.ts    generated; regenerate after every migration
 │   └── supabase/            server (cookie-bound) and browser clients
 ├── middleware.ts            session + locals

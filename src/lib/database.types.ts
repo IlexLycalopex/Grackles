@@ -74,6 +74,7 @@ export type Database = {
           name: string;
           description: string;
           visibility: Database['public']['Enums']['visibility'];
+          external_url: string;
           owner_id: string;
           created_at: string;
           updated_at: string;
@@ -85,6 +86,7 @@ export type Database = {
           name: string;
           description?: string;
           visibility?: Database['public']['Enums']['visibility'];
+          external_url?: string;
           owner_id: string;
           created_at?: string;
           updated_at?: string;
@@ -96,6 +98,7 @@ export type Database = {
           name?: string;
           description?: string;
           visibility?: Database['public']['Enums']['visibility'];
+          external_url?: string;
           owner_id?: string;
           created_at?: string;
           updated_at?: string;
@@ -548,7 +551,15 @@ export type Database = {
       };
     };
     Enums: {
-      app_slug: 'listening-party' | 'reading-list' | 'cigar-lounge';
+      app_slug:
+        | 'listening-party'
+        | 'reading-list'
+        | 'cigar-lounge'
+        | 'atelier-obscura'
+        | 'lanternwood'
+        | 'spelltome'
+        | 'scoundrel'
+        | 'wbpr';
       member_role: 'owner' | 'editor' | 'viewer';
       visibility: 'private' | 'unlisted' | 'public';
     };

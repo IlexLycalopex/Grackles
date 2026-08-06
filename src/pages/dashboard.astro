@@ -1,6 +1,6 @@
 ---
 import AppShell from '../layouts/AppShell.astro';
-import { appBySlug, workspaceHref } from '../lib/apps';
+import { appBySlug, projectHref } from '../lib/apps';
 import { loadEntitlements, describeGrantError } from '../lib/grants';
 
 export const prerender = false;
@@ -16,7 +16,7 @@ if (!user) return Astro.redirect('/login?next=/dashboard');
 // same bug and the same fix.
 const { data: memberships, error } = await supabase
   .from('workspace_members')
-  .select('role, workspaces(id, app, slug, name, description, visibility)')
+  .select('role, workspaces(id, app, slug, name, description, visibility, external_url)')
   .eq('user_id', user.id)
   .order('created_at', { ascending: true });
 
@@ -137,7 +137,12 @@ const inviteError = inviteFailed
           <li class="ws-card">
             {/* The link wraps only the title block — a nested <a> for settings
                 would be invalid markup. */}
-            <a class="ws-card__link" href={workspaceHref(ws.app, ws.slug)}>
+            <a
+              class="ws-card__link"
+              href={projectHref(ws)}
+              target={ws.external_url ? '_blank' : undefined}
+              rel={ws.external_url ? 'noopener' : undefined}
+            >
               <span class="ws-card__app">{appBySlug(ws.app)?.name ?? ws.app}</span>
               <span class="ws-card__name">{ws.name}</span>
               {ws.description && <span class="ws-card__desc">{ws.description}</span>}

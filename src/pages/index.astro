@@ -1,12 +1,45 @@
 ---
 import Base from '../layouts/Base.astro';
 import '../styles/launcher.css';
-import { LAUNCHER_LINKS } from '../lib/apps';
+import { projectHref, type Linkable } from '../lib/apps';
 
-// The launcher is the same composition it has always been. The only change is
-// that the three migrated apps now link to in-app routes, and a signed-in
-// visitor gets a way through to their projects.
-const { user } = Astro.locals;
+export const prerender = false;
+
+// The launcher used to be a fixed list of eight links. It is now whatever the
+// visitor is a member of: signed out, it offers one thing — a way in.
+//
+// Membership, not readability. `workspaces_read` also returns every public and
+// unlisted project on the site, so selecting from `workspaces` here would put
+// other people's projects on your own front door. And `.eq('user_id', …)` is
+// load-bearing despite RLS, for the reason dashboard.astro spells out:
+// members_read exposes the whole roster to anyone in a project, so without it
+// a project appears once per member.
+const { user, supabase } = Astro.locals;
+
+let projects: (Linkable & { name: string })[] = [];
+
+if (user) {
+  const { data } = await supabase
+    .from('workspace_members')
+    .select('workspaces(app, slug, name, external_url)')
+    .eq('user_id', user.id);
+
+  // `workspaces` is nullable in the join's type even though the FK is not.
+  //
+  // Sorted by name rather than by when you joined: this is a menu, and one
+  // whose order shifts as projects are added is one you have to read every
+  // time instead of reaching for the same place twice.
+  projects = (data ?? [])
+    .flatMap(m => (m.workspaces ? [m.workspaces] : []))
+    .sort((a, b) => a.name.localeCompare(b.name, 'en'));
+}
+
+// A failed load leaves the nav with just the way through to /dashboard, which
+// is where the error belongs — that page says what went wrong, and this one
+// has nowhere to put it. Better than a front door reporting database trouble.
+const wayThrough = user
+  ? { href: '/dashboard', label: 'Your projects' }
+  : { href: '/login', label: 'Sign in' };
 ---
 
 <Base title="Grackles" bodyClass="launcher">
@@ -18,13 +51,24 @@ const { user } = Astro.locals;
 
   <nav class="nav-overlay" id="navOverlay">
     {
-      LAUNCHER_LINKS.map(link => (
-        <a href={link.href} target={link.external ? '_blank' : undefined} rel={link.external ? 'noopener' : undefined}>
-          {link.label}
-        </a>
-      ))
+      projects.map((project, i) => {
+        // A project still served from GitHub Pages opens in a new tab, as it
+        // always has: it is a different site, and saying so is the honest
+        // signal. One that has moved in does not.
+        const external = Boolean(project.external_url);
+        return (
+          <a
+            href={projectHref(project)}
+            style={`--i: ${i}`}
+            target={external ? '_blank' : undefined}
+            rel={external ? 'noopener' : undefined}
+          >
+            {project.name}
+          </a>
+        );
+      })
     }
-    <a href={user ? '/dashboard' : '/login'}>{user ? 'Your projects' : 'Sign in'}</a>
+    <a href={wayThrough.href} style={`--i: ${projects.length}`}>{wayThrough.label}</a>
   </nav>
 
   <div class="centre">

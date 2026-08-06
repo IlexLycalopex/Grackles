@@ -52,13 +52,19 @@ async function destination(accepted: Accepted): Promise<string> {
   if (accepted.workspace_id) {
     const { data } = await supabase
       .from('workspaces')
-      .select('app, slug')
+      .select('app, slug, external_url')
       .eq('id', accepted.workspace_id)
       .maybeSingle();
 
     // Readable now the membership row exists. If it somehow is not, the
     // dashboard still lists it, so that is the fallback rather than a 404.
-    return data ? `${workspaceHref(data.app, data.slug)}?joined=1` : '/dashboard?joined=1';
+    //
+    // A project still served from GitHub Pages is the same fallback: `?joined=1`
+    // means nothing to a site that has never heard of this app, and bouncing
+    // someone straight off Grackles the moment they join it is a worse welcome
+    // than the page listing what they just joined.
+    if (!data || data.external_url) return '/dashboard?joined=1';
+    return `${workspaceHref(data.app, data.slug)}?joined=1`;
   }
 
   if (accepted.granted_apps.length > 0) {
