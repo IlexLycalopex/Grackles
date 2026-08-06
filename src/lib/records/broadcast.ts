@@ -92,6 +92,7 @@ export interface BlockValues {
   caller_lat: number | null;
   caller_lon: number | null;
   caller_location_confidence: LocationConfidence;
+  caller_roll: number | null;
   phenomenon_ref: string;
   notes: string;
 }
@@ -121,6 +122,11 @@ export function readBlock(form: FormData): Parsed<BlockSubmission> {
 
   const caller_type = f.choice('caller_type', CALLER_TYPES, 'none');
   const noCaller = caller_type === 'none';
+
+  const roll = f.int('caller_roll');
+  if (roll !== null && (roll < 1 || roll > 6)) {
+    return invalid('A d6 shows 1 to 6.');
+  }
 
   const lat = f.dec('caller_lat');
   const lon = f.dec('caller_lon');
@@ -175,6 +181,9 @@ export function readBlock(form: FormData): Parsed<BlockSubmission> {
       caller_location_confidence: f.choice(
         'caller_location_confidence', LOCATION_CONFIDENCE, 'unknown'
       ),
+      // Kept even when nobody called — rolling a 2 is a fact about the night,
+      // and the blank is reserved for a roll that never happened.
+      caller_roll: roll,
       phenomenon_ref: f.str('phenomenon_ref'),
       notes: f.str('notes'),
     },

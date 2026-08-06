@@ -188,6 +188,10 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
         caller_type: type,
         caller_card: hasCaller ? (caller?.card ?? '') : '',
         caller_card_meaning: hasCaller ? (caller?.topic ?? '') : '',
+        // The die we rolled. It has been in the sitting's state all along and
+        // was being thrown away at write-up — a block that came back "no
+        // caller" could not say whether that was a 1, a 2 or a 3.
+        caller_roll: caller?.die ?? null,
         notes: notesFor.get(record.position) ?? '',
       })
       .select('id')

@@ -60,6 +60,8 @@ export interface Block {
   caller_lat: number | null;
   caller_lon: number | null;
   caller_location_confidence: LocationConfidence;
+  /** The die face, 1-6. Null when no roll was made at all. */
+  caller_roll: number | null;
   phenomenon_ref: string;
   notes: string;
   prompts: Prompt[];
@@ -163,7 +165,7 @@ export async function loadBroadcast(
       wbpr_blocks(
         id, position, time_label, caller_type, caller_card, caller_card_meaning,
         caller_location, caller_lat, caller_lon, caller_location_confidence,
-        phenomenon_ref, notes,
+        caller_roll, phenomenon_ref, notes,
         wbpr_prompts(id, position, card, tone),
         wbpr_tracks(id, position, title, artist, url, source, notes)
       ),
@@ -204,7 +206,7 @@ export async function loadBlock(
     .select(`
       id, broadcast_id, position, time_label, caller_type, caller_card,
       caller_card_meaning, caller_location, caller_lat, caller_lon,
-      caller_location_confidence, phenomenon_ref, notes,
+      caller_location_confidence, caller_roll, phenomenon_ref, notes,
       wbpr_prompts(id, position, card, tone),
       wbpr_tracks(id, position, title, artist, url, source, notes),
       wbpr_broadcasts(slug, session)

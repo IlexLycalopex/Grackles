@@ -84,6 +84,10 @@ const callerLabel: Record<string, string> = {
             <span>
               <span class={`badge badge--${block.caller_type}`}>
                 {callerLabel[block.caller_type] ?? block.caller_type}
+                {/* The die, where it was recorded. It used to be buried in the
+                    prose as "(rolled 4)"; it is a column now, so it reads as
+                    the fact it is. */}
+                {block.caller_roll !== null && ` · rolled ${block.caller_roll}`}
               </span>
               {workspace.canWrite && (
                 <>

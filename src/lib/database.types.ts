@@ -556,6 +556,7 @@ export type Database = {
           caller_lat: number | null;
           caller_lon: number | null;
           caller_location_confidence: string;
+          caller_roll: number | null;
           phenomenon_ref: string;
           notes: string;
           created_at: string;
@@ -574,6 +575,7 @@ export type Database = {
           caller_lat?: number | null;
           caller_lon?: number | null;
           caller_location_confidence?: string;
+          caller_roll?: number | null;
           phenomenon_ref?: string;
           notes?: string;
           created_at?: string;

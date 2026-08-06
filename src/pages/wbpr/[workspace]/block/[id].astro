@@ -150,6 +150,14 @@ const b = block;
           <span class="wbpr-field__hint">No caller clears the card and location below.</span>
         </label>
         <label class="wbpr-field">
+          <span class="wbpr-field__label">Die</span>
+          <input class="wbpr-field__input wbpr-field__input--mono" type="number" name="caller_roll"
+                 min="1" max="6" value={b.caller_roll ?? ''} />
+          <span class="wbpr-field__hint">
+            What the d6 showed. Blank means no roll was made.
+          </span>
+        </label>
+        <label class="wbpr-field">
           <span class="wbpr-field__label">Caller card</span>
           <input class="wbpr-field__input wbpr-field__input--mono" type="text" name="caller_card"
                  placeholder="Nine of Diamonds" value={b.caller_card} />

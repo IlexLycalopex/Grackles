@@ -21,8 +21,9 @@ several people can share a project.
 | ✅ | Invites, member roles and per-workspace visibility |
 | ✅ | The launcher reads from the database; all eight sites exist as workspaces |
 | ✅ | WBPR migrated off GitHub Pages — nine sessions, five tables, editable in place |
-| ⚠️ | The WBPR broadcast agent (MiniMax M3) — built, never run: MINIMAX_API_KEY is unset |
-| ⬜ | Custom SMTP — until then invite links must be copied by hand from settings |
+| ✅ | The WBPR broadcast agent (MiniMax M3) — running; the one-click write-up is the last untested path |
+| ⬜ | WBPR's map and veil pages — left behind in the migration, see below |
+| ✅ | Custom SMTP — Supabase's own magic-link and confirmation emails go out through Resend, alongside the app's invitations |
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.
@@ -192,6 +193,43 @@ migrated before a night can be logged is a constraint in the way.
 Moving the site in was one `update` clearing `external_url`, plus flipping
 `hosted` in the registry. Those two have to ship together — a cleared column
 with no routes behind it is a 404.
+
+## What did not come across from WBPR
+
+Two pages, and the reason is that I chose not to port them rather than that
+anything blocked them. The migration was scoped to the log and its editing —
+add a broadcast, correct one — and these are derived views over data that had
+not moved yet:
+
+- **The map.** 1,254 lines plotting caller locations and phenomena against
+  Montana. Every coordinate it needs is imported and populated —
+  `wbpr_broadcasts.lat/lon`, `wbpr_blocks.caller_lat/lon`,
+  `wbpr_phenomena.lat/lon` — so this is a porting job, not a data one.
+- **The veil chart.** 726 lines tracking veil intensity across sessions.
+  `veil_status` and `veil_intensity` are both on the broadcast.
+
+Nothing about either is harder now than it was; they are simply not done. The
+standalone site is still the only place they exist.
+
+## Duplicates the migration inherited
+
+Two artists were spelled two ways across nine sessions — "Zac Bryant" for Zach
+Bryan, and the Kilimanjaro Darkjazz Ensemble with and without its article. Both
+split one artist into two entries on the soundtrack page. Found by looking for
+one track title credited to more than one artist, which catches a typo where
+comparing artist names to each other does not, and corrected in place.
+
+Every block's prose also opened by restating what the columns beside it already
+held:
+
+    **Caller:** Yes (rolled 4 — standard)
+    **Caller card:** Nine of Diamonds — *mundane life grinding them down*
+
+That is the markdown showing through — in the old site the frontmatter was
+invisible, so the body had to say it. Here it printed twice. The lines are gone,
+but not before `caller_roll` was added and backfilled from them: they were the
+only record of the die face, and of the difference between rolling a 1 and never
+rolling at all. Deleting them first would have thrown the dice away.
 
 ## Running a broadcast with the model
 
