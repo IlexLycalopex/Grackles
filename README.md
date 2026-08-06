@@ -21,7 +21,7 @@ several people can share a project.
 | ✅ | Invites, member roles and per-workspace visibility |
 | ✅ | The launcher reads from the database; all eight sites exist as workspaces |
 | ⬜ | Custom SMTP — until then invite links must be copied by hand from settings |
-| ⬜ | DNS cutover from GitHub Pages to Vercel |
+| ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.
 Its nav is whatever the visitor is a member of: signed out it offers one thing,
