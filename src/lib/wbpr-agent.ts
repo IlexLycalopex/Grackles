@@ -38,13 +38,29 @@ PACING. Atmospheric description is two or three sentences, never more. Note phys
 
 RULES OF THE TABLE. Cards and dice are rolled for you and given to you in the message — never invent a draw, never ask for one, never restate a card's meaning back as a table. Do not embellish the player's song choices or second-guess them. Do not re-explain the setting. Do not write the session log; you will be asked for it separately at the end.`;
 
-/** Where a sitting has got to. Stored on the session row as `state`. */
+/** One block, as the table played it. */
+export interface BlockRecord {
+  position: number;
+  cards: { name: string; tone: string }[];
+  caller: { die: number; result: string; card?: string; topic?: string } | null;
+}
+
+/**
+ * Where a sitting has got to. Stored on the session row as `state`.
+ *
+ * `blocks` accumulates rather than being replaced, and that is what makes the
+ * write-up possible: the cards drawn and the die rolled for block 1 have to
+ * survive until the end of the night. Asking the model to remember them and
+ * hand them back would be paying it to repeat our own data, with a chance of
+ * getting it wrong on the way.
+ */
 export interface AgentState {
   /** 1-4 once the night is running, 0 before it opens. */
   block: number;
   /** The cards showing for the current block, so a resumed page can display them. */
   cards: { name: string; tone: string }[];
   caller: { die: number; result: string; card?: string; topic?: string } | null;
+  blocks: BlockRecord[];
 }
 
 export interface Turn {
@@ -65,7 +81,7 @@ export function openBroadcast(session: number, date: string): Turn {
   return {
     prompt: `Open the broadcast. Session ${session}, ${date}. Set the scene in three sentences at most: equipment, the forest, the sky, the time. Note tonight's particular quality — veil thickness, stellar activity, temperature. End with going live. Do not draw cards.`,
     table: `Session ${session} — ${date}. Going live.`,
-    state: { block: 0, cards: [], caller: null },
+    state: { block: 0, cards: [], caller: null, blocks: [] },
   };
 }
 
@@ -73,15 +89,20 @@ export function openBroadcast(session: number, date: string): Turn {
  * A block: three cards drawn here, a die rolled here, and the model told the
  * outcome rather than asked for it.
  */
-export function startBlock(block: number): Turn {
+export function startBlock(block: number, state: AgentState): Turn {
   const cards = drawBlock();
+  const showing = cards.map(c => ({ name: c.name, tone: c.tone }));
   return {
     prompt: `Block ${block}. Drawing: ${describeDraw(cards)}. State the three cards plainly and hand over to the DJ for his selections and his on-air intro. Nothing else.`,
     table: `Block ${block} — drawing: ${cards.map(c => c.name).join(', ')}`,
     state: {
       block,
-      cards: cards.map(c => ({ name: c.name, tone: c.tone })),
+      cards: showing,
       caller: null,
+      blocks: [
+        ...(state.blocks ?? []).filter(b => b.position !== block),
+        { position: block, cards: showing, caller: null },
+      ].sort((a, b) => a.position - b.position),
     },
   };
 }
@@ -99,7 +120,7 @@ export function rollForCaller(state: AgentState): Turn {
     return {
       prompt: `Rolled ${roll.die} — no caller. Two or three sentences on the lookout while the music runs. Let the quiet stand.`,
       table: `Rolling: ${roll.die} — no caller`,
-      state: { ...state, caller: { die: roll.die, result: 'none' } },
+      state: withCaller(state, { die: roll.die, result: 'none' }),
     };
   }
 
@@ -113,20 +134,31 @@ export function rollForCaller(state: AgentState): Turn {
   return {
     prompt: `Rolled ${roll.die} — a ${flavour} caller. Their card is ${card.name}: ${topic}. Play the call. Give them a voice and a place. Oso answers in character.`,
     table: `Rolling: ${roll.die} — caller (${flavour}) · ${card.name}`,
-    state: {
-      ...state,
-      caller: { die: roll.die, result: roll.result, card: card.name, topic },
-    },
+    state: withCaller(state, {
+      die: roll.die, result: roll.result, card: card.name, topic,
+    }),
+  };
+}
+
+/** Record the roll against the block it happened in, not just on the surface. */
+function withCaller(state: AgentState, caller: BlockRecord['caller']): AgentState {
+  return {
+    ...state,
+    caller,
+    blocks: (state.blocks ?? []).map(b =>
+      b.position === state.block ? { ...b, caller } : b
+    ),
   };
 }
 
 /** Closing down. */
-export function closeBroadcast(): Turn {
+export function closeBroadcast(state: AgentState): Turn {
   return {
     prompt:
       'Close the broadcast. Pre-dawn conditions, the colour on the horizon — yellow means something crossed, grey or blue means it was clean. Stellar activity as the stars fade. Equipment powering down. One final image. Keep it short.',
     table: 'Closing down',
-    state: { block: 4, cards: [], caller: null },
+    // Keeps `blocks` — closing the night must not forget it.
+    state: { ...state, block: 4, cards: [], caller: null },
   };
 }
 

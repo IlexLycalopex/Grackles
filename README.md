@@ -21,7 +21,7 @@ several people can share a project.
 | ✅ | Invites, member roles and per-workspace visibility |
 | ✅ | The launcher reads from the database; all eight sites exist as workspaces |
 | ✅ | WBPR migrated off GitHub Pages — nine sessions, five tables, editable in place |
-| ⬜ | The WBPR broadcast agent (Minimax M3) — not started |
+| ⚠️ | The WBPR broadcast agent (MiniMax M3) — built, never run: MINIMAX_API_KEY is unset |
 | ⬜ | Custom SMTP — until then invite links must be copied by hand from settings |
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
 
@@ -94,6 +94,9 @@ every value of the enum — so this is the only thing stopping it being offered.
 /wbpr/:workspace/broadcast/new     log a broadcast
 /wbpr/:workspace/broadcast/:id     its header, notes and phenomena log
 /wbpr/:workspace/block/:id         one block — cards, playlist, the call
+/wbpr/:workspace/run               the desk — run a broadcast with the model (owner only)
+/api/wbpr/:workspace/chat          one turn at the desk
+/api/wbpr/:workspace/log           write the sitting up as a broadcast
 ```
 
 Static segments beat dynamic ones in Astro's routing, so `pick/new` wins over
@@ -189,6 +192,47 @@ migrated before a night can be logged is a constraint in the way.
 Moving the site in was one `update` clearing `external_url`, plus flipping
 `hosted` in the registry. Those two have to ship together — a cleared column
 with no routes behind it is a 404.
+
+## Running a broadcast with the model
+
+`/wbpr/:workspace/run` is a desk: it opens a night, draws for each block, rolls
+for callers, and writes the whole thing up into the five tables with one press.
+It is owner-only, in the RLS policies and re-checked in the API route — a page
+check protects the button, not the URL that spends money.
+
+**The deck is in `lib/wbpr-deck.ts`, not in the prompt.** The rules carry four
+tables of thirteen card meanings and four of caller topics: a little over 2,500
+tokens of pure lookup. Sending them so the model can read a row out of them
+means renting the rulebook on every turn, all night. Instead the app draws,
+resolves the meaning, and sends one line — `Drawing: Seven of Clubs (something
+that changed your taste), …`. For a four-block night that is roughly 3k tokens
+of overhead rather than 16k, and the model cannot misread a table it never sees.
+
+The die is the same argument with a sharper point. A model asked to roll d6
+returns a *plausible* number, not a random one, and a broadcast is a record
+somebody keeps. `crypto.getRandomValues` with rejection sampling, because a
+modulus of a 32-bit draw biases the low faces.
+
+Three more things hold the cost down:
+
+- `thinking: { type: 'disabled' }` on every call. M3 turns on adaptive thinking
+  when the parameter is omitted on the OpenAI-compatible path, so leaving it out
+  silently buys reasoning tokens for a DJ improvising over a card draw.
+- `max_tokens` per kind of turn — a ceiling on cost, not just on length.
+- The system prompt is identical every turn, so a provider-side prefix cache has
+  something to hold onto.
+
+**What the write-up asks for, and what it does not.** The cards drawn, the dice
+rolled, the block numbers and the session number are all things this app decided
+and has been holding in `wbpr_agent_sessions.state`. They are written from
+there. The model supplies only what it alone knows — the prose, the atmosphere,
+which phenomena the night touched. It is never asked for a card, because it
+would comply: plausibly, sometimes wrongly, and the archive would carry a Seven
+of Clubs that was never drawn.
+
+Token counts are columns on the session rather than something inferred
+afterwards. Protecting token usage is only a real property if somebody can see
+what was spent.
 
 ## Photographs
 

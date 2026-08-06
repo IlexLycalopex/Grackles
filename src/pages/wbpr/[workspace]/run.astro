@@ -1,0 +1,230 @@
+---
+import WbprLayout from '../../../layouts/WbprLayout.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const { workspace: wsSlug } = Astro.params;
+
+const workspace = await resolveWorkspace(supabase, 'wbpr', wsSlug!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+// The gate, first of two. This one decides whether the page renders; the API
+// route decides whether the money is spent, and that is the one that matters.
+if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+if (!workspace.isOwner) return new Response('Forbidden', { status: 403 });
+
+const base = `/wbpr/${workspace.slug}`;
+
+const { data: highest } = await supabase
+  .from('wbpr_broadcasts')
+  .select('session')
+  .eq('workspace_id', workspace.id)
+  .order('session', { ascending: false })
+  .limit(1)
+  .maybeSingle();
+
+const nextSession = (highest?.session ?? 0) + 1;
+
+// A sitting left running from last time. Offering to resume it beats leaving
+// it to rot as a row nobody can reach and tokens nobody can account for.
+const { data: unfinished } = await supabase
+  .from('wbpr_agent_sessions')
+  .select('id, block, state, prompt_tokens, completion_tokens, calls, created_at')
+  .eq('workspace_id', workspace.id)
+  .eq('status', 'running')
+  .order('created_at', { ascending: false })
+  .limit(1)
+  .maybeSingle();
+
+const resumeState = (unfinished?.state ?? {}) as { session?: number; date?: string };
+---
+
+<WbprLayout title={`Go on air · ${workspace.name}`} workspace={workspace}>
+  <main class="container">
+    <p class="wbpr-log__no">The desk</p>
+    <h1>Go on air</h1>
+    <p class="mono">
+      Cards and dice are rolled here, not by the model. It is told what the table did.
+    </p>
+
+    {
+      unfinished && (
+        <div class="wbpr-notice wbpr-notice--ok" style="margin-top: 1.5rem">
+          A sitting is still running — session {resumeState.session ?? '?'},{' '}
+          {resumeState.date ?? 'no date'}, {unfinished.block} of 4 blocks,{' '}
+          {unfinished.calls} calls ·{' '}
+          {unfinished.prompt_tokens + unfinished.completion_tokens} tokens.{' '}
+          <button class="wbpr-button wbpr-button--quiet" type="button" id="resume"
+                  data-session-id={unfinished.id}>Resume it</button>
+        </div>
+      )
+    }
+
+    <form class="wbpr-form" id="open-form" style="margin-top: 2rem">
+      <div class="wbpr-row">
+        <label class="wbpr-field">
+          <span class="wbpr-field__label">Session</span>
+          <input class="wbpr-field__input wbpr-field__input--mono" type="number" name="session"
+                 min="1" value={nextSession} required />
+        </label>
+        <label class="wbpr-field">
+          <span class="wbpr-field__label">Date</span>
+          <input class="wbpr-field__input wbpr-field__input--mono" type="date" name="date" required />
+          <span class="wbpr-field__hint">In-fiction. The archive runs 1973–75.</span>
+        </label>
+      </div>
+      <button class="wbpr-button" type="submit">Open the broadcast</button>
+    </form>
+
+    <div id="desk" hidden>
+      <div class="wbpr-actions" id="controls" style="margin-top: 2rem">
+        <button class="wbpr-button" type="button" data-act="block">Next block</button>
+        <button class="wbpr-button wbpr-button--quiet" type="button" data-act="roll">Roll for a caller</button>
+        <button class="wbpr-button wbpr-button--quiet" type="button" data-act="close">Close the night</button>
+        <button class="wbpr-button" type="button" data-act="log">Write it up</button>
+      </div>
+
+      <p class="mono" id="meter"></p>
+      <div id="log" class="prose"></div>
+
+      <form class="wbpr-form" id="say-form" style="margin-top: 1.5rem">
+        <label class="wbpr-field">
+          <span class="wbpr-field__label">Your turn</span>
+          <textarea class="wbpr-field__input" name="text" rows="3"
+                    placeholder="Your selections, your on-air intro, what Oso says…"></textarea>
+        </label>
+        <button class="wbpr-button" type="submit">Send</button>
+      </form>
+    </div>
+
+    <p class="mono" style="margin-top: 2rem">
+      <a href={base}>Back to the archive</a>
+    </p>
+  </main>
+</WbprLayout>
+
+{/* is:inline is explicit because define:vars forces it anyway — the
+    workspace slug has to reach the client, and it is not a secret. */}
+<script is:inline define:vars={{ endpoint: `/api/wbpr/${workspace.slug}` }}>
+  const $ = (id) => document.getElementById(id);
+  const desk = $('desk');
+  const logEl = $('log');
+  const meter = $('meter');
+  const openForm = $('open-form');
+  const sayForm = $('say-form');
+
+  let sessionId = null;
+  let spent = { prompt: 0, completion: 0, calls: 0 };
+  let busy = false;
+
+  function line(kind, text) {
+    const el = document.createElement('p');
+    // textContent, not innerHTML: this is model output and a transcript the
+    // player types into. Neither gets to write markup into the page.
+    el.textContent = text;
+    if (kind === 'table') el.className = 'mono';
+    if (kind === 'you') el.style.color = 'var(--color-text-muted)';
+    if (kind === 'error') el.className = 'wbpr-notice wbpr-notice--error';
+    logEl.appendChild(el);
+    el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }
+
+  function bill(usage) {
+    if (!usage) return;
+    spent.prompt += usage.prompt_tokens ?? 0;
+    spent.completion += usage.completion_tokens ?? 0;
+    spent.calls += 1;
+    meter.textContent =
+      `${spent.calls} calls · ${spent.prompt} in · ${spent.completion} out · ` +
+      `${spent.prompt + spent.completion} tokens this sitting`;
+  }
+
+  async function post(path, body) {
+    if (busy) return null;
+    busy = true;
+    document.querySelectorAll('#controls button, #say-form button').forEach(b => (b.disabled = true));
+    try {
+      const res = await fetch(`${endpoint}/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        line('error', data.error ?? `Something went wrong (${res.status}).`);
+        return null;
+      }
+      if (data.warning) line('error', data.warning);
+      return data;
+    } catch {
+      line('error', 'The station could not be reached.');
+      return null;
+    } finally {
+      busy = false;
+      document.querySelectorAll('#controls button, #say-form button').forEach(b => (b.disabled = false));
+    }
+  }
+
+  function show(data) {
+    if (!data) return;
+    if (data.table) line('table', data.table);
+    if (data.reply) line('reply', data.reply);
+    bill(data.usage);
+  }
+
+  openForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = new FormData(openForm);
+    line('table', 'Opening…');
+    const data = await post('chat', {
+      action: 'open',
+      session: Number(form.get('session')),
+      date: String(form.get('date')),
+    });
+    if (!data) return;
+    // The endpoint creates the sitting and answers in one turn, so the id comes
+    // back on the reply rather than from a separate call.
+    sessionId = data.session_id ?? sessionId;
+    openForm.hidden = true;
+    desk.hidden = false;
+    show(data);
+  });
+
+  sayForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = String(new FormData(sayForm).get('text') ?? '').trim();
+    if (!text) return;
+    line('you', text);
+    sayForm.reset();
+    show(await post('chat', { action: 'say', session_id: sessionId, text }));
+  });
+
+  document.querySelectorAll('#controls button').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const act = btn.dataset.act;
+
+      if (act === 'log') {
+        line('table', 'Writing it up…');
+        const data = await post('log', { session_id: sessionId });
+        if (!data) return;
+        line('table', `Logged: ${data.blocks} blocks, ${data.phenomena} phenomena.`);
+        window.location.href = data.href;
+        return;
+      }
+
+      show(await post('chat', { action: act, session_id: sessionId }));
+    });
+  });
+
+  const resume = $('resume');
+  if (resume) {
+    resume.addEventListener('click', async () => {
+      sessionId = resume.dataset.sessionId;
+      openForm.hidden = true;
+      desk.hidden = false;
+      line('table', 'Resumed. The transcript is on the server; carry on.');
+    });
+  }
+</script>

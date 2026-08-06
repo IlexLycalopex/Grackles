@@ -96,7 +96,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   if (action === 'block') {
     const next = (sitting.block ?? 0) + 1;
     if (next > 4) return json({ error: 'Four blocks is the night. Close it out.' }, 400);
-    return turn(supabase, workspace.id, sitting.id, startBlock(next), 'block', next);
+    return turn(supabase, workspace.id, sitting.id, startBlock(next, state), 'block', next);
   }
 
   if (action === 'roll') {
@@ -104,7 +104,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   }
 
   if (action === 'close') {
-    return turn(supabase, workspace.id, sitting.id, closeBroadcast(), 'close');
+    return turn(supabase, workspace.id, sitting.id, closeBroadcast(state), 'close');
   }
 
   if (action === 'say') {
@@ -193,6 +193,10 @@ async function turn(
     .eq('id', sessionId);
 
   return json({
+    // Returned on every turn, not just the first: the page needs it after
+    // `open` creates the sitting, and echoing it back makes a resumed tab and
+    // a fresh one take the same path.
+    session_id: sessionId,
     reply: result.content,
     table: step.table,
     state: step.state,

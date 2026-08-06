@@ -18,6 +18,9 @@ const links = [
   { href: base, label: 'Archive' },
   { href: `${base}/phenomena`, label: 'Phenomena' },
   { href: `${base}/soundtrack`, label: 'Soundtrack' },
+  // Owners only, because the desk is the one page that spends money. The link
+  // being absent is a courtesy; the API route is what actually refuses.
+  ...(workspace.isOwner ? [{ href: `${base}/run`, label: 'Go on air' }] : []),
 ];
 ---
 
