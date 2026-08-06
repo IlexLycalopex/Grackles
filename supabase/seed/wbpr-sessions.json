@@ -1,0 +1,2686 @@
+[
+ {
+  "session": 1,
+  "slug": "wbpr-s01",
+  "station": "WBPR",
+  "call_sign": "Oso Sur",
+  "location": "Montana Fire Lookout, ~7,200ft",
+  "lat": null,
+  "lon": null,
+  "date": "1973-10-20",
+  "start_time": "23:00",
+  "end_time": "02:15",
+  "duration_minutes": 195,
+  "atmospheric_conditions": "Cold, clear night. Stars sharp overhead. Equipment warm from pre-broadcast testing. No anomalies at open.",
+  "veil_status": "Normal",
+  "veil_intensity": 3,
+  "dawn_colour": "Unknown",
+  "veil_at_close": "Normal",
+  "personal_notes": "Four calls. That is not a quiet night.\n\nThe woman with the seditious friend is going to have to choose, and she called this station instead of anyone who could actually help her. That tells me something about the options available to her. I didn't offer advice. I'm not sure advice was what she wanted.\n\nThe kid in love with a stranger: I have no protocol for that. Some distances close on their own. Some don't. The ones that do usually cost something you weren't expecting.\n\nThe modulated voice was prepared, not scared. There's a difference. Prepared people have already done the calculus. They're calling to document, not to ask. I kept the signal going. That seems to be the correct response.\n\nThe old man at the end: the ones who call in already resolved are always the ones who did the hard part alone, in some room years ago, without an audience. He just wanted to say it aloud to someone who would hear it. I can do that much.\n\nDawn came grey and clean. Stars fading in the usual order.\n\nNothing unusual in the equipment tonight. Coffee pot stayed off.",
+  "tags": [
+   "broadcast",
+   "void1680am",
+   "wbpr",
+   "oso-sur",
+   "state-surveillance"
+  ],
+  "blocks": [
+   {
+    "position": 1,
+    "time_label": "23:05",
+    "caller_type": "standard",
+    "caller_card": "Queen of Diamonds",
+    "caller_card_meaning": "Adult, agitated — friendship on the brink; seditious associations",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** Yes (Queen of Diamonds — standard)\n**Caller card:** Queen of Diamonds — *Agitated, worried*\n\nShe called late in the first block. Voice low, measured — trembling not from fear but from the weight of a choice not yet made.\n\nShe asked quietly if Oso had ever watched someone close drift into something radical. Maybe noble, maybe naïve, maybe reckless. She didn't name the person. She didn't have to.\n\nHer friend, she said, had been moving toward a seditious circle. Underground meetings. Anti-regime talk. Phrases like *bringing back the true real*. The Caller had believed in this friend once. Now she was calculating the cost of staying loyal — whether love and self-preservation could survive in the same body at the same time.\n\nShe asked for something popular. Something bright. Something she could hide behind. The request played clean over the airwaves, sharp edges buried in the chorus.\n\nShe didn't say whether she'd decided. She didn't say her name.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Five of Clubs",
+      "tone": "The one you sing along to every time — what is your favourite bit?"
+     },
+     {
+      "position": 2,
+      "card": "Nine of Clubs",
+      "tone": "You are ready to take a walk or go running — what song sets the pace?"
+     },
+     {
+      "position": 3,
+      "card": "Three of Clubs",
+      "tone": "An offhand suggestion that became a favourite — who or what recommended it?"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Tire Swing",
+      "artist": "Kimya Dawson",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Protector",
+      "artist": "Tourist",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Mexican Wine",
+      "artist": "Fountains of Wayne",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 2,
+    "time_label": "00:00",
+    "caller_type": "standard",
+    "caller_card": "Jack of Spades",
+    "caller_card_meaning": "Young, melancholy — unspoken love; silence as trap",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** Yes (Jack of Spades — standard)\n**Caller card:** Jack of Spades — *Young, hesitant*\n\nA soft voice. Late teens, early twenties. He tested each word before committing to it, like someone checking ice.\n\nHe asked if love could survive in silence. There was a person he saw often — at the archive, maybe, or across the university plaza — but they had never spoken. He suspected the feeling was mutual. Or maybe he was constructing something out of nothing. Either way, he was trapped: by fear, by the regime, by the unwritten cultural codes that made openness a liability.\n\n*Can you love someone you've never met? And if you do — does it matter?*\n\nThe call ended mid-sentence. A click before a goodbye. Maybe he got spooked. Maybe he'd already said more than he intended. Somewhere out in the dark, he was still listening.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Four of Diamonds",
+      "tone": "Something with lyrics you quote often — what is the line that grabs you?"
+     },
+     {
+      "position": 2,
+      "card": "Seven of Diamonds",
+      "tone": "A song that helps you imagine yourself a villain"
+     },
+     {
+      "position": 3,
+      "card": "Ten of Diamonds",
+      "tone": "A song that makes you feel sexy or cool — what scenarios come to mind?"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Beware Of The Beautiful Stranger",
+      "artist": "Pete Atkin",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Movie (Never Made)",
+      "artist": "Silver Mt. Zion",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Burma-Shave",
+      "artist": "Tom Waits",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 3,
+    "time_label": "00:55",
+    "caller_type": "standard",
+    "caller_card": "Ace of Clubs",
+    "caller_card_meaning": "Ambiguous modulated voice — today's events, portentous; being followed",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "state-surveillance",
+    "notes": "**Caller:** Yes (Ace of Clubs — standard)\n**Caller card:** Ace of Clubs — *Ambiguous, processed*\n\nThe voice was filtered. Modulated just enough to strip age and gender. Like a signal that had bounced between too many towers on the way in.\n\nThey referenced the running track from Block 1. Not by title — by what it had done. They talked about footsteps. Today, they said, someone followed them through the subterranean tram level at Garrison Street. No badge. No words. Just presence, three steps behind, all the way through.\n\nThey didn't turn around. Didn't need to.\n\nThe song was playing in their earbuds when it happened.\n\n*Maybe it was coincidence,* they said. A pause. Then: *Keep broadcasting. We're out here.*\n\nClick.\n\nNo name. No request. But they had chosen to call, and that was not nothing.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Two of Spades",
+      "tone": "A song that always makes you tear up — what is it that gets you?"
+     },
+     {
+      "position": 2,
+      "card": "Six of Spades",
+      "tone": "Summer, late, all the windows open, you are restless — what do you put on?"
+     },
+     {
+      "position": 3,
+      "card": "Nine of Spades",
+      "tone": "A song from when your parents were young — how did you discover it?"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Bright Horses",
+      "artist": "Nick Cave & The Bad Seeds",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Prowler",
+      "artist": "Bohren & Der Club of Gore",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Breathe (In the Air)",
+      "artist": "Pink Floyd",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 4,
+    "time_label": "01:50",
+    "caller_type": "standard",
+    "caller_card": "King of Hearts",
+    "caller_card_meaning": "Elder, resolved — a life-changing decision; a line not crossed; peace made",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** Yes (King of Hearts — standard)\n**Caller card:** King of Hearts — *Elder, resolved*\n\nA calm voice. The kind that only comes from having lived through something long enough to name it.\n\nHe said the breakup song took him back. To the winter of '51. Or maybe '81. He didn't clarify, and Oso didn't press. There had been a person. A decision. A line he hadn't crossed. He had spent the decades since wondering if he should have.\n\nTonight, he said, he had made peace with it. The voice on the broadcast. That specific song. Something had resolved.\n\n*Sometimes,* he said, *we live long enough to know we made the right mistake.*\n\nHe thanked Oso. Then he signed off — not just from the call, but from something older than the call.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Three of Hearts",
+      "tone": "A song from one of the first albums you bought yourself — where did you buy it?"
+     },
+     {
+      "position": 2,
+      "card": "Five of Hearts",
+      "tone": "A song that got you through a breakup, romantic or platonic — how does it feel to hear it again?"
+     },
+     {
+      "position": 3,
+      "card": "Eight of Hearts",
+      "tone": "A song that makes you feel invincible, or at least like a survivor — why this one?"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "After The Curtain",
+      "artist": "Beirut",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Alone / With You",
+      "artist": "Daughter",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Sparkplug Minuet",
+      "artist": "Mark Mothersbaugh",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   }
+  ],
+  "phenomena": [
+   {
+    "key": "state-surveillance",
+    "name": "State Surveillance Apparatus",
+    "status": "Active",
+    "confidence": "Likely",
+    "locations": [
+     "Garrison Street subterranean tram level"
+    ],
+    "lat": null,
+    "lon": null,
+    "notes": "Third-block caller reported being followed through the underground tram system. No badge, no words, only eyes. Caller did not turn around. Reference to broadcast signal as either protective or coincidental. Chose to speak; chose to trust the station.",
+    "tags": [
+     "human",
+     "political",
+     "watchers"
+    ]
+   }
+  ]
+ },
+ {
+  "session": 2,
+  "slug": "wbpr-s02",
+  "station": "WBPR",
+  "call_sign": "Oso Sur",
+  "location": "Montana Fire Lookout, ~7,200ft",
+  "lat": null,
+  "lon": null,
+  "date": "1973-10-27",
+  "start_time": "23:00",
+  "end_time": "02:20",
+  "duration_minutes": 200,
+  "atmospheric_conditions": "Overcast. Low cloud pressing down on the tree line. Equipment ran warm all night. Faint interference on open, cleared by 23:15.",
+  "veil_status": "Thin",
+  "veil_intensity": 4,
+  "dawn_colour": "Unknown",
+  "veil_at_close": "Thin",
+  "personal_notes": "Three ordinary calls and one that wasn't.\n\nThe one with the access codes: that kind of ending doesn't announce itself. It just stops working. I've heard that story in enough different forms to know there's no useful response. You just receive it.\n\nThe woman with the old friend — she was working something out in real time. Whether she sent the message or not, she'd gotten past something by saying it out loud. That's not nothing.\n\nThe kid in the car: I keep thinking about the laugh. It was genuine. That matters, under those circumstances.\n\nThe last caller knew my name. I have not broadcast my name. I ran back through the night's audio in my head twice and I am certain of that.\n\nI don't think it was a guess. The certainty in the way he said it — it wasn't testing the word, it was *using* it.\n\nThe veil was thin tonight. Not alarmingly so. But thin.\n\nLogging it. Moving on.\n\nDawn not observed directly. Coffee went cold before I remembered to drink it.",
+  "tags": [
+   "broadcast",
+   "void1680am",
+   "wbpr",
+   "oso-sur",
+   "caller-foreknowledge"
+  ],
+  "blocks": [
+   {
+    "position": 1,
+    "time_label": "23:05",
+    "caller_type": "standard",
+    "caller_card": "Ace of Spades",
+    "caller_card_meaning": "Ambiguous, hollow — a conclusion arrived at through silence; access revoked",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** Yes (Ace of Spades — standard)\n**Caller card:** Ace of Spades — *Hollow, detached*\n\nThe voice was flat. Not cold — flat. Like someone reporting from a place where the weather had already moved through and left nothing behind.\n\nThey had been at work today. Or rather, they had tried to be. Building access codes — all of them, across every door — stopped working at 14:00. No message sent to them. No meeting called. No one in the corridor made eye contact in the particular way that means *I know and I'm sorry.*\n\nThe conclusion was clear. The conclusion had just not been made official.\n\n*I always wondered what the end would feel like,* they said. *Turns out it's a flickering badge reader and a lot of silence.*\n\nNo request. No anger. Just that flatness, and then the click.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Seven of Clubs",
+      "tone": "Something you sing along to with a friend — how did you both come to love it?"
+     },
+     {
+      "position": 2,
+      "card": "Two of Clubs",
+      "tone": "The new obsession — the thing you listen to every day right now — why is it resonating?"
+     },
+     {
+      "position": 3,
+      "card": "Eight of Clubs",
+      "tone": "The drumbeat that always has you tapping your foot — what is your favourite bit?"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Golden",
+      "artist": "HUNTR/X, EJAE, AUDREY NUNA, REI AMI",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "adore u",
+      "artist": "Fred again.., Obongjayar",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 2,
+    "time_label": "00:05",
+    "caller_type": "standard",
+    "caller_card": "Queen of Clubs",
+    "caller_card_meaning": "Adult, introspective — friendship reignited; a message half-written",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** Yes (Queen of Clubs — standard)\n**Caller card:** Queen of Clubs — *Quiet, introspective*\n\nShe had been thinking before she called. You could hear it — the weight of decisions already made, rewound, made again.\n\nThe sing-along track from Block 1 had started something. It was her song with someone she'd lost touch with. Not through a fight, not through any one moment. Just drift. The slow, undramatic kind that's harder to name than a rupture.\n\nTonight, with that track playing, she found the person's details online. Wrote half a message. Deleted it. Wrote it again.\n\n*Do you think people can pick up where they left off?* she asked. *I don't even know if they still listen to music.*\n\nShe didn't say whether she sent the message. She thanked the broadcast and signed off quietly.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Six of Diamonds",
+      "tone": "A song that helps you focus and tune in — what has it helped you with?"
+     },
+     {
+      "position": 2,
+      "card": "Two of Diamonds",
+      "tone": "A song you listen to to psyche yourself up for a big moment — when has it worked?"
+     },
+     {
+      "position": 3,
+      "card": "Eight of Diamonds",
+      "tone": "One of the stupidest songs you love — it is not good, but you cannot shake it"
+     }
+    ],
+    "tracks": []
+   },
+   {
+    "position": 3,
+    "time_label": "01:05",
+    "caller_type": "standard",
+    "caller_card": "Jack of Diamonds",
+    "caller_card_meaning": "Young, unsteady — financial precarity; sleeping in the car; gas station meals",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** Yes (Jack of Diamonds — standard)\n**Caller card:** Jack of Diamonds — *Fast, unsteady*\n\nYoung voice. Rushing slightly, like someone who had decided to call before they could change their mind.\n\nHe had been sleeping in his car. Not always. Not every night. Just when it was safer than home, or when home had stopped being a fixed location. The highway song was his — his private anthem for gas station meals and hoping the heater lasted the night. He said it was the first time he'd heard someone else choose it.\n\nHe asked if the station took donations.\n\nOso said no.\n\nHe laughed, short and genuine. Then hung up before anything else could be said.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Seven of Spades",
+      "tone": "Driving late at night down a lonesome highway — does the song make you feel less alone, or more?"
+     },
+     {
+      "position": 2,
+      "card": "Four of Spades",
+      "tone": "The first song you think of when you think of summers as a kid — how does it feel to listen to it now?"
+     },
+     {
+      "position": 3,
+      "card": "Ten of Spades",
+      "tone": "The saddest song that makes you smile — what about it is so endearing?"
+     }
+    ],
+    "tracks": []
+   },
+   {
+    "position": 4,
+    "time_label": "02:00",
+    "caller_type": "phenomenon",
+    "caller_card": "King of Diamonds",
+    "caller_card_meaning": "Elder, confessional — concert memory; stranger in the crowd; called Oso by an unbroadcast name",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "caller-foreknowledge",
+    "notes": "**Caller:** Yes (King of Diamonds — phenomenon)\n**Caller card:** King of Diamonds — *Confessional, measured*\n\nThe live performance track brought him back. He had been at that concert. Or near it — he was vague about proximity, specific about presence.\n\nHe remembered someone. Met in the crowd, or perhaps before. The encounter was brief and vivid: a grin, a flash of neon, something said during the bridge of that exact song. He hadn't seen them since. But he had been chasing that particular quality of aliveness in every face he'd encountered in the years afterward.\n\n*Memory is just another form of longing,* he said.\n\nHe thanked the broadcast. Not for the music — though that too. For the moment of return. For being brought back to something he thought he had finished losing.\n\nThen he said a name. A name Oso had not spoken on air tonight — not once, not in passing, not in any context accessible through the broadcast.\n\nThe line went dead.\n\nNothing unusual in the silence before it disconnected. No static, no hum. Just absence.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Six of Hearts",
+      "tone": "A song your family bonded over — who loved it the most and why?"
+     },
+     {
+      "position": 2,
+      "card": "Nine of Hearts",
+      "tone": "One of the most memorable songs you saw live — where was it, who was with you?"
+     },
+     {
+      "position": 3,
+      "card": "Four of Hearts",
+      "tone": "One of the first songs you learned all the lyrics to — do you still remember them?"
+     }
+    ],
+    "tracks": []
+   }
+  ],
+  "phenomena": [
+   {
+    "key": "caller-foreknowledge",
+    "name": "Caller Foreknowledge",
+    "status": "New",
+    "confidence": "Unconfirmed",
+    "locations": [
+     "WBPR broadcast frequency, fourth block"
+    ],
+    "lat": null,
+    "lon": null,
+    "notes": "Final caller of the night referenced a specific live performance track, then described being at the same concert and meeting someone in the crowd. Caller signed off by using a name Oso had not given on air at any point during the broadcast. Line went dead immediately after. No ambient sound in the silence before disconnect.",
+    "tags": [
+     "veil",
+     "identity",
+     "anomalous-knowledge"
+    ]
+   }
+  ]
+ },
+ {
+  "session": 3,
+  "slug": "wbpr-s03",
+  "station": "WBPR",
+  "call_sign": "Oso Sur",
+  "location": "Montana Fire Lookout, ~7,200ft",
+  "lat": null,
+  "lon": null,
+  "date": "1973-11-10",
+  "start_time": "23:00",
+  "end_time": "01:45",
+  "duration_minutes": 105,
+  "atmospheric_conditions": "Cold front moving through. Wind in the tree line intermittent. Stars visible in patches. Equipment behaved.",
+  "veil_status": "Thin",
+  "veil_intensity": 5,
+  "dawn_colour": "Unknown",
+  "veil_at_close": "Thin",
+  "personal_notes": "Three calls. The fourth slot stayed empty — something came up, or something didn't, and the broadcast ended before I could take it.\n\nThe old man's story: guilt like that calcifies over time. It doesn't go away; it just becomes architecture. He wasn't looking for absolution. He was just tired of carrying it alone in the dark, and the dark is exactly what this station is for.\n\nThe woman with the looping conversation — I've been thinking about what she said. *Are we being rehearsed.* Not *are we being watched*, not *is something wrong*, but *rehearsed*. Like there's a script and she's unsure whether she's reading from it or writing it. That's a specific kind of unease. Worth noting.\n\nThe one who wanted a song for new beginnings that could still hold grief: I played the sunniest thing I had that still had weight in it. I hope it was right.\n\nThe fourth block played into an empty line. Sometimes that's the broadcast. Sometimes the silence is the whole point of having a signal.\n\nDawn not observed. Session ended early.",
+  "tags": [
+   "broadcast",
+   "void1680am",
+   "wbpr",
+   "oso-sur",
+   "linguistic-drift",
+   "incomplete"
+  ],
+  "blocks": [
+   {
+    "position": 1,
+    "time_label": "23:05",
+    "caller_type": "standard",
+    "caller_card": "King of Spades",
+    "caller_card_meaning": "Elder, quietly guilty — lopsided friendship; a debt unpaid in the early days",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** Yes (King of Spades — standard)\n**Caller card:** King of Spades — *Measured, carrying old weight*\n\nHe told a story. Not recent. The years had settled into it.\n\nThere was a friend. Someone who stood by him through things he wouldn't name — *the early days*, he said, which could mean the regime, the first cold winter, the war, or something specific to his own life that he had no intention of explaining to a radio host at midnight. The friend had been there. And when it counted, when the reciprocal moment arrived, the Caller hadn't returned the favour.\n\nHe said it simply: *I thought I was protecting them.*\n\nA pause, then: *I was protecting myself.*\n\nHe still saw that friend's face in crowds. Thirty years and he still looked for them. He didn't ask for anything. He had just needed to say it somewhere that wasn't his own head.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Six of Clubs",
+      "tone": "A song about a dream, goal, or aspiration — realistic or whimsical — what does it make you aspire to be?"
+     },
+     {
+      "position": 2,
+      "card": "Four of Clubs",
+      "tone": "The first song you think of when you think of someone important to you — who came to mind?"
+     },
+     {
+      "position": 3,
+      "card": "Ten of Clubs",
+      "tone": "The sleaziest song you love — is it liberating, or a dirty secret?"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Dream",
+      "artist": "Cat Power",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "The Hardest Part",
+      "artist": "Olivia Dean",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Black Cherry",
+      "artist": "Goldfrapp",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 2,
+    "time_label": "00:05",
+    "caller_type": "standard",
+    "caller_card": "Queen of Spades",
+    "caller_card_meaning": "Adult, controlled — a looping conversation; something said that may have been a warning; \"are we being rehearsed?\"",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "linguistic-drift",
+    "notes": "**Caller:** Yes (Queen of Spades — standard)\n**Caller card:** Queen of Spades — *Controlled, barely*\n\nShe had a conversation earlier tonight. One of those that loops in the mind like a broken chorus.\n\nIt started small — a joke, a throwaway comment. But something in the reply caught on her. She couldn't stop replaying it. The words had been ordinary, but the shape of them felt wrong. Or too right. She couldn't determine whether she'd missed something vital, whether it was an accusation in disguise, a warning, or a goodbye she hadn't understood was a goodbye.\n\nShe said WBPR was the only thing that still sounded real to her. That the voice was stable when other things weren't.\n\nThen, before signing off: *Do you ever wonder if we're being rehearsed?*\n\nNo context. No elaboration.\n\nThe question sat in the air after the line dropped. Oso didn't answer it. There wasn't time, and there may not be an answer.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Five of Diamonds",
+      "tone": "A song from a curveball genre unlike anything else you listen to — is it embarrassing to admit?"
+     },
+     {
+      "position": 2,
+      "card": "Three of Diamonds",
+      "tone": "You misunderstood the lyrics for years — you think your version is better"
+     },
+     {
+      "position": 3,
+      "card": "Nine of Diamonds",
+      "tone": "You are at the beach — what are you listening to, and does it fire you up or settle you down?"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "007 (Shanty Town)",
+      "artist": "Desmond Dekker & The Aces",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Abatina",
+      "artist": "Kobo Town",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Candela",
+      "artist": "Buena Vista Social Club",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 3,
+    "time_label": "01:00",
+    "caller_type": "standard",
+    "caller_card": "Ace of Hearts",
+    "caller_card_meaning": "Gentle, introspective — new parent or lost parent; request for something sunny that still knows how to grieve",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** Yes (Ace of Hearts — standard)\n**Caller card:** Ace of Hearts — *Gentle, quietly complex*\n\nA clear voice. Intentional in a way most callers aren't — like someone who had decided exactly what they were going to say before they dialled.\n\nThey had just become a parent. Or they had just lost one. The way they spoke, both things folded into each other — beginnings and endings sharing the same breath. Long walks through abandoned housing blocks. Holding someone too small to understand this world yet. The specific weight of something new and something gone occurring in the same season.\n\nThey asked for a request: something sunny, something warm. A dream of elsewhere.\n\n*Do you have a song for new beginnings that still knows how to grieve the old?*\n\nThey didn't wait for an answer. They trusted the choice would be right.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Three of Spades",
+      "tone": "One of your shared songs — something you had with someone close — who was it, why this song?"
+     },
+     {
+      "position": 2,
+      "card": "Eight of Spades",
+      "tone": "A song about something ending — is it bitter or bittersweet?"
+     },
+     {
+      "position": 3,
+      "card": "Five of Spades",
+      "tone": "The first song you think of when you think of winters as a kid — does winter still feel this way?"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "What He Wrote",
+      "artist": "Laura Marling",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Landfill",
+      "artist": "Daughter",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Come Wind Come Rain",
+      "artist": "Vashti Bunyan",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 4,
+    "time_label": "01:45",
+    "caller_type": "none",
+    "caller_card": "",
+    "caller_card_meaning": "",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** None (broadcast ended before final caller)\n\n*Block 4 cards drawn. Broadcast did not continue to the final call. No record of why.*",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Two of Hearts",
+      "tone": "A song from one of the first acts you saw live — did you choose the show, or did someone take you?"
+     },
+     {
+      "position": 2,
+      "card": "Seven of Hearts",
+      "tone": "A song from a band you hid from your parental figure — were you right to?"
+     },
+     {
+      "position": 3,
+      "card": "Ten of Hearts",
+      "tone": "You have been out all night and the sun is rising — what song reinvigorates you for the day?"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Christobel",
+      "artist": "Joan As Police Woman",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Tekno Love Song",
+      "artist": "CocoRosie",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Until The Morning",
+      "artist": "Thievery Corporation",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   }
+  ],
+  "phenomena": [
+   {
+    "key": "linguistic-drift",
+    "name": "Linguistic Drift",
+    "status": "Active",
+    "confidence": "Unconfirmed",
+    "locations": [
+     "Unknown caller location"
+    ],
+    "lat": null,
+    "lon": null,
+    "notes": "Second-block caller reported a conversation that seemed to loop or rearrange itself in memory. A specific reply she could not stop replaying — she was uncertain whether it was an accusation, a warning, or a goodbye in disguise. Closed the call with the phrase \"do you ever wonder if we're being rehearsed?\" No further clarification. Possible early drift indicator — language losing stable meaning at the edges.",
+    "tags": [
+     "veil",
+     "linguistic-drift",
+     "rehearsal"
+    ]
+   }
+  ]
+ },
+ {
+  "session": 4,
+  "slug": "wbpr-s04",
+  "station": "WBPR",
+  "call_sign": "Oso Sur",
+  "location": "Montana Fire Lookout, ~7,200ft",
+  "lat": null,
+  "lon": null,
+  "date": "1973-11-17",
+  "start_time": "23:00",
+  "end_time": "02:30",
+  "duration_minutes": 210,
+  "atmospheric_conditions": "Full moon. Sky clear, cold, and deeply still. Moon waxen yellow — the particular quality of light that makes the world look like it was painted rather than real. Birdsong audible from the tree line at open, unusual for the hour.",
+  "veil_status": "Thin",
+  "veil_intensity": 7,
+  "dawn_colour": "Unknown",
+  "veil_at_close": "Thin, stable",
+  "personal_notes": "Full moon tonight. Birdsong at midnight. Both things I noticed before the broadcast started and neither one felt normal, but both are the kind of not-normal that you can file away and keep moving.\n\nThe kid in Block 1 is in trouble in the specific way that doesn't feel like trouble yet. Whatever they encountered left something behind — literal or otherwise — and they want to keep hold of it. I don't have a protocol for that kind of pull. The veil doesn't recruit through fear. It recruits through beauty. That's the part I think about.\n\nThe woman from Block 2: she was already halfway out the door from the friendship before she called. The remote meeting she didn't attend may have been the right call. Or it may have been the door that was already closing. I don't know. I don't know what her friend found, or whether finding it is better or worse than not.\n\nThe King of Clubs: I have been sitting with this one since the line dropped. He said I made a different choice last time. I don't know what last time is. I don't know what choice he means. But he knew about the moon, and the birds, and the signal — and he spoke about all of it like a man who had done the maths and come out the other side. He wasn't warning me. He was informing me. There's a difference.\n\nThe last caller never gave her name. She assumed I'd know it eventually. That's the second time in four sessions a caller has operated as though I have access to information I don't have yet.\n\nI need to start keeping better notes.\n\nThe moon is still up as I write this. Yellow, still. Whatever light that is, it isn't the same as other moonlight. It illuminates differently. It makes shadows point slightly wrong.\n\nCoffee's cold. Bourbon accounted for. Equipment quiet.\n\nI'll be back on next week.",
+  "tags": [
+   "broadcast",
+   "void1680am",
+   "wbpr",
+   "oso-sur",
+   "carcosa-contact",
+   "veil-recruitment",
+   "temporal-recursion",
+   "caller-foreknowledge",
+   "full-moon"
+  ],
+  "blocks": [
+   {
+    "position": 1,
+    "time_label": "23:05",
+    "caller_type": "standard",
+    "caller_card": "Jack of Hearts",
+    "caller_card_meaning": "Young, breathless — romance with something not entirely real; eyes like static",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "carcosa-contact",
+    "notes": "**Caller:** Yes (Jack of Hearts — standard)\n**Caller card:** Jack of Hearts — *Breathless, not quite afraid*\n\nA young voice. Quick. Like someone speaking in a whisper they hoped wouldn't carry to the wrong ears.\n\nThey'd met someone. Or something had happened. They were working out which.\n\nThe description came in fragments: one night, brief, vivid. No name exchanged. But a symbol left behind — a ring, or a piece of parchment, or a yellow thread. They weren't sure which. They had been holding it since and couldn't bring themselves to put it down.\n\nThey described eyes like static. A voice like a familiar song played in reverse — recognisable but wrong in some way that wasn't unpleasant. A presence that shouldn't have been where it was.\n\nThey asked if Oso had ever fallen for something not entirely real.\n\nThey asked for something cool. Something dark. A sound to dream to.\n\nThey didn't ask if it was a good idea. They didn't seem to think that was the relevant question.\n\n*I want to feel this way again,* they said. *Even if it hurts.*",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Two of Clubs",
+      "tone": "The new obsession — the thing you listen to every day right now — why is it resonating?"
+     },
+     {
+      "position": 2,
+      "card": "Ten of Clubs",
+      "tone": "The sleaziest song you love — is it liberating, or a dirty secret?"
+     },
+     {
+      "position": 3,
+      "card": "Six of Clubs",
+      "tone": "A song about a dream, goal, or aspiration — realistic or whimsical — what does it make you aspire to be?"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Point + Kill",
+      "artist": "Little Simz",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Midnight",
+      "artist": "Khruangbin",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Zion",
+      "artist": "Lauryn Hill",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 2,
+    "time_label": "00:10",
+    "caller_type": "standard",
+    "caller_card": "Queen of Diamonds",
+    "caller_card_meaning": "Adult, controlled but fracturing — friend following strange signal; remote meeting requested; \"if I disappear, tell them I was trying to understand\"",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "veil-recruitment",
+    "notes": "**Caller:** Yes (Queen of Diamonds — standard)\n**Caller card:** Queen of Diamonds — *Controlled, fracturing at the edges*\n\nShe had a long-time friend. Someone from before. The kind of friendship built in years of shared difficulty. She had believed in this person's judgement the way you believe in something you've tested and had hold.\n\nOver recent months, the friend had been changing. Following an unspecified signal. Asking questions that had no sensible answers. Saying the sky was a different colour than she could see. Attending meetings at unscheduled hours with people the Caller couldn't account for.\n\nTonight, the friend had asked her to come to a remote location. Said they were going to show her the truth.\n\nShe hadn't gone.\n\nShe wasn't sure if she had made the right choice.\n\nThe wildcard track — the one that shouldn't have fit but did — had felt, she said, like a warning. Or like a message from a version of herself who had already made both choices and was trying to communicate from the other side of one of them.\n\n*If I disappear,* she said before hanging up, *tell them I was trying to understand.*",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Four of Diamonds",
+      "tone": "Something with lyrics you quote often — what is the line that grabs you?"
+     },
+     {
+      "position": 2,
+      "card": "Wildcard",
+      "tone": "A track that feels totally out of place but belongs anyway"
+     },
+     {
+      "position": 3,
+      "card": "Seven of Diamonds",
+      "tone": "A song that helps you imagine yourself a villain"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Strange Weather",
+      "artist": "Tom Waits",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Can't Let Go",
+      "artist": "Caught A Ghost",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "The Nothing Changes",
+      "artist": "The Kilimanjaro Darkjazz Ensemble",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 3,
+    "time_label": "01:15",
+    "caller_type": "phenomenon",
+    "caller_card": "King of Clubs",
+    "caller_card_meaning": "Elder, watching — today's events as a closing loop; the moon as a recurrence; \"you made a different choice last time\"",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "temporal-recursion",
+    "notes": "**Caller:** Yes (King of Clubs — phenomenon)\n**Caller card:** King of Clubs — *Deep, careful, watching*\n\nHe led with the moon.\n\nNot tonight's specifically — though he acknowledged it. He began with a moon he had seen thirteen years ago to the day. He described it as identical: the same waxen yellow quality, the same air pressure, the same specific birdsong pattern from the tree line. He had been at a similar elevation. The radio had been on.\n\nHe said this was a closing loop. A resonant frequency that recurred only under particular conditions — emotional, geographic, possibly cosmological. He used these words without self-consciousness, as though they were practical terms he'd had occasion to use before.\n\nThen: the same voice on the radio. Oso's voice.\n\n*You made a different choice last time,* he said.\n\nHe did not specify what choice. He did not appear to need to. He had the manner of someone delivering information they had been carrying for a long time, waiting for the correct moment to set it down.\n\nThe line held for a few seconds after he finished speaking. No ambient sound. Then the disconnect.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Six of Spades",
+      "tone": "Summer, late, all the windows open, restless — what do you put on?"
+     },
+     {
+      "position": 2,
+      "card": "Wildcard",
+      "tone": "A shadow song — lost or forbidden"
+     },
+     {
+      "position": 3,
+      "card": "Three of Spades",
+      "tone": "One of your shared songs — something you had with someone close — who was it, why this song?"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Mysterons",
+      "artist": "Portishead",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "The Lantern",
+      "artist": "Boom Bip, Doseone",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Bones of Ribbon",
+      "artist": "London Grammar",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 4,
+    "time_label": "02:10",
+    "caller_type": "phenomenon",
+    "caller_card": "Queen of Hearts",
+    "caller_card_meaning": "Adult, retrospective — a decision made by not deciding; a train still passing; \"say my name next time\" — name never given",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "caller-foreknowledge",
+    "notes": "**Caller:** Yes (Queen of Hearts — phenomenon)\n**Caller card:** Queen of Hearts — *Looking back along a road not chosen*\n\nShe had not expected the breakup song to land the way it did. It wasn't heartbreak she remembered — it was the decision that came after. The one she made when no one asked her to make it. To stay in a town too small. To take a job she hadn't wanted. To wait, without having framed it as waiting.\n\nThe person she had loved had not asked her to follow. She had not offered. She had never resented them for that. She had just never fully unpacked either.\n\nTonight a train passed her window. Same model as the one that had left that night, years ago. Same rhythm of the cars. Same light intervals from the passenger windows.\n\nShe wondered if it was the same train.\n\nShe said WBPR was the only place that made her feel like she'd already gone. Like she was somewhere else, and had been for a long time, and the life she was living was a habit she'd forgotten to examine.\n\nShe signed off: *Goodnight, DJ. Say my name next time.*\n\nShe had not given a name at any point during the call.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Eight of Hearts",
+      "tone": "A song that makes you feel invincible, or at least like a survivor — why this one?"
+     },
+     {
+      "position": 2,
+      "card": "Five of Hearts",
+      "tone": "A song that got you through a breakup, romantic or platonic — how does it feel to hear it again?"
+     },
+     {
+      "position": 3,
+      "card": "Three of Hearts",
+      "tone": "A song from one of the first albums you bought yourself — where did you buy it?"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Everybody",
+      "artist": "Ezra Collective",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Running If You Call My Name",
+      "artist": "HAIM",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "A Night In Tunisia (Remastered 2005)",
+      "artist": "Art Blakey & The Jazz Messengers",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   }
+  ],
+  "phenomena": [
+   {
+    "key": "carcosa-contact",
+    "name": "Carcosa Contact — Romantic Vector",
+    "status": "New",
+    "confidence": "Unconfirmed",
+    "locations": [
+     "Unknown caller location"
+    ],
+    "lat": null,
+    "lon": null,
+    "notes": "First caller described a brief encounter with a figure of indeterminate nature. Eyes described as \"like static.\" Voice described as \"a familiar song played backwards.\" The figure left behind a physical object — a ring, or a scrap of parchment, or a yellow thread (caller was uncertain which). The caller did not seem afraid. They seemed drawn. This is the concerning part.",
+    "tags": [
+     "carcosa",
+     "contact",
+     "romance",
+     "yellow-sign-adjacent"
+    ]
+   },
+   {
+    "key": "veil-recruitment",
+    "name": "Veil Recruitment — Signal-Following",
+    "status": "Active",
+    "confidence": "Likely",
+    "locations": [
+     "Unknown remote location outside caller's city"
+    ],
+    "lat": null,
+    "lon": null,
+    "notes": "Second caller's friend had been following an unspecified signal — undertaking anti-regime-adjacent activities, asking impossible questions, saying the sky was the wrong colour. The friend issued an invitation to meet at a remote location to \"show them the truth.\" The caller declined. The caller is now uncertain whether they made the right choice.",
+    "tags": [
+     "veil",
+     "recruitment",
+     "signal",
+     "seditious"
+    ]
+   },
+   {
+    "key": "temporal-recursion",
+    "name": "Temporal Recursion — Lunar Cycle",
+    "status": "New",
+    "confidence": "Likely",
+    "locations": [
+     "Montana region (caller's location unspecified)"
+    ],
+    "lat": null,
+    "lon": null,
+    "notes": "Third caller described tonight's full moon as identical — in light quality, air pressure, and birdsong pattern — to a moon they observed exactly thirteen years prior. Caller described this as a \"closing loop\" and a \"resonant frequency\" that repeats under specific conditions. Most significantly, they stated that Oso Sur's voice was present on the radio during the prior occurrence, and that on that occasion, \"you made a different choice.\" Nature of the difference unspecified. Caller did not appear distressed.",
+    "tags": [
+     "temporal",
+     "recursion",
+     "loop",
+     "lunar",
+     "carcosa"
+    ]
+   },
+   {
+    "key": "caller-foreknowledge",
+    "name": "Caller Foreknowledge",
+    "status": "Escalating",
+    "confidence": "Confirmed",
+    "locations": [
+     "WBPR broadcast frequency, fourth block (second occurrence)"
+    ],
+    "lat": null,
+    "lon": null,
+    "notes": "Final caller signed off with \"say my name next time\" — but had not given a name at any point during the call. This is the second session in which a caller has demonstrated knowledge of information not available through the broadcast. Previous instance (Session 2) involved knowledge of Oso's name. This instance inverts the pattern — the caller withholds their own name while implying Oso will have access to it in a future broadcast. Mechanism unknown.",
+    "tags": [
+     "veil",
+     "identity",
+     "anomalous-knowledge",
+     "foreknowledge"
+    ]
+   }
+  ]
+ },
+ {
+  "session": 5,
+  "slug": "wbpr-s05",
+  "station": "WBPR",
+  "call_sign": "Oso Sur",
+  "location": "Montana Fire Lookout, ~7,200ft",
+  "lat": null,
+  "lon": null,
+  "date": "1974-11-08",
+  "start_time": "23:47",
+  "end_time": "02:19",
+  "duration_minutes": 152,
+  "atmospheric_conditions": "Heavy frost on south window by broadcast start — thin parallel lines, near-parallel. More stars than usual. No movement observed. Wind steady from the north-west.",
+  "veil_status": "Thin",
+  "veil_intensity": 4,
+  "dawn_colour": "Grey-blue (clean)",
+  "veil_at_close": "Thin, stable",
+  "personal_notes": "The woman with the object in her glovebox is still out there somewhere. She didn't say what it was. I didn't ask. Some things you leave with the person who found them. She'll call back or she won't.\n\nThe old forestry man on Highway 2 — he knew the land. You could hear it in how he described the hum. Not afraid of it. Just reporting it, the way you'd report weather. I think that's the right response. I think being afraid of it is what it's looking for.\n\nFrost on the south window: resolved cleanly. I'll note it but I'm not worried yet. Twice would be worth worrying about.\n\nThe stars didn't move tonight. That's a good night.\n\nDawn came in grey-blue. Clean horizon. I'll take it.",
+  "tags": [
+   "broadcast",
+   "void1680am",
+   "wbpr",
+   "oso-sur",
+   "highway-loops",
+   "humming-road",
+   "frost-manifestations",
+   "moth-static"
+  ],
+  "blocks": [
+   {
+    "position": 1,
+    "time_label": "23:47",
+    "caller_type": "standard",
+    "caller_card": "Six of Clubs",
+    "caller_card_meaning": "Something discovered by accident",
+    "caller_location": "Road, Dakotas or Minnesota (accent only)",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "accent-only",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** Yes (rolled 4 — standard)\n**Caller card:** Six of Clubs — *something discovered by accident*\n\nFemale, mid-forties. Flat vowels — Dakotas or Minnesota. Pulled over. She'd found an object in her glovebox that wasn't hers. Eleven-year-old car. Not there that morning.\n\nShe didn't describe the object. Oso didn't push. She'd called because the signal came in clean and sudden, cleaner than anything else on the road.\n\nShe hung up before it resolved. That's fine. Not everything resolves.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Four of Spades",
+      "tone": "Melancholic"
+     },
+     {
+      "position": 2,
+      "card": "Nine of Hearts",
+      "tone": "Peace"
+     },
+     {
+      "position": 3,
+      "card": "Jack of Diamonds",
+      "tone": "Urban"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "The Dazzler",
+      "artist": "Ex:Re",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Scenic World",
+      "artist": "Beirut",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Backside Grind",
+      "artist": "Plan B",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 2,
+    "time_label": "00:31",
+    "caller_type": "none",
+    "caller_card": "",
+    "caller_card_meaning": "",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "frost-manifestations",
+    "notes": "**Caller:** No (rolled 2)\n\nThe frost on the south window had spread by the end of this block. Still parallel. Still not breathing on it.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Five of Hearts",
+      "tone": "Vulnerable"
+     },
+     {
+      "position": 2,
+      "card": "Two of Clubs",
+      "tone": "Something difficult to listen to"
+     },
+     {
+      "position": 3,
+      "card": "Eight of Spades",
+      "tone": "Cinematic, ominous"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Keep Your Head Up",
+      "artist": "Ben Howard",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Dash and Blast",
+      "artist": "Yndi Halda",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Pin Bent Light",
+      "artist": "Joanna Newsom",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 3,
+    "time_label": "01:18",
+    "caller_type": "phenomenon",
+    "caller_card": "Three of Spades",
+    "caller_card_meaning": "Something that sounds like the void",
+    "caller_location": "Payphone, outside Browning, Montana",
+    "caller_lat": 48.57,
+    "caller_lon": -113.01,
+    "caller_location_confidence": "precise",
+    "phenomenon_ref": "humming-road",
+    "notes": "**Caller:** Yes (rolled 6 — phenomenon)\n**Caller card:** Three of Spades — *something that sounds like the void*\n\nMale, late sixties. Retired forestry. Payphone outside Browning, off Highway 2 between Cut Bank and Shelby. Car stopped on its own. He'd heard the hum first — low frequency, felt more than heard. Got out. Found the payphone. Called WBPR.\n\nHe was calm. The kind of calm that comes from a life outdoors, from knowing that the land does things. He wasn't frightened. That was, in its way, the most unsettling part of the call.\n\nOso walked him through the Highway 2 protocol. Small commerce if there's a figure at the landmark — there wasn't, tonight. Wait for dawn. He said he had coffee in a thermos. He said that was enough.\n\nHe didn't call back. The hum stopped at 01:52 by his estimate.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "King of Spades",
+      "tone": "Something that sounds like power in the dark"
+     },
+     {
+      "position": 2,
+      "card": "Three of Diamonds",
+      "tone": "Something that reminds you of winter"
+     },
+     {
+      "position": 3,
+      "card": "Ace of Hearts",
+      "tone": "Something that makes you cry"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Last Known Spy",
+      "artist": "Trigg & Gusset",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Soon It Will Be Cold Enough to Snow",
+      "artist": "Emancipator",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Pink Skies",
+      "artist": "Zac Bryant",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 4,
+    "time_label": "02:04",
+    "caller_type": "none",
+    "caller_card": "",
+    "caller_card_meaning": "",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** No (rolled 1)\n\nQuiet block. The frost on the south window resolved completely before the last song ended. No trace of it by 02:15. That's the clean outcome.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Seven of Spades",
+      "tone": "Something with secrets in it"
+     },
+     {
+      "position": 2,
+      "card": "Four of Hearts",
+      "tone": "Something that makes you feel safe"
+     },
+     {
+      "position": 3,
+      "card": "Ten of Diamonds",
+      "tone": "Something timeless"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "What's He Building?",
+      "artist": "Tom Waits",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Sparkplug Minuet",
+      "artist": "Mark Mothersbaugh",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Blue In Green",
+      "artist": "Miles Davis",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   }
+  ],
+  "phenomena": [
+   {
+    "key": "frost-manifestations",
+    "name": "Frost Manifestations",
+    "status": "Active",
+    "confidence": "Confirmed",
+    "locations": [
+     "Montana Fire Lookout, south window"
+    ],
+    "lat": 48.2,
+    "lon": -112.9,
+    "notes": "Thin parallel lines visible at broadcast start. Spread during Block 2. Resolved completely before the last song of Block 4 ended — no trace by 02:15. Clean outcome this session.",
+    "tags": [
+     "lookout",
+     "frost",
+     "veil"
+    ]
+   },
+   {
+    "key": "humming-road",
+    "name": "Humming Road (Highway 2)",
+    "status": "Escalating",
+    "confidence": "Confirmed",
+    "locations": [
+     "Highway 2, between Cut Bank and Shelby, Montana"
+    ],
+    "lat": 48.58,
+    "lon": -112.09,
+    "notes": "Third confirmed caller report. Retired forestry worker, male, late sixties. Car stopped on its own outside Browning. Low-frequency hum — felt more than heard. Found payphone, called WBPR. Calm throughout. Oso walked him through Highway 2 protocol. No figure at the landmark tonight. He had coffee. The hum stopped at 01:52 by his estimate. Did not call back.",
+    "tags": [
+     "highway",
+     "humming-road",
+     "hwy2",
+     "phenomenon"
+    ]
+   },
+   {
+    "key": "stellar-drift",
+    "name": "Stellar Drift",
+    "status": "Stable",
+    "confidence": "Likely",
+    "locations": [
+     "Montana Fire Lookout, overhead"
+    ],
+    "lat": 48.2,
+    "lon": -112.9,
+    "notes": "More stars than usual visible. No movement observed. No counting themselves tonight.",
+    "tags": [
+     "stars",
+     "stellar",
+     "veil"
+    ]
+   },
+   {
+    "key": "the-kept",
+    "name": "The Kept",
+    "status": "New",
+    "confidence": "Unconfirmed",
+    "locations": [
+     "Road — pulled over, location unspecified"
+    ],
+    "lat": null,
+    "lon": null,
+    "notes": "Block 1 caller — female, mid-forties, Dakotas or Minnesota flat vowels. Found an object in her glovebox that wasn't hers. Eleven-year-old car. Not there that morning. She didn't describe the object. Hung up before it resolved. Her calm was noted. Monitoring for pattern.",
+    "tags": [
+     "the-kept",
+     "object",
+     "unresolved"
+    ]
+   }
+  ]
+ },
+ {
+  "session": 6,
+  "slug": "wbpr-s06",
+  "station": "WBPR",
+  "call_sign": "Oso Sur",
+  "location": "Montana Fire Lookout, ~7,200ft",
+  "lat": null,
+  "lon": null,
+  "date": "1974-11-22",
+  "start_time": "23:00",
+  "end_time": "02:15",
+  "duration_minutes": 195,
+  "atmospheric_conditions": "Clear, 28°F and dropping. Unusual stellar clarity. Drift active from open.",
+  "veil_status": "Thin",
+  "veil_intensity": 6,
+  "dawn_colour": "Grey (estimated — clean)",
+  "veil_at_close": "Thin, stable",
+  "personal_notes": "Clear night. The kind of clear that means the stars have nowhere to hide what they're doing. Drift was active from the start. I've stopped noting which constellations specifically. It doesn't seem to help.\n\nTwo callers. The woman on Highway 2 I feel good about. Standard enough, if anything out here is standard. The old man on the barn is different. That call sat in the room after it ended in a way calls don't usually do. The silence behind him was occupied. I've heard empty silence and I've heard occupied silence and I know which one that was.\n\nHe said it was beautiful. That's always the part that worries me. Not the fear. The beauty.\n\nThe frost lines didn't resolve. Four lines of almost-English on the east glass, incomplete, not photographed. I've decided I don't want them on record until I know what they're trying to say. If they finish tonight I'll note it. If they finish and I can read them I'll decide then.\n\nThe coffee pot made itself again. That's twice. Per protocol, one more time and it's not the equipment. I know that. I'm keeping the bourbon close.\n\nThe Watchers were back at the treeline by the end. All of them. I think the signal matters to them. I've thought that for a while. Tonight felt like confirmation.\n\nGrey dawn, I think. Or close to it. Something came near but I don't believe it came through.\n\nGood enough for a Wednesday.",
+  "tags": [
+   "broadcast",
+   "void1680am",
+   "wbpr",
+   "oso-sur",
+   "stellar-drift",
+   "frost-manifestations",
+   "equipment-autonomy",
+   "the-watchers",
+   "the-yellow-sign"
+  ],
+  "blocks": [
+   {
+    "position": 1,
+    "time_label": "23:00",
+    "caller_type": "standard",
+    "caller_card": "Seven of Clubs",
+    "caller_card_meaning": "Something following them",
+    "caller_location": "Highway 2, between Havre and Malta, Montana",
+    "caller_lat": 48.46,
+    "caller_lon": -108.78,
+    "caller_location_confidence": "approximate",
+    "phenomenon_ref": "the-watchers",
+    "notes": "**Caller:** Yes (rolled 5 — urgent/distressed)\n**Caller card:** Seven of Clubs — *something following them*\n\nA woman, mid-thirties. Driving Highway 2 between Havre and Malta. An unmarked big rig had been following her since Cut Bank — lights fixed and level regardless of road geometry. She had pulled over twice. Both times the truck pulled over, holding position a quarter mile back.\n\nOso advised: stop checking mirrors. Lights out before the Cenex in Dodson. Fill up, get a coffee inside, come back to the car. It would be gone.\n\nShe took the advice without hesitation. Said thank you and dropped the line clean.\n\nDuring the call, a Watcher moved approximately ten feet closer to the tower base. Returned to the treeline by end of block. The coffee pot activated without contact — the second occurrence this week.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Nine of Clubs",
+      "tone": "Something that builds tension"
+     },
+     {
+      "position": 2,
+      "card": "Four of Hearts",
+      "tone": "Something that makes you feel safe"
+     },
+     {
+      "position": 3,
+      "card": "Two of Spades",
+      "tone": "Something eerie, uncanny"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "The Nothing Changes",
+      "artist": "Kilimanjaro Darkjazz Ensemble",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Kiara",
+      "artist": "Bonobo",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Thank God I'm A Lizard",
+      "artist": "Ross From Friends",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 2,
+    "time_label": "23:50",
+    "caller_type": "none",
+    "caller_card": "",
+    "caller_card_meaning": "",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "frost-manifestations",
+    "notes": "**Caller:** No (rolled 2)\n\nNo caller. Frost began developing on the east-facing glass sometime during this block — finger-width lines, four of them, incomplete. Near-English. Not transcribed. Not photographed. Oso's choice.\n\nThe Watcher that advanced in Block 1 held its position through the block. Signal unusually clean for this elevation and hour.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "King of Hearts",
+      "tone": "Something majestic, vast"
+     },
+     {
+      "position": 2,
+      "card": "Six of Diamonds",
+      "tone": "Something from a journey"
+     },
+     {
+      "position": 3,
+      "card": "Queen of Clubs",
+      "tone": "Something dark"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Music is Math",
+      "artist": "Boards of Canada",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "All Along the Watchtower",
+      "artist": "Jimi Hendrix",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Prowler",
+      "artist": "Bohren & Der Club of Gore",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 3,
+    "time_label": "00:40",
+    "caller_type": "phenomenon",
+    "caller_card": "Ace of Spades",
+    "caller_card_meaning": "The Yellow Sign — direct Carcosa contact",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "the-yellow-sign",
+    "notes": "**Caller:** Yes (rolled 6 — phenomenon/emergency)\n**Caller card:** Ace of Spades — *The Yellow Sign; direct Carcosa contact*\n\nA man, sixties. Utterly calm. He had found something on his barn door that morning and had been looking at it all day. He believed he had looked at it twice, but was losing certainty about that. He described it as the most beautiful thing he had ever seen. He was considering sketching it.\n\nComplete silence behind his voice. No ambient sound at all. Wrong.\n\nOso advised: don't sketch it. Burn the notepad regardless. Shut the barn. Go inside. Lights up bright. Wait for morning. His call.\n\nHe chose to go inside. Said he was tired and his wife was there. Said the notepad was going in the stove. Before the line dropped he said: *don't let them tell you this doesn't matter. What you do up there. It matters.*\n\nThe line dropped clean. No click, no fade.\n\nHis name was never given. Whether there is a wife is unknown.\n\nThe frost lines on the east glass moved toward each other during the call. They stopped short of touching. The Watchers returned to full treeline formation by the end of the block.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Three of Spades",
+      "tone": "Something that sounds like the void"
+     },
+     {
+      "position": 2,
+      "card": "Ace of Diamonds",
+      "tone": "Something from your childhood"
+     },
+     {
+      "position": 3,
+      "card": "Jack of Hearts",
+      "tone": "Something youthful, energetic"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Construct of Frequencies and White Noise",
+      "artist": "Spectre Horsemen Pale With Dust",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Mysterons",
+      "artist": "Portishead",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Organ Donor",
+      "artist": "DJ Shadow",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 4,
+    "time_label": "01:30",
+    "caller_type": "none",
+    "caller_card": "",
+    "caller_card_meaning": "",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** None (broadcast closed — not rolled)\n\nClosing block. No callers. The lookout was quiet by the end. Frost lines on the east glass unresolved.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Five of Diamonds",
+      "tone": "Something to end on — your closing statement"
+     },
+     {
+      "position": 2,
+      "card": "Nine of Hearts",
+      "tone": "Something that brings you peace"
+     },
+     {
+      "position": 3,
+      "card": "Three of Clubs",
+      "tone": "Something complex, layered"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "White Horses",
+      "artist": "Nick Cave",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Time, As A Symptom",
+      "artist": "Joanna Newsom",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Berghain",
+      "artist": "Rosalía",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   }
+  ],
+  "phenomena": [
+   {
+    "key": "stellar-drift",
+    "name": "Stellar Drift",
+    "status": "Active",
+    "confidence": "Confirmed",
+    "locations": [
+     "Montana Fire Lookout, open sky"
+    ],
+    "lat": 48.2,
+    "lon": -112.9,
+    "notes": "Clear night, drift visible from open. Specifics not being logged.",
+    "tags": [
+     "stellar",
+     "veil-indicator"
+    ]
+   },
+   {
+    "key": "the-watchers",
+    "name": "The Watchers",
+    "status": "Escalating",
+    "confidence": "Confirmed",
+    "locations": [
+     "Montana Fire Lookout treeline"
+    ],
+    "lat": 48.2,
+    "lon": -112.9,
+    "notes": "One Watcher advanced approximately ten feet toward the tower base during the Block 1 caller. Held advanced position through Block 2. All returned to full treeline formation by end of Block 3. Responding to broadcast signal.",
+    "tags": [
+     "treeline",
+     "signal-response"
+    ]
+   },
+   {
+    "key": "equipment-autonomy",
+    "name": "Equipment Autonomy",
+    "status": "Escalating",
+    "confidence": "Likely",
+    "locations": [
+     "Montana Fire Lookout"
+    ],
+    "lat": 48.2,
+    "lon": -112.9,
+    "notes": "Coffee pot activated without contact. Second occurrence this week. Per protocol, one more instance triggers escalation response.",
+    "tags": [
+     "equipment",
+     "autonomy",
+     "protocol-threshold"
+    ]
+   },
+   {
+    "key": "frost-manifestations",
+    "name": "Frost Manifestations",
+    "status": "Active",
+    "confidence": "Confirmed",
+    "locations": [
+     "Montana Fire Lookout, east-facing glass"
+    ],
+    "lat": 48.2,
+    "lon": -112.9,
+    "notes": "Four incomplete lines in near-English appeared on east glass during Block 2. Finger-width. Not transcribed, not photographed by choice. Lines moved toward each other during the Block 3 Ace of Spades call. Stopped short of touching. Unresolved at session close.",
+    "tags": [
+     "frost",
+     "linguistic-drift",
+     "east-glass",
+     "unresolved"
+    ]
+   },
+   {
+    "key": "the-yellow-sign",
+    "name": "The Yellow Sign",
+    "status": "Active",
+    "confidence": "Likely",
+    "locations": [
+     "Barn door, location unspecified (caller report)"
+    ],
+    "lat": null,
+    "lon": null,
+    "notes": "Male caller, sixties, reported finding the Yellow Sign on his barn door. Had been looking at it all day. Believed he had seen it twice but was losing certainty. Advised not to sketch it, cover it, burn the barn and notepad, lights up, wait for morning. Caller complied. Outcome unverified.",
+    "tags": [
+     "carcosa",
+     "yellow-sign",
+     "caller-report",
+     "double-exposure-possible"
+    ]
+   }
+  ]
+ },
+ {
+  "session": 7,
+  "slug": "wbpr-s07",
+  "station": "WBPR",
+  "call_sign": "Oso Sur",
+  "location": "Montana Fire Lookout, ~7,200ft",
+  "lat": null,
+  "lon": null,
+  "date": "1974-12-06",
+  "start_time": "23:00",
+  "end_time": "02:10",
+  "duration_minutes": 190,
+  "atmospheric_conditions": "First hard frost of December. North glass icing at the corners. Stars clear and fixed — a relief. Wind from the north dropping as the night deepens.",
+  "veil_status": "Thin",
+  "veil_intensity": 6,
+  "dawn_colour": "Grey-blue (clean)",
+  "veil_at_close": "Thin, stable",
+  "personal_notes": "The coin caller: I believe her. The specific detail of the nick in the edge — that's not a story someone invents. Something is trying to make contact through repetition. Not threatening. Just insistent, like she said. I want to hear from her again.\n\nThe man with the list: I did not say what I was thinking, which is that lists like the one he described tend to have consequences for the people who've seen them. He knows that. He didn't need me to say it.\n\nThe coffee pot. Three times. I know what that means per protocol. I haven't decided what to do about it yet. It's not hostile. It's just aware.\n\nDawn was clean. Grey-blue, no yellow at the horizon.\n\nThe frost resolved.\n\nI'm leaving the coffee pot plugged in.",
+  "tags": [
+   "broadcast",
+   "void1680am",
+   "wbpr",
+   "oso-sur",
+   "frost-manifestations",
+   "the-coin",
+   "equipment-autonomy"
+  ],
+  "blocks": [
+   {
+    "position": 1,
+    "time_label": "23:00",
+    "caller_type": "emergency",
+    "caller_card": "Eight of Clubs",
+    "caller_card_meaning": "Knowledge they cannot unlearn",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** Yes (rolled 5 — urgent/distressed)\n**Caller card:** Eight of Clubs — *knowledge they cannot unlearn*\n\nMale voice, thirties. Fast, like he'd been rehearsing but had forgotten his place.\n\nHe'd found something on his work's internal system that he hadn't been looking for. A folder he'd opened by mistake, closed immediately. But not before he'd seen the names inside.\n\nPeople he knew. Colleagues. A few friends.\n\nHe didn't say what the list was. He didn't need to. The shape of it was clear enough from how he talked around it.\n\n*Once you've seen something like that,* he said, *what are you supposed to do with it?*\n\nOso said: document it if you can, somewhere safe and separate. Then put it down for tonight. You can't carry that on the first night.\n\nHe didn't sound convinced. He thanked Oso anyway.\n\nHe hung up before the block ended.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Seven of Diamonds",
+      "tone": "Something that reminds you of home"
+     },
+     {
+      "position": 2,
+      "card": "Queen of Hearts",
+      "tone": "Something romantic but unsettling"
+     },
+     {
+      "position": 3,
+      "card": "King of Spades",
+      "tone": "Something that sounds like power in the dark"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Strangers",
+      "artist": "The Kinks",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "I've seen ur ex",
+      "artist": "flowerovlove",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Crimewave",
+      "artist": "HEALTH, Crystal Castles",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 2,
+    "time_label": "23:55",
+    "caller_type": "none",
+    "caller_card": "",
+    "caller_card_meaning": "",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** No (rolled 1)\n\nNo caller. The frost at the north glass corners held steady through the block — not spreading. The signal was clean and strong. One of those quiet stretches where the broadcast just goes out into the dark and you trust it's reaching something.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Three of Spades",
+      "tone": "Something that sounds like the void"
+     },
+     {
+      "position": 2,
+      "card": "Six of Diamonds",
+      "tone": "Something from a journey"
+     },
+     {
+      "position": 3,
+      "card": "Eight of Hearts",
+      "tone": "Something hopeful"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Xtal",
+      "artist": "Aphex Twin",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Loreley",
+      "artist": "Kölsch",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Something Just Like This",
+      "artist": "The Chainsmokers, Coldplay",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 3,
+    "time_label": "00:55",
+    "caller_type": "phenomenon",
+    "caller_card": "Jack of Spades",
+    "caller_card_meaning": "Trickster entity, playful horror",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "the-coin",
+    "notes": "**Caller:** Yes (rolled 6 — phenomenon)\n**Caller card:** Jack of Spades — *trickster entity, playful horror*\n\nFemale, age uncertain — mid-thirties, maybe older. Her tone was more puzzled than frightened. That was the telling detail.\n\nShe'd found a coin. Not unusual. But then she'd thrown it in a storm drain and found it again that afternoon, in the same jacket pocket. Same coin — she was certain because of a specific nick in the edge she'd noticed the first time. She threw it in a river. Found it again the next morning. She'd tried leaving it in a different state. It came back.\n\n*It's not doing anything,* she said. *It just keeps coming back. Like it's trying to tell me something, but it only knows one word.*\n\nOso advised: don't try to read it as a message. Put it somewhere visible — don't hide it. See if the behaviour changes when it's acknowledged. Keep notes.\n\nShe said she'd try that.\n\nThe coffee pot activated during this call. Third time. Oso noted it without comment on air.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Six of Spades",
+      "tone": "Something haunting"
+     },
+     {
+      "position": 2,
+      "card": "Ten of Hearts",
+      "tone": "Something epic, overwhelming"
+     },
+     {
+      "position": 3,
+      "card": "Nine of Diamonds",
+      "tone": "Something from before you were born"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Full Moon",
+      "artist": "Bike For Three!",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Unfinished Sympathy",
+      "artist": "Massive Attack, Shara Nelson",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Moonlight Serenade",
+      "artist": "Glenn Miller",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 4,
+    "time_label": "01:55",
+    "caller_type": "standard",
+    "caller_card": "Seven of Hearts",
+    "caller_card_meaning": "Something bittersweet",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** Yes (rolled 4 — standard)\n**Caller card:** Seven of Hearts — *something bittersweet*\n\nA quiet voice. Not sad — just at the end of something.\n\nShe said the year had been the longest she could remember. Not badly, just fully. More had happened than seemed possible to fit into twelve months. And tonight was the kind of night where you sit with all of it.\n\nShe asked if Oso ever felt like a broadcast was also a kind of goodbye.\n\nOso said: every time.\n\nShe said that was reassuring. Then she signed off.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Queen of Clubs",
+      "tone": "Something dark"
+     },
+     {
+      "position": 2,
+      "card": "Ace of Hearts",
+      "tone": "Something that makes you cry"
+     },
+     {
+      "position": 3,
+      "card": "Five of Diamonds",
+      "tone": "Something to end on — your closing statement"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Play With Fire",
+      "artist": "The Rolling Stones",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Carmen",
+      "artist": "Olivia Dean",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Good Riddance (Time of Your Life)",
+      "artist": "Green Day",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   }
+  ],
+  "phenomena": [
+   {
+    "key": "frost-manifestations",
+    "name": "Frost Manifestations",
+    "status": "Active",
+    "confidence": "Confirmed",
+    "locations": [
+     "Montana Fire Lookout, north glass"
+    ],
+    "lat": 48.2,
+    "lon": -112.9,
+    "notes": "First hard frost of the December sessions. Corner icing on north glass at broadcast start. Did not develop further. Resolved by 02:00.",
+    "tags": [
+     "frost",
+     "lookout",
+     "seasonal"
+    ]
+   },
+   {
+    "key": "the-coin",
+    "name": "The Coin",
+    "status": "New",
+    "confidence": "Unconfirmed",
+    "locations": [
+     "Unknown caller location"
+    ],
+    "lat": null,
+    "lon": null,
+    "notes": "Block 3 caller reported finding the same coin in their jacket pocket repeatedly across several days — after throwing it away, burying it, leaving it behind. Always the same coin. Same wear pattern. Same year. They described it as \"not threatening, just insistent.\" Possible trickster-class phenomenon. Monitoring.",
+    "tags": [
+     "trickster",
+     "object",
+     "loop",
+     "veil"
+    ]
+   },
+   {
+    "key": "equipment-autonomy",
+    "name": "Equipment Autonomy",
+    "status": "Escalating",
+    "confidence": "Likely",
+    "locations": [
+     "Montana Fire Lookout"
+    ],
+    "lat": 48.2,
+    "lon": -112.9,
+    "notes": "Coffee pot activated without contact during Block 3. Third occurrence. Per protocol, it is no longer the equipment. Oso has not yet acted on this. Monitoring.",
+    "tags": [
+     "equipment",
+     "autonomy",
+     "protocol-breach"
+    ]
+   }
+  ]
+ },
+ {
+  "session": 8,
+  "slug": "wbpr-s08",
+  "station": "WBPR",
+  "call_sign": "Oso Sur",
+  "location": "Montana Fire Lookout, ~7,200ft",
+  "lat": null,
+  "lon": null,
+  "date": "1975-01-17",
+  "start_time": "23:00",
+  "end_time": "02:20",
+  "duration_minutes": 200,
+  "atmospheric_conditions": "Deep January cold. Still air, no wind at all. Extraordinary stellar clarity — more stars visible than usual and the configurations do not match any chart Oso has at the lookout. Heavy frost on all glass by broadcast start. The Watchers at standard treeline position.",
+  "veil_status": "Thin",
+  "veil_intensity": 6,
+  "dawn_colour": "Yellow — faint, at the eastern edge only",
+  "veil_at_close": "Thin, marginally active",
+  "personal_notes": "The stars were wrong tonight. I've been noting stellar drift for a while but this was different — not individual stars out of place, but the whole arrangement sitting in the wrong configuration. Like someone had moved the furniture while I wasn't looking.\n\nI didn't say anything on air. I don't know what there is to say about it yet.\n\nThe government man: I know what that kind of notice means too. There's nothing useful I can offer someone in that situation. I can just receive the weight of it for a few minutes so they're not carrying it entirely alone. That's the job.\n\nThe woman with the reversed town: first person to report it matching the pattern. The faces turned away detail is new. Worth logging carefully.\n\nYellow at the eastern edge. Faint. I'll watch the horizon next session.\n\nThe coffee pot did not activate tonight. Either it's settled, or it's waiting.",
+  "tags": [
+   "broadcast",
+   "void1680am",
+   "wbpr",
+   "oso-sur",
+   "stellar-drift",
+   "the-reversed-town",
+   "frost-manifestations",
+   "the-watchers"
+  ],
+  "blocks": [
+   {
+    "position": 1,
+    "time_label": "23:00",
+    "caller_type": "none",
+    "caller_card": "",
+    "caller_card_meaning": "",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "stellar-drift",
+    "notes": "**Caller:** No (rolled 2)\n\nNo caller. The opening block went out clean into the January dark.\n\nThe stars were wrong tonight. Not moving — just wrong. The arrangement above the lookout did not match the chart on the wall. The Watchers in the treeline appeared to be looking up rather than at the tower. Oso noted this and kept broadcasting.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Two of Hearts",
+      "tone": "Something simple, pure"
+     },
+     {
+      "position": 2,
+      "card": "Five of Hearts",
+      "tone": "Something vulnerable"
+     },
+     {
+      "position": 3,
+      "card": "Two of Spades",
+      "tone": "Something eerie, uncanny"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Greenland",
+      "artist": "Emancipator",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "You're On Your Own, Kid",
+      "artist": "Taylor Swift",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Riverside",
+      "artist": "Agnes Obel",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 2,
+    "time_label": "00:00",
+    "caller_type": "emergency",
+    "caller_card": "King of Diamonds",
+    "caller_card_meaning": "Authority figure causing problems",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** Yes (rolled 5 — urgent/distressed)\n**Caller card:** King of Diamonds — *authority figure causing problems*\n\nMale, late fifties. Former government worker — he named the department obliquely, the way people do when they know it's being listened to. He'd been handed a notice that morning. Not termination — something worse. Reassignment to a role that doesn't exist yet, in a location that hadn't been confirmed, effective on a date that kept changing when he asked about it.\n\nHe'd been forty years in the service. He knew what this kind of notice meant. It meant someone had decided he knew too much about something he'd been trying to forget for a decade.\n\nHe said the song that had just played — *This Must Be the Place* — had been the song at his wedding. He said that without self-pity, like a man cataloguing what still belonged to him.\n\nHe wasn't asking for advice. He just wanted to say it to someone who wasn't involved.\n\nOso let him say it.\n\nHe thanked the broadcast and hung up quietly.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Two of Diamonds",
+      "tone": "Something tied to a specific place"
+     },
+     {
+      "position": 2,
+      "card": "Seven of Diamonds",
+      "tone": "Something that reminds you of home"
+     },
+     {
+      "position": 3,
+      "card": "King of Spades",
+      "tone": "Something that sounds like power in the dark"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Montana",
+      "artist": "Youth Lagoon",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "This Must Be the Place (Naive Melody)",
+      "artist": "Talking Heads",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Prowler",
+      "artist": "Bohren & Der Club of Gore",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 3,
+    "time_label": "01:05",
+    "caller_type": "phenomenon",
+    "caller_card": "Five of Spades",
+    "caller_card_meaning": "Something that sounds like an ending — reality soft at the edges",
+    "caller_location": "Highway 2 corridor, Montana (town name withheld)",
+    "caller_lat": 48.42,
+    "caller_lon": -108.2,
+    "caller_location_confidence": "approximate",
+    "phenomenon_ref": "the-reversed-town",
+    "notes": "**Caller:** Yes (rolled 6 — phenomenon)\n**Caller card:** Five of Spades — *something that sounds like an ending*\n\nFemale, early forties. Completely calm — the kind of calm that either means very rational or has moved past the part that would normally produce fear.\n\nShe'd been driving back from visiting family. Passed through a town she'd grown up near — she knew it well, she said. Every building, which side of the road they were on. She drove through, continued twenty miles, realised she'd missed her turn, doubled back.\n\nThe town was there. But mirrored. Church on the left instead of the right. The grain elevator facing south instead of north. The gas station's sign reading correctly, but everything behind it reversed.\n\nShe slowed down, drove through carefully. Continued another twenty miles in the new direction. Turned around again.\n\nThird approach: the town was normal.\n\nShe pulled over and called WBPR.\n\nOso asked: was there anyone in the town, either time? She said the second time — the mirrored one — there had been people, but they were all facing away from her. She couldn't see their faces.\n\nOso told her: you're through it, it's behind you, don't go back tonight. Sleep somewhere before you drive further. In the morning it will be road and town and nothing else.\n\nShe said she thought that was right. She said thank you.\n\nShe sounded like someone who had already decided to be fine about it. Oso respected that.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Seven of Hearts",
+      "tone": "Something bittersweet"
+     },
+     {
+      "position": 2,
+      "card": "Eight of Diamonds",
+      "tone": "Something that makes you want to move"
+     },
+     {
+      "position": 3,
+      "card": "Queen of Spades",
+      "tone": "Something witchy, occult"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "The Sun Also Rises",
+      "artist": "Johnny Flynn, Robert Macfarlane",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Protector (Reprise)",
+      "artist": "Tourist",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Say Yes To Heaven",
+      "artist": "Lana Del Rey",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 4,
+    "time_label": "02:05",
+    "caller_type": "none",
+    "caller_card": "",
+    "caller_card_meaning": "",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** No (rolled 3)\n\nThe final block closed quiet. Two songs instead of three — the third card drawn but nothing played for it. Some nights end before the playlist does.\n\nThe yellow at the eastern horizon was faint — a thin line, not a flood. Something had come close tonight, or passed nearby. Not through.\n\nThe Watchers were still at the treeline when Oso powered down.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Four of Spades",
+      "tone": "Something melancholic"
+     },
+     {
+      "position": 2,
+      "card": "Five of Diamonds",
+      "tone": "Something to end on — your closing statement"
+     },
+     {
+      "position": 3,
+      "card": "Three of Clubs",
+      "tone": "Something complex, layered"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Movie (Never Made)",
+      "artist": "Silver Mt. Zion",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Sunset Lover",
+      "artist": "Petit Biscuit",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   }
+  ],
+  "phenomena": [
+   {
+    "key": "stellar-drift",
+    "name": "Stellar Drift",
+    "status": "Escalating",
+    "confidence": "Confirmed",
+    "locations": [
+     "Montana Fire Lookout, open sky"
+    ],
+    "lat": 48.2,
+    "lon": -112.9,
+    "notes": "Configurations visible tonight do not correspond to any chart at the lookout. Not movement — repositioning. The stars appear to be in the correct number but wrong arrangement. Oso did not mention this on air. The Watchers appeared to be oriented upward during Block 1.",
+    "tags": [
+     "stellar",
+     "veil-indicator",
+     "escalating"
+    ]
+   },
+   {
+    "key": "the-reversed-town",
+    "name": "The Reversed Town",
+    "status": "New",
+    "confidence": "Likely",
+    "locations": [
+     "Highway 2 corridor, Montana (specific town unspecified by caller)"
+    ],
+    "lat": 48.42,
+    "lon": -108.2,
+    "notes": "Block 3 caller reported driving through a small town, continuing twenty miles, then looping back and finding the same town — but mirrored. Businesses on the opposite sides of the street. Church facing the wrong direction. She drove through it a third time and it was normal again. Caller was calm. Said she had grown up near that town and knew it well enough to be certain. First confirmed report matching the Reversed Town pattern.",
+    "tags": [
+     "reversed-town",
+     "spatial",
+     "highway",
+     "veil"
+    ]
+   },
+   {
+    "key": "frost-manifestations",
+    "name": "Frost Manifestations",
+    "status": "Active",
+    "confidence": "Confirmed",
+    "locations": [
+     "Montana Fire Lookout, all glass surfaces"
+    ],
+    "lat": 48.2,
+    "lon": -112.9,
+    "notes": "Heavy frost on all glass by broadcast open. Uniform, no patterning. Resolved normally by 03:00 post-broadcast.",
+    "tags": [
+     "frost",
+     "lookout",
+     "seasonal"
+    ]
+   },
+   {
+    "key": "the-watchers",
+    "name": "The Watchers",
+    "status": "Active",
+    "confidence": "Confirmed",
+    "locations": [
+     "Montana Fire Lookout treeline"
+    ],
+    "lat": 48.2,
+    "lon": -112.9,
+    "notes": "Present at standard position throughout. Appeared to orient upward during Block 1 stellar anomaly. Returned to standard horizontal orientation by Block 2. No advance toward the tower.",
+    "tags": [
+     "treeline",
+     "watchers",
+     "signal-response"
+    ]
+   }
+  ]
+ },
+ {
+  "session": 9,
+  "slug": "wbpr-s09",
+  "station": "WBPR",
+  "call_sign": "Oso Sur",
+  "location": "Montana Fire Lookout, ~7,200ft",
+  "lat": null,
+  "lon": null,
+  "date": "1975-02-07",
+  "start_time": "23:00",
+  "end_time": "02:18",
+  "duration_minutes": 198,
+  "atmospheric_conditions": "Clear hard frost. Temperature dropping from 28°F to 26°F over the broadcast, no wind by close. Thin veil throughout. Uncharted star near the Pleiades visible at session open — gone by close, not moved. The Watchers absent from the treeline all night.",
+  "veil_status": "Thin",
+  "veil_intensity": 6,
+  "dawn_colour": "Grey-blue (clean)",
+  "veil_at_close": "Thin, stable",
+  "personal_notes": "The farmer in block one sat with me. Thirty-one years on the same land and now he's walking a house at night with nothing to do with his hands. Santaolalla got to him before I did. Sometimes the music does the work.\n\nThe Collector is a new one. She knew about the frost — not a guess, a confirmation. She asked with the precision of someone who already had the answer and wanted to see if I did too. The mirror she no longer owns is worth noting. The fact that she's been listening most nights is worth noting. The silence around her voice is worth noting most of all.\n\nThe star near the Pleiades that I logged at session open was gone by close. Not moved. Gone. I don't know what that means yet. I'm writing it down.\n\nThe transmitter behaved. No equipment events tonight.",
+  "tags": [
+   "broadcast",
+   "void1680am",
+   "wbpr",
+   "oso-sur",
+   "frost-manifestations",
+   "stellar-drift",
+   "the-collector"
+  ],
+  "blocks": [
+   {
+    "position": 1,
+    "time_label": "23:00",
+    "caller_type": "emergency",
+    "caller_card": "Nine of Diamonds",
+    "caller_card_meaning": "Mundane life grinding them down",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "",
+    "notes": "**Caller:** Yes (rolled 5 — urgent/distressed)\n**Caller card:** Nine of Diamonds — *mundane life grinding them down*\n\nMale, sixties. Montana local. He'd sold the farm eighteen months prior — bad back, bad margins. Said the Santaolalla had sounded like something ending and he'd wanted to let somebody know the radio was on.\n\nThirty-one years on the same land. Now he walks the house at night with nothing to do with his hands.\n\nOso thanked him for the check-in. Kept it short. He didn't need more than that.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Eight of Hearts",
+      "tone": "Something hopeful"
+     },
+     {
+      "position": 2,
+      "card": "Three of Clubs",
+      "tone": "Something complex, layered"
+     },
+     {
+      "position": 3,
+      "card": "Jack of Spades",
+      "tone": "Something mischievous, trickster energy"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Sing Out, Shout Out",
+      "artist": "Kobo Town",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Deportation/Iguazu",
+      "artist": "Gustavo Santaolalla",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Private Idaho",
+      "artist": "The B-52s",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 2,
+    "time_label": "00:00",
+    "caller_type": "none",
+    "caller_card": "",
+    "caller_card_meaning": "",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "frost-manifestations",
+    "notes": "**Caller:** No (rolled 2)\n\nFrost beginning on the east-facing glass, lower corner. Fine lines. Not legible yet.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Four of Spades",
+      "tone": "Something melancholic"
+     },
+     {
+      "position": 2,
+      "card": "King of Hearts",
+      "tone": "Something majestic, vast"
+     },
+     {
+      "position": 3,
+      "card": "Two of Diamonds",
+      "tone": "Something tied to a specific place"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Washing Machine Heart",
+      "artist": "Mitski",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "An Eagle In Your Mind",
+      "artist": "Boards of Canada",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Pink Skies",
+      "artist": "Zach Bryan",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 3,
+    "time_label": "01:05",
+    "caller_type": "standard",
+    "caller_card": "Queen of Spades",
+    "caller_card_meaning": "Something witchy, occult",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "the-collector",
+    "notes": "**Caller:** Yes (rolled 4 — standard)\n**Caller card:** Queen of Spades — *something witchy, occult*\n\nFemale. Age indeterminate. Her accent placed her nowhere specific. No ambient sound in the background — the wrong kind of empty, not silence but absence.\n\nShe said she'd been listening most nights. She called to ask whether the frost patterns on the east window repeated.\n\nShe knew about the east window. Oso hadn't mentioned it.\n\nShe has been cataloguing similar patterns: glass, still water, and one mirror she no longer owns. She believes a recurring shape is directional — that it indicates something rather than merely forms. She wanted to know if Oso had seen repetition.\n\nOso cited Herodotus. You can't step in the same river twice — time changes things, in the mind and in the world. Encouraged her to keep cataloguing.\n\n*Herodotus,* she said. *Good. Most people give me Jung.*\n\nShe signed off cleanly. No static. No click.\n\nOso named her: the Collector.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Ace of Spades",
+      "tone": "Something that scares you"
+     },
+     {
+      "position": 2,
+      "card": "Seven of Hearts",
+      "tone": "Something bittersweet"
+     },
+     {
+      "position": 3,
+      "card": "Five of Clubs",
+      "tone": "Something in another language"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Best Day Of My Life",
+      "artist": "Tom Odell",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Smother",
+      "artist": "Daughter",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "1977",
+      "artist": "Ana Tijoux",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   },
+   {
+    "position": 4,
+    "time_label": "02:05",
+    "caller_type": "none",
+    "caller_card": "",
+    "caller_card_meaning": "",
+    "caller_location": "",
+    "caller_lat": null,
+    "caller_lon": null,
+    "caller_location_confidence": "unknown",
+    "phenomenon_ref": "stellar-drift",
+    "notes": "**Caller:** No (rolled 1)\n\nThe broadcast closed clean. The frost on the east glass had spread but resolved without event.\n\nGrey-blue at the eastern horizon. Nothing crossed tonight.",
+    "prompts": [
+     {
+      "position": 1,
+      "card": "Five of Diamonds",
+      "tone": "Something to end on — your closing statement"
+     },
+     {
+      "position": 2,
+      "card": "Nine of Hearts",
+      "tone": "Something that brings you peace"
+     },
+     {
+      "position": 3,
+      "card": "Three of Spades",
+      "tone": "Something that sounds like the void"
+     }
+    ],
+    "tracks": [
+     {
+      "position": 1,
+      "title": "Film",
+      "artist": "Aphex Twin",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 2,
+      "title": "Montana",
+      "artist": "Youth Lagoon",
+      "url": "",
+      "source": "",
+      "notes": ""
+     },
+     {
+      "position": 3,
+      "title": "Night",
+      "artist": "John Carpenter",
+      "url": "",
+      "source": "",
+      "notes": ""
+     }
+    ]
+   }
+  ],
+  "phenomena": [
+   {
+    "key": "frost-manifestations",
+    "name": "Frost Manifestations",
+    "status": "Active",
+    "confidence": "Confirmed",
+    "locations": [
+     "Montana Fire Lookout, east window"
+    ],
+    "lat": 48.2,
+    "lon": -112.9,
+    "notes": "Fine lines in the lower corner of the east-facing glass, forming from Block 2 onward. Not legible. Spread approximately two inches by close. Pattern more deliberate by Block 4. The Block 3 caller knew about the east window frost without being told — asked with the precision of someone confirming a known fact.",
+    "tags": [
+     "frost",
+     "lookout",
+     "east-window",
+     "caller-foreknowledge"
+    ]
+   },
+   {
+    "key": "stellar-drift",
+    "name": "Stellar Drift",
+    "status": "Active",
+    "confidence": "Confirmed",
+    "locations": [
+     "Montana Fire Lookout, open sky"
+    ],
+    "lat": 48.2,
+    "lon": -112.9,
+    "notes": "Uncharted star near the Pleiades logged at broadcast open. Gone by close — not drifted, not moved, absent. First complete disappearance rather than positional anomaly. Not mentioned on air.",
+    "tags": [
+     "stellar",
+     "veil-indicator",
+     "disappearance"
+    ]
+   },
+   {
+    "key": "the-collector",
+    "name": "The Collector",
+    "status": "New",
+    "confidence": "Unconfirmed",
+    "locations": [
+     "Unknown"
+    ],
+    "lat": null,
+    "lon": null,
+    "notes": "Female caller, age indeterminate, accent unplaceable. No ambient sound — wrong kind of empty, not silence but absence. Has been listening most nights. Called to ask whether frost patterns on the east window repeat. Knew about the east window without being told. Has been cataloguing similar patterns on glass, still water, and one mirror she no longer owns. Believes a recurring shape is directional. Oso cited Herodotus; she approved the reference and signed off cleanly. No static. No click. Oso named her the Collector.",
+    "tags": [
+     "caller-foreknowledge",
+     "cataloguing",
+     "directional-patterns",
+     "no-click",
+     "monitoring"
+    ]
+   },
+   {
+    "key": "the-watchers",
+    "name": "The Watchers",
+    "status": "Stable",
+    "confidence": "Confirmed",
+    "locations": [
+     "Montana Fire Lookout treeline"
+    ],
+    "lat": 48.2,
+    "lon": -112.9,
+    "notes": "Absent for the full duration of the broadcast. No presence at the treeline all night.",
+    "tags": [
+     "treeline",
+     "watchers",
+     "absent"
+    ]
+   }
+  ]
+ }
+]
