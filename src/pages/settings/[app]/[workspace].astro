@@ -24,6 +24,10 @@ if (!workspace.isOwner) return new Response('Forbidden', { status: 403 });
 const ROLES: MemberRole[] = ['owner', 'editor', 'viewer'];
 const VISIBILITIES: Visibility[] = ['private', 'unlisted', 'public'];
 
+// Mirrors workspaces_description_length. Checked here so a long one comes back
+// as a sentence, and in the database because that is what guarantees it.
+const SUBTITLE_MAX = 200;
+
 // Only a platform admin may attach creation rights to an invitation — the RLS
 // policy on workspace_invites enforces it, and an owner who tried would have
 // the insert refused. Reading the flag here is what keeps the control off the
@@ -32,6 +36,11 @@ const { isPlatformAdmin } = await loadEntitlements(supabase, user.id);
 
 let error: string | null = null;
 let notice: string | null = null;
+
+// Holds a rejected subtitle so the box re-renders what was typed rather than
+// what is stored. Losing a sentence someone just composed, in order to tell
+// them it was four characters too long, is the worst way to report that.
+let subtitleDraft: string | null = null;
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
@@ -156,6 +165,40 @@ if (Astro.request.method === 'POST') {
     if (!e) notice = 'Member removed.';
   }
 
+  if (action === 'set-description') {
+    // Trimmed by str(), so a box someone cleared saves as '' — which is the
+    // stored value for "no subtitle" and what the card checks before it
+    // renders the line at all. Clearing it is a supported edit, not an error.
+    const description = str('description');
+
+    if (description.length > SUBTITLE_MAX) {
+      error = `That subtitle is ${description.length} characters. The limit is ${SUBTITLE_MAX}.`;
+      subtitleDraft = description;
+    } else {
+      // Asks for the row back and checks it got one, for the same reason every
+      // delete in this app does: a write refused by row-level security does
+      // not raise, it narrows the statement to zero rows and reports success.
+      // Without this an owner demoted mid-session would be told the subtitle
+      // was saved while the card carried on saying the old thing.
+      const { data: saved, error: e } = await supabase
+        .from('workspaces')
+        .update({ description })
+        .eq('id', workspace.id)
+        .select('description');
+
+      if (e) {
+        error = e.message;
+        subtitleDraft = description;
+      } else if (!saved?.length) {
+        error = 'That subtitle could not be saved — you may no longer own this project.';
+        subtitleDraft = description;
+      } else {
+        notice = description ? 'Subtitle saved.' : 'Subtitle removed.';
+        workspace = { ...workspace, description };
+      }
+    }
+  }
+
   if (action === 'set-visibility') {
     const visibility = str('visibility') as Visibility;
     if (!VISIBILITIES.includes(visibility)) {
@@ -197,6 +240,34 @@ const ownerCount = (members ?? []).filter(m => m.role === 'owner').length;
 
   {error && <p class="notice notice--error" role="alert">{error}</p>}
   {notice && <p class="notice notice--ok">{notice}</p>}
+
+  <p class="section-label">Subtitle</p>
+  <form method="POST" class="inline-form">
+    <input type="hidden" name="action" value="set-description" />
+    <textarea
+      class="field__input"
+      name="description"
+      rows="2"
+      maxlength={SUBTITLE_MAX}
+      placeholder="One line about this project"
+      aria-describedby="subtitle-help">{subtitleDraft ?? workspace.description}</textarea>
+    <button class="button" type="submit">Save</button>
+  </form>
+  <p class="page-intro" id="subtitle-help">
+    The line under the name on the dashboard. Leave it empty for none.
+    {
+      /* True of the Listening Party and nowhere else: the Reading List and
+         Cigar Lounge build their page descriptions from what they contain, so
+         claiming this reaches search results there would be wrong. */
+      app.slug === 'listening-party' && (
+        <>
+          {' '}
+          It is also what search results and link previews show for this
+          project, on any page where a season has not given its own.
+        </>
+      )
+    }
+  </p>
 
   <p class="section-label">Who can see this</p>
   <form method="POST" class="inline-form">

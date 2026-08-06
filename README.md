@@ -27,6 +27,14 @@ The launcher at `/` is unchanged in appearance but no longer carries a list.
 Its nav is whatever the visitor is a member of: signed out it offers one thing,
 a way in.
 
+A project's subtitle — `workspaces.description` — is editable from its
+settings page. It is the line under the name on the dashboard, and on the
+Listening Party it is also the page's meta description wherever a season has
+not supplied its own. Capped at 200 characters by the form and by
+`workspaces_description_length`, because both places it lands have a size past
+which they stop working. That is the box the five external projects were left
+empty for.
+
 That is why all eight sites now exist as workspaces, including the five still
 served from GitHub Pages. Those carry a `workspaces.external_url` and the nav
 links there instead of at an in-app route. Migrating one is then a one-column
@@ -47,7 +55,7 @@ every value of the enum — so this is the only thing stopping it being offered.
 /login  /auth/callback  /logout    magic-link auth
 /dashboard                         your projects across all apps
 /invite/:token                     accept an invitation
-/settings/:app/:workspace          members, roles, invites, visibility (owner only)
+/settings/:app/:workspace          subtitle, members, roles, invites, visibility (owner only)
 
 /lp/:workspace                     Listening Party — current season
 /lp/:workspace/:season             a season
