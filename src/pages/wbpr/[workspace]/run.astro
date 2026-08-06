@@ -38,7 +38,13 @@ const { data: unfinished } = await supabase
   .limit(1)
   .maybeSingle();
 
-const resumeState = (unfinished?.state ?? {}) as { session?: number; date?: string };
+const resumeState = (unfinished?.state ?? {}) as {
+  session?: number;
+  date?: string;
+  block?: number;
+  cards?: { name: string; tone: string }[];
+  caller?: unknown;
+};
 ---
 
 <WbprLayout title={`Go on air · ${workspace.name}`} workspace={workspace}>
@@ -57,7 +63,8 @@ const resumeState = (unfinished?.state ?? {}) as { session?: number; date?: stri
           {unfinished.calls} calls ·{' '}
           {unfinished.prompt_tokens + unfinished.completion_tokens} tokens.{' '}
           <button class="wbpr-button wbpr-button--quiet" type="button" id="resume"
-                  data-session-id={unfinished.id}>Resume it</button>
+                  data-session-id={unfinished.id}
+                  data-state={JSON.stringify(unfinished.state ?? {})}>Resume it</button>
         </div>
       )
     }
@@ -86,6 +93,7 @@ const resumeState = (unfinished?.state ?? {}) as { session?: number; date?: stri
         <button class="wbpr-button" type="button" data-act="log">Write it up</button>
       </div>
 
+      <p class="wbpr-notice wbpr-notice--ok" id="hint"></p>
       <p class="mono" id="meter"></p>
       <div id="log" class="prose"></div>
 
@@ -115,9 +123,44 @@ const resumeState = (unfinished?.state ?? {}) as { session?: number; date?: stri
   const openForm = $('open-form');
   const sayForm = $('say-form');
 
+  const hint = $('hint');
+
   let sessionId = null;
   let spent = { prompt: 0, completion: 0, calls: 0 };
   let busy = false;
+  // Mirrors the server's view of the table. The buttons are driven from it
+  // rather than left all live, because the sequence is the game: the first
+  // sitting ran with no cards ever drawn, because typing into the box is the
+  // obvious thing to do and nothing said otherwise.
+  let table = { block: 0, cards: [], caller: null };
+  let closed = false;
+
+  function sync() {
+    const started = Boolean(sessionId);
+    const midBlock = table.block >= 1 && !table.caller;
+
+    const can = {
+      // A block can start at the top of the night, or once the last one's
+      // call has been played. Four is the night.
+      block: started && !closed && table.block < 4 && !midBlock,
+      roll: started && !closed && midBlock,
+      close: started && !closed && table.block >= 1 && !midBlock,
+      log: started && table.block >= 1 && !midBlock,
+    };
+
+    for (const btn of document.querySelectorAll('#controls button')) {
+      btn.disabled = busy || !can[btn.dataset.act];
+    }
+    $('say-form').querySelector('button').disabled = busy || !started;
+
+    hint.textContent =
+      !started ? ''
+      : closed ? 'The night is closed. Write it up when you are ready.'
+      : table.block === 0 ? 'On air. Press Next block to draw the first three cards.'
+      : midBlock ? `Block ${table.block}: cards are down. Say what you are playing, then roll for a caller.`
+      : table.block < 4 ? `Block ${table.block} done. Next block, or close the night.`
+      : 'Four blocks played. Close the night, then write it up.';
+  }
 
   function line(kind, text) {
     const el = document.createElement('p');
@@ -142,9 +185,12 @@ const resumeState = (unfinished?.state ?? {}) as { session?: number; date?: stri
   }
 
   async function post(path, body) {
+    // Returning early is not enough on its own: the caller used to log its
+    // "Opening…" line before getting here, so three impatient clicks printed
+    // three of them against one call.
     if (busy) return null;
     busy = true;
-    document.querySelectorAll('#controls button, #say-form button').forEach(b => (b.disabled = true));
+    sync();
     try {
       const res = await fetch(`${endpoint}/${path}`, {
         method: 'POST',
@@ -163,7 +209,7 @@ const resumeState = (unfinished?.state ?? {}) as { session?: number; date?: stri
       return null;
     } finally {
       busy = false;
-      document.querySelectorAll('#controls button, #say-form button').forEach(b => (b.disabled = false));
+      sync();
     }
   }
 
@@ -171,11 +217,16 @@ const resumeState = (unfinished?.state ?? {}) as { session?: number; date?: stri
     if (!data) return;
     if (data.table) line('table', data.table);
     if (data.reply) line('reply', data.reply);
+    // The server's state is authoritative — it drew the cards and rolled the
+    // die. The page never decides where the night has got to.
+    if (data.state) table = data.state;
     bill(data.usage);
+    sync();
   }
 
   openForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (busy) return;
     const form = new FormData(openForm);
     line('table', 'Opening…');
     const data = await post('chat', {
@@ -214,17 +265,35 @@ const resumeState = (unfinished?.state ?? {}) as { session?: number; date?: stri
         return;
       }
 
-      show(await post('chat', { action: act, session_id: sessionId }));
+      const data = await post('chat', { action: act, session_id: sessionId });
+      if (!data) return;
+      // Latched rather than derived: after closing, `block` is still 4 and the
+      // controls would otherwise offer another one.
+      if (act === 'close') closed = true;
+      show(data);
     });
   });
 
   const resume = $('resume');
   if (resume) {
-    resume.addEventListener('click', async () => {
+    resume.addEventListener('click', () => {
       sessionId = resume.dataset.sessionId;
+      // The saved state, so a resumed sitting picks up mid-block with the
+      // right buttons live rather than offering to start block 1 again. Read
+      // off the button rather than injected into script scope — it is the
+      // button's own data and can be arbitrarily large.
+      try {
+        table = JSON.parse(resume.dataset.state) ?? table;
+      } catch {
+        /* A resumed sitting with unreadable state still runs; the buttons
+           simply start from the top rather than mid-block. */
+      }
       openForm.hidden = true;
       desk.hidden = false;
       line('table', 'Resumed. The transcript is on the server; carry on.');
+      sync();
     });
   }
+
+  sync();
 </script>

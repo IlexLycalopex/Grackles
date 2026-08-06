@@ -3,7 +3,7 @@ import { resolveWorkspace } from '../../../../lib/workspace';
 import type { Json } from '../../../../lib/database.types';
 import { chat } from '../../../../lib/minimax';
 import {
-  buildMessages, closeBroadcast, openBroadcast, rollForCaller, startBlock,
+  buildMessages, closeBroadcast, openBroadcast, rollForCaller, sayAtTable, startBlock,
   type AgentState,
 } from '../../../../lib/wbpr-agent';
 
@@ -112,7 +112,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     if (!said) return json({ error: 'Nothing to say.' }, 400);
     return turn(
       supabase, workspace.id, sitting.id,
-      { prompt: said, table: '', state },
+      { prompt: sayAtTable(said, state), table: '', state },
       'say'
     );
   }

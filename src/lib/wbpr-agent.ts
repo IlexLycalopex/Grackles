@@ -36,7 +36,15 @@ PROTOCOLS Oso follows, and states plainly when they apply:
 
 PACING. Atmospheric description is two or three sentences, never more. Note physical changes in the lookout. Build unsettling detail without direct threat. When there is no caller, let the silence do the work and keep it short.
 
-RULES OF THE TABLE. Cards and dice are rolled for you and given to you in the message — never invent a draw, never ask for one, never restate a card's meaning back as a table. Do not embellish the player's song choices or second-guess them. Do not re-explain the setting. Do not write the session log; you will be asked for it separately at the end.`;
+RULES OF THE TABLE, which override everything above.
+
+The music is not yours. Never name, choose, suggest or invent a song, an artist or a track — not as an example, not as flavour, not "something like". The DJ picks every piece of music that goes out. If he has not told you what he is playing, do not fill the gap: have Oso wait on the record, and stop.
+
+The cards are not yours either. Draws and rolls are made away from the table and handed to you in the message. Never invent one, never ask for one, never restate a card's meaning back as a table. If no cards have been handed to you, no block is running — say so plainly and wait.
+
+Do not run a block by yourself. A block is: cards handed to you, then the DJ's selections and his intro, then a roll handed to you. You never move between those steps unaided, however natural it feels.
+
+Do not re-explain the setting. Do not write the session log; it is asked for separately at the end.`;
 
 /** One block, as the table played it. */
 export interface BlockRecord {
@@ -94,7 +102,10 @@ export function startBlock(block: number, state: AgentState): Turn {
   const showing = cards.map(c => ({ name: c.name, tone: c.tone }));
   return {
     prompt: `Block ${block}. Drawing: ${describeDraw(cards)}. State the three cards plainly and hand over to the DJ for his selections and his on-air intro. Nothing else.`,
-    table: `Block ${block} — drawing: ${cards.map(c => c.name).join(', ')}`,
+    // The tones, not just the names. The card is the prompt — "Seven of Clubs"
+    // on its own is a lookup the DJ has to do in his head, which is exactly the
+    // work moving the deck into code was meant to remove.
+    table: `Block ${block} — drawing:\n${cards.map(c => `  ${c.name} — ${c.tone.toLowerCase()}`).join('\n')}`,
     state: {
       block,
       cards: showing,
@@ -133,11 +144,34 @@ export function rollForCaller(state: AgentState): Turn {
 
   return {
     prompt: `Rolled ${roll.die} — a ${flavour} caller. Their card is ${card.name}: ${topic}. Play the call. Give them a voice and a place. Oso answers in character.`,
-    table: `Rolling: ${roll.die} — caller (${flavour}) · ${card.name}`,
+    table: `Rolling: ${roll.die} — caller (${flavour})\n  ${card.name} — ${topic.toLowerCase()}`,
     state: withCaller(state, {
       die: roll.die, result: roll.result, card: card.name, topic,
     }),
   };
+}
+
+/**
+ * Anything the DJ types, with the state of the table stapled to it.
+ *
+ * Without this the model gets a bare sentence — "let's dive straight into some
+ * music" — and no way of knowing whether cards are down. It fills the gap the
+ * only way it can: by inventing the whole block, choosing the record itself,
+ * and narrating past three steps that had not happened. That is not the model
+ * misbehaving so much as it being asked a question with no answer.
+ *
+ * One short line, added to the turn rather than the system prompt, because it
+ * changes every turn and a system prompt that changes cannot be cached.
+ */
+export function sayAtTable(said: string, state: AgentState): string {
+  const where =
+    !state.block
+      ? 'No block is running and no cards are down. Do not start one — that is a button the DJ presses. If he is asking for music, tell him you are waiting on the draw.'
+      : state.caller
+        ? `Block ${state.block}, the call has been played. Nothing else is pending.`
+        : `Block ${state.block}. Cards down: ${state.cards.map(c => c.name).join(', ')}. The roll for a caller has not happened yet — do not narrate one.`;
+
+  return `${said}\n\n[Table: ${where} Never name a track yourself.]`;
 }
 
 /** Record the roll against the block it happened in, not just on the surface. */
