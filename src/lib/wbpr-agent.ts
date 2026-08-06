@@ -63,12 +63,26 @@ export interface BlockRecord {
  * getting it wrong on the way.
  */
 export interface AgentState {
+  /**
+   * Which night this is, and when. Part of the state rather than beside it
+   * because the write-up needs them and reads one object.
+   *
+   * These were the whole of the first write-up failure. `open` wrote them onto
+   * the row, then the same request's turn replaced `state` wholesale with a
+   * fresh object that had never heard of them — so every sitting reached the
+   * end with four blocks of cards and no idea what session it was. Every turn
+   * below now carries the state forward rather than rebuilding it.
+   */
+  session?: number;
+  date?: string;
   /** 1-4 once the night is running, 0 before it opens. */
   block: number;
   /** The cards showing for the current block, so a resumed page can display them. */
   cards: { name: string; tone: string }[];
   caller: { die: number; result: string; card?: string; topic?: string } | null;
   blocks: BlockRecord[];
+  /** Set once the night has signed off, so a resumed tab does not offer to close it twice. */
+  closed?: boolean;
 }
 
 export interface Turn {
@@ -108,7 +122,7 @@ export function openBroadcast(
   return {
     prompt: `Open the broadcast. Session ${session}, ${date}. Set the scene in three sentences at most: equipment, the forest, the sky, the time. Note tonight's particular quality — veil thickness, stellar activity, temperature. End with going live. Do not draw cards.${catalogue}`,
     table: `Session ${session} — ${date}. Going live.`,
-    state: { block: 0, cards: [], caller: null, blocks: [] },
+    state: { session, date, block: 0, cards: [], caller: null, blocks: [] },
   };
 }
 
@@ -126,6 +140,7 @@ export function startBlock(block: number, state: AgentState): Turn {
     // work moving the deck into code was meant to remove.
     table: `Block ${block} — drawing:\n${cards.map(c => `  ${c.name} — ${c.tone.toLowerCase()}`).join('\n')}`,
     state: {
+      ...state,
       block,
       cards: showing,
       caller: null,
@@ -211,7 +226,7 @@ export function closeBroadcast(state: AgentState): Turn {
       'Close the broadcast. Pre-dawn conditions, the colour on the horizon — yellow means something crossed, grey or blue means it was clean. Stellar activity as the stars fade. Equipment powering down. One final image. Keep it short.',
     table: 'Closing down',
     // Keeps `blocks` — closing the night must not forget it.
-    state: { ...state, block: 4, cards: [], caller: null },
+    state: { ...state, block: 4, cards: [], caller: null, closed: true },
   };
 }
 

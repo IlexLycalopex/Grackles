@@ -88,11 +88,12 @@ const resumeState = (unfinished?.state ?? {}) as {
     </form>
 
     <div id="desk" hidden>
+      {/* One button. The sequence is fixed — draw, play, roll, repeat, close,
+          write up — so offering four and asking which is offering a choice
+          that does not exist, and then having to be explained above them. */}
       <div class="wbpr-actions" id="controls" style="margin-top: 2rem">
-        <button class="wbpr-button" type="button" data-act="block">Next block</button>
-        <button class="wbpr-button wbpr-button--quiet" type="button" data-act="roll">Roll for a caller</button>
-        <button class="wbpr-button wbpr-button--quiet" type="button" data-act="close">Close the night</button>
-        <button class="wbpr-button" type="button" data-act="log">Write it up</button>
+        <button class="wbpr-button" type="button" id="next"></button>
+        <button class="wbpr-button wbpr-button--quiet" type="button" id="skip"></button>
         <button class="wbpr-button wbpr-button--danger" type="button" data-act="abandon">
           Abandon the night
         </button>
@@ -140,35 +141,59 @@ const resumeState = (unfinished?.state ?? {}) as {
   let table = { block: 0, cards: [], caller: null };
   let closed = false;
 
+  /**
+   * The one step the sequence is actually at.
+   *
+   * Draw, play, roll, repeat four times, close, write up. There is never a
+   * genuine choice between two of those — so the desk offers the next one by
+   * name rather than four buttons and a paragraph explaining which to press.
+   */
+  function step() {
+    if (!sessionId) return null;
+    if (closed) return { act: 'log', label: 'Write it up' };
+    if (table.block === 0) return { act: 'block', label: 'Draw block 1' };
+    if (!table.caller) return { act: 'roll', label: 'Roll for a caller' };
+    if (table.block < 4) return { act: 'block', label: `Draw block ${table.block + 1}` };
+    return { act: 'close', label: 'Close the night' };
+  }
+
   function sync() {
-    const started = Boolean(sessionId);
-    const midBlock = table.block >= 1 && !table.caller;
+    const now = step();
+    const next = $('next');
+    const skip = $('skip');
 
-    const can = {
-      // A block can start at the top of the night, or once the last one's
-      // call has been played. Four is the night.
-      block: started && !closed && table.block < 4 && !midBlock,
-      roll: started && !closed && midBlock,
-      close: started && !closed && table.block >= 1 && !midBlock,
-      log: started && table.block >= 1 && !midBlock,
-      // Always available while a sitting is open, including mid-block. Giving
-      // up is the one thing that should never be gated on being in the right
-      // place in the sequence.
-      abandon: started && !closed,
-    };
-
-    for (const btn of document.querySelectorAll('#controls button')) {
-      btn.disabled = busy || !can[btn.dataset.act];
+    next.hidden = !now;
+    if (now) {
+      next.textContent = now.label;
+      next.dataset.act = now.act;
+      next.disabled = busy;
     }
-    $('say-form').querySelector('button').disabled = busy || !started;
+
+    // The one place the sequence bends: four blocks are the shape of a night,
+    // but a night can be cut short, and the log should not require a fifth
+    // press to become reachable.
+    const canFinishEarly = Boolean(sessionId) && !closed && table.block >= 1 && table.caller;
+    skip.hidden = !canFinishEarly;
+    if (canFinishEarly) {
+      skip.textContent = 'Close the night early';
+      skip.dataset.act = 'close';
+      skip.disabled = busy;
+    }
+
+    for (const btn of document.querySelectorAll('#controls button[data-act="abandon"]')) {
+      btn.hidden = !sessionId;
+      btn.disabled = busy;
+    }
+    $('say-form').querySelector('button').disabled = busy || !sessionId;
+    sayForm.hidden = !sessionId || closed;
 
     hint.textContent =
-      !started ? ''
-      : closed ? 'The night is closed. Write it up when you are ready.'
-      : table.block === 0 ? 'On air. Press Next block to draw the first three cards.'
-      : midBlock ? `Block ${table.block}: cards are down. Say what you are playing, then roll for a caller.`
-      : table.block < 4 ? `Block ${table.block} done. Next block, or close the night.`
-      : 'Four blocks played. Close the night, then write it up.';
+      !sessionId ? ''
+      : closed ? 'The night is closed.'
+      : table.block >= 1 && !table.caller
+        ? `Block ${table.block}: the cards are down — say what you are playing.`
+        : '';
+    hint.hidden = !hint.textContent;
   }
 
   function line(kind, text) {
@@ -228,7 +253,12 @@ const resumeState = (unfinished?.state ?? {}) as {
     if (data.reply) line('reply', data.reply);
     // The server's state is authoritative — it drew the cards and rolled the
     // die. The page never decides where the night has got to.
-    if (data.state) table = data.state;
+    if (data.state) {
+      table = data.state;
+      // From the state, not from which button was pressed — a resumed tab
+      // never saw the press.
+      if (table.closed) closed = true;
+    }
     bill(data.usage);
     sync();
   }
@@ -287,9 +317,6 @@ const resumeState = (unfinished?.state ?? {}) as {
 
       const data = await post('chat', { action: act, session_id: sessionId });
       if (!data) return;
-      // Latched rather than derived: after closing, `block` is still 4 and the
-      // controls would otherwise offer another one.
-      if (act === 'close') closed = true;
       show(data);
     });
   });
@@ -316,6 +343,7 @@ const resumeState = (unfinished?.state ?? {}) as {
       // button's own data and can be arbitrarily large.
       try {
         table = JSON.parse(resume.dataset.state) ?? table;
+        if (table.closed) closed = true;
       } catch {
         /* A resumed sitting with unreadable state still runs; the buttons
            simply start from the top rather than mid-block. */
