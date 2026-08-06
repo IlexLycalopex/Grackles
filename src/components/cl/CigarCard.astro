@@ -45,11 +45,13 @@ const {
 const spec = [vitola, wrapper].filter(Boolean).join(' · ');
 const inHumidor = status === 'humidor';
 
-// With no photo there is nothing for the corner controls to overlay, so they
-// sit on the card body instead — and the brand kicker is the line they land
-// on. Reserve room for them on that line only when they are actually there.
+// The corner controls are absolutely positioned at the card's top right, and
+// the brand kicker is the line they land on. This used to depend on the photo,
+// which was a full-bleed banner above the body for them to sit over; now that
+// it is a thumbnail inside the body they always land on the kicker, so all
+// that matters is whether there are any.
 const showsSmoke = Boolean(smokeHref) && inHumidor;
-const actionsOverlayBody = !photo && (Boolean(editHref) || showsSmoke);
+const hasActions = Boolean(editHref) || showsSmoke;
 
 // The date each view sorts and filters on: when it was smoked, or when it
 // went into the humidor.
@@ -57,7 +59,7 @@ const sortDate = inHumidor ? dateAcquired : dateSmoked;
 const resting = inHumidor ? restingDays(cigar) : null;
 ---
 <article
-  class:list={['cigar-card', actionsOverlayBody && 'cigar-card--inset-actions']}
+  class:list={['cigar-card', hasActions && 'cigar-card--inset-actions']}
   data-brand={brand}
   data-bought-at={boughtAt}
   data-smoked-at={smokedAt}
@@ -81,19 +83,31 @@ const resting = inHumidor ? restingDays(cigar) : null;
   )}
 
   <a href={url(base, `cigar/${cigar.id}`)} class="cigar-card__link">
-    {photo && (
-      <div class="cigar-card__photo" data-photo>
-        <img src={photoUrl(photo)} alt={`${name}`} loading="lazy" width="400" height="300" />
-      </div>
-    )}
-
     <div class="cigar-card__body">
+      {/* A cover, not a hero: enough to recognise the band across a grid of
+          them, with the full picture one tap away on the entry itself. */}
+      {/* The kicker stays on its own full-width line above the thumbnail. Put
+          it beside one and it is squeezed between the picture and the corner
+          controls, which wraps "Hoyo de Monterrey" onto two lines on exactly
+          the cards that have a photo — so the same brand set differently
+          depending on whether someone had added a picture. */}
       <p class="cigar-card__brand">{brand}</p>
-      <h2 class="cigar-card__name">
-        {name}
-        {inHumidor && quantity > 1 && <span class="cigar-card__qty">×{quantity}</span>}
-      </h2>
-      <p class="cigar-card__spec">{spec}</p>
+
+      <div class="cigar-card__head">
+        {photo && (
+          <div class="cigar-card__thumb">
+            <img src={photoUrl(photo)} alt="" loading="lazy" width="140" height="140" />
+          </div>
+        )}
+
+        <div class="cigar-card__titles">
+          <h2 class="cigar-card__name">
+            {name}
+            {inHumidor && quantity > 1 && <span class="cigar-card__qty">×{quantity}</span>}
+          </h2>
+          <p class="cigar-card__spec">{spec}</p>
+        </div>
+      </div>
 
       <div class="cigar-card__rating">
         {inHumidor ? (
@@ -140,21 +154,41 @@ const resting = inHumidor ? restingDays(cigar) : null;
     height: 100%;
   }
 
-  /* Only rendered when a photo exists, so a missing one leaves no gap. */
-  .cigar-card__photo {
-    aspect-ratio: 4 / 3;
-    overflow: hidden;
-    border-bottom: 1px solid var(--border);
+  /* The thumbnail sits beside the title block rather than above the card, so
+     a card without one is not a different shape — it simply starts at the
+     kicker, and the grid row stays even either way. */
+  .cigar-card__head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.9rem;
   }
 
-  .cigar-card__photo img {
+  .cigar-card__titles {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+
+  /* Only rendered when a photo exists, so a missing one leaves no gap. */
+  .cigar-card__thumb {
+    flex: 0 0 auto;
+    width: 4.25rem;
+    height: 4.25rem;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-card);
+  }
+
+  .cigar-card__thumb img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     transition: transform var(--transition);
   }
 
-  .cigar-card:hover .cigar-card__photo img { transform: scale(1.03); }
+  .cigar-card:hover .cigar-card__thumb img { transform: scale(1.04); }
 
   .cigar-card__body {
     padding: 1.15rem 1.25rem 1.1rem;

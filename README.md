@@ -151,6 +151,22 @@ not raise, it narrows the statement to zero rows and reports success. Without
 the check, a viewer whose role changed mid-session would be told the record was
 deleted while it sat there untouched.
 
+## Photographs
+
+There is no upload. A cigar's photo is a URL typed into the edit form, checked
+there and by `cl_cigars_photo_path_shape` to be `http(s)://` — the bare-path
+form the column once held resolved against the site root, which is how photos
+worked when entries were markdown with the images committed beside them, and
+resolves to nothing now.
+
+The card shows it as a thumbnail beside the title and the entry shows it whole:
+capped at `min(75vh, 42rem)` and `object-fit: contain`, because a cap that
+crops is a cap that hides the band. Cropping is the card's job.
+
+Adding real uploads later does not undo any of this — a Supabase storage public
+URL is absolute, so it satisfies the same constraint and lands in the same
+column.
+
 ## One write that is not a statement
 
 Taking a cigar out of the humidor is the one write that is not a single

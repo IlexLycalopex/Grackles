@@ -29,11 +29,18 @@ export function formatDuration(days: number): string {
   return 'today';
 }
 
-/** Resolve a frontmatter `photo` value — absolute URLs pass through untouched. */
+/**
+ * Where a cigar's photo lives.
+ *
+ * A stored photo is an absolute URL — the form takes one and
+ * cl_cigars_photo_path_shape enforces it — so there is nothing to resolve.
+ * This used to fall back to treating a bare value as a path under the site
+ * root, which is how photos worked when entries were markdown files with the
+ * images committed beside them. Nothing has resolved that way since the move
+ * to the database, and the constraint now rules it out.
+ */
 export function photoUrl(photo: string): string {
-  if (/^https?:\/\//i.test(photo)) return photo;
-  // A bare path is a key in the cigar-photos storage bucket.
-  return `/${photo.replace(/^\//, '')}`;
+  return photo;
 }
 
 /**

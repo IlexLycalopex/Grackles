@@ -153,6 +153,15 @@ const strength = v('strength', d?.strength);
 </label>
 
 <label class="cigar-form__field">
+  <span class="cigar-form__label">Photo</span>
+  <input class="cigar-form__input" type="url" name="photo_path" value={v('photo_path', d?.photo)} placeholder="https://…" />
+  <span class="cigar-form__hint">
+    A link to an image. There is no upload — paste the address of one already
+    online, and it becomes the cover on the card and the picture on the entry.
+  </span>
+</label>
+
+<label class="cigar-form__field">
   <span class="cigar-form__label">Tasting notes</span>
   <textarea class="cigar-form__input" name="tasting_notes" rows="5">{v('tasting_notes', cigar?.body)}</textarea>
 </label>

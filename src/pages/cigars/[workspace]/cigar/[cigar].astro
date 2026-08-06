@@ -255,12 +255,17 @@ const facts = [
   }
 
   .entry__photo img {
+    display: block;
     width: 100%;
     height: auto;
-    /* Phone photos of a single cigar are often tall; unbounded they push the
-       specification off the first screen, which is the thing worth seeing. */
-    max-height: 30rem;
-    object-fit: cover;
+    /* Still capped — phone photos of a single cigar are often tall, and
+       unbounded they push the specification off the first screen. But this is
+       the page you opened to look at the thing, so the cap is generous and
+       tied to the viewport rather than a fixed height that fills a laptop.
+       `contain` because a cap that crops is a cap that hides the band: the
+       card has the cropped version, this one shows the whole photo. */
+    max-height: min(75vh, 42rem);
+    object-fit: contain;
   }
 
   /* ── Specification ──────────────────────────────────────────────── */

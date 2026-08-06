@@ -29,6 +29,7 @@ export interface CigarValues {
   rating: number | null;
   pairing: string;
   note: string;
+  photo_path: string;
   tasting_notes: string;
 }
 
@@ -57,6 +58,14 @@ export function readCigar(form: FormData): Parsed<CigarValues> {
     return invalid('It cannot have been smoked before it was acquired.');
   }
 
+  // Mirrors cl_cigars_photo_path_shape. Checked here so a pasted `www.…` or a
+  // filename dragged off the desktop comes back as a sentence rather than as
+  // 23514, and there because that is what guarantees it.
+  const photo_path = f.str('photo_path');
+  if (photo_path && !/^https?:\/\//i.test(photo_path)) {
+    return invalid('A photo has to be a link starting http:// or https:// — there is no upload yet.');
+  }
+
   const price = parsePrice(f.str('price_text'));
 
   return valid({
@@ -82,6 +91,7 @@ export function readCigar(form: FormData): Parsed<CigarValues> {
     rating: f.dec('rating'),
     pairing: f.str('pairing'),
     note: f.str('note'),
+    photo_path,
     tasting_notes: f.str('tasting_notes'),
   });
 }
