@@ -2,6 +2,7 @@
 import AppShell from '../layouts/AppShell.astro';
 import { appBySlug, projectHref } from '../lib/apps';
 import { loadEntitlements, describeGrantError } from '../lib/grants';
+import type { Returns } from '../lib/database.types';
 
 export const prerender = false;
 
@@ -26,20 +27,52 @@ const rows = (memberships ?? []).flatMap(({ role, workspaces }) =>
   workspaces ? [{ role, ws: workspaces }] : []
 );
 
-// Pending invites addressed to this account. The RLS policy on
-// workspace_invites already scopes these to the caller's email.
+// Invitations addressed to this account, which is not the same question as
+// "invitations this account can read".
 //
-// Expired ones are filtered out rather than shown greyed: accept_invite()
-// refuses them, so leaving them on the page is offering a button that cannot
-// work. workspace_id is null on an invitation that only grants the right to
-// create, which is why the embedded workspace is optional here.
-const { data: invites } = await supabase
-  .from('workspace_invites')
-  .select('id, token, role, grant_apps, workspaces(name, app)')
-  .is('accepted_at', null)
-  .gt('expires_at', new Date().toISOString());
+// Selecting from workspace_invites here was wrong twice over. invites_read
+// also allows `app.is_owner(workspace_id)` — the clause the settings page runs
+// on — so an owner was shown the invitations they had *sent*, worded as though
+// they had received them, with an Accept button accept_invite() answers with
+// GRK02. And the project's name came through an embedded join governed by
+// workspaces_read, which an invitee fails until the moment they accept, so an
+// invitation into a private project arrived with no project attached and fell
+// through to the wording for one that grants nothing but the right to create.
+//
+// my_pending_invites() answers both: scoped to auth.users.email by the same
+// rule accept_invite() enforces, and definer, so the name of a project you
+// have been invited to is readable before you are in it.
+const { data: invites, error: pendingError } = await supabase.rpc('my_pending_invites');
 
 const pending = invites ?? [];
+
+// "Reading List and Cigar Lounge" — and "A, B and C" once there are three,
+// which `join(' and ')` got wrong.
+const listOf = (items: string[]) =>
+  new Intl.ListFormat('en-GB', { style: 'long', type: 'conjunction' }).format(items);
+
+/**
+ * What an invitation actually gives you, in one sentence.
+ *
+ * An invitation does one of three things — joins you to a project, lets you
+ * start one of your own, or both — and saying the wrong one is how this
+ * section came to read as somebody else's business. `role` is null exactly
+ * when there is no project to have a role in, so it is the thing to branch on
+ * rather than a workspace name that used to go missing for other reasons.
+ */
+function offerOf(invite: Returns<'my_pending_invites'>[number]): string {
+  const grants = invite.grant_apps.map(a => appBySlug(a)?.name ?? a);
+  const parts = [
+    invite.role && `joins you as ${invite.role}`,
+    grants.length > 0 && `lets you start your own ${listOf(grants)}`,
+  ].filter((p): p is string => Boolean(p));
+
+  const offer = parts.join(', and ');
+  return offer.charAt(0).toUpperCase() + offer.slice(1);
+}
+
+const shortDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
 
 // What this account may start on its own, which is a different question from
 // what it is a member of — someone can have one, both, or neither.
@@ -60,51 +93,55 @@ const inviteError = inviteFailed
 <AppShell title="Your projects · Grackles">
   <h1 class="page-title">Your projects</h1>
   <p class="page-intro">
-    Everything you own or have been invited to, across all three apps.
+    Everything you own or have been invited to, across every app.
   </p>
 
   {error && <p class="notice notice--error" role="alert">Could not load your projects: {error.message}</p>}
   {inviteError && <p class="notice notice--error" role="alert">{inviteError}</p>}
+  {
+    /* Said out loud rather than swallowed: an invitation that fails to load
+       and one that does not exist look identical on a page that shows nothing,
+       and the difference is whether somebody is still waiting to be let in. */
+    pendingError && (
+      <p class="notice notice--error" role="alert">
+        Could not check for invitations: {pendingError.message}
+      </p>
+    )
+  }
 
   {
     pending.length > 0 && (
       <>
         <p class="section-label">Invitations</p>
+        <p class="page-intro">Waiting for you. Nobody else can see these.</p>
         <ul class="ws-grid">
-          {pending.map(invite => {
-            // An invitation does one of two things, or both, and the card has
-            // to say which — "invited as viewer" on an invitation that grants
-            // no membership would be a lie, and one that only grants
-            // membership should not promise a project of their own.
-            const joins = invite.workspaces;
-            const grants = invite.grant_apps.map(a => appBySlug(a)?.name ?? a);
-
-            return (
-              <li>
-                <form method="POST" action={`/invite/${invite.token}`}>
-                  <div class="ws-card">
-                    <span class="ws-card__app">
-                      {joins ? (appBySlug(joins.app)?.name ?? joins.app) : 'Grackles'}
-                    </span>
-                    <span class="ws-card__name">
-                      {joins?.name ?? `Start your own ${grants.join(' or ')}`}
-                    </span>
-                    <span class="ws-card__desc">
-                      {joins && `You have been invited as ${invite.role}.`}
-                      {joins && grants.length > 0 && ' '}
-                      {grants.length > 0 &&
-                        `You can also start your own ${grants.join(' and ')}.`}
-                    </span>
-                    <div class="ws-card__meta">
-                      <button class="button" type="submit">
-                        Accept
-                      </button>
-                    </div>
+          {pending.map(invite => (
+            <li>
+              <form method="POST" action={`/invite/${invite.token}`}>
+                <div class="ws-card">
+                  <span class="ws-card__app">
+                    {invite.app ? (appBySlug(invite.app)?.name ?? invite.app) : 'Grackles'}
+                  </span>
+                  {/* An invitation with no project to join is not nameless —
+                      it is an offer of one of your own, and the card says so
+                      rather than leaving the heading to trail off. */}
+                  <span class="ws-card__name">
+                    {invite.workspace_name ?? 'A project of your own'}
+                  </span>
+                  <span class="ws-card__desc">
+                    {invite.invited_by_name && `From ${invite.invited_by_name}. `}
+                    {offerOf(invite)}.
+                  </span>
+                  <div class="ws-card__meta">
+                    <button class="button" type="submit">
+                      Accept
+                    </button>
+                    <span>Expires {shortDate(invite.expires_at)}</span>
                   </div>
-                </form>
-              </li>
-            );
-          })}
+                </div>
+              </form>
+            </li>
+          ))}
         </ul>
       </>
     )

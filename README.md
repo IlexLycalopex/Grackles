@@ -175,6 +175,23 @@ That has a few consequences worth knowing before adding a page:
   `.eq('user_id', …)`. Getting this wrong once already shipped a bug: a public
   workspace reported `owner` to anonymous visitors, and the query would have
   started erroring outright as soon as a second member joined.
+  The same mistake reached the dashboard's invitations, from both directions at
+  once. `invites_read` is `platform admin OR owner of the workspace OR
+  addressed to me`, and the middle clause is what the settings page runs on, so
+  the dashboard was showing owners the invitations they had *sent* — described
+  as received, with an Accept button `accept_invite()` could only refuse.
+  Meanwhile the project's name came through an embedded join, and
+  `workspaces_read` excludes a private project until you are a member, which an
+  invitee is not yet: an invitation into a private project arrived with no
+  project attached at all.
+- **A policy that is right for the table can still be wrong for the page.**
+  Both of those are fixed by `my_pending_invites()` rather than by narrowing
+  the policy, because the policy is not what is wrong — the settings page needs
+  every clause of it. A `SECURITY DEFINER` function is the honest way to ask a
+  question RLS cannot express: this one is scoped to `auth.users.email`, the
+  same rule `accept_invite()` enforces, so the list and the button agree by
+  construction. Everything shown can be accepted, and everything acceptable is
+  shown.
 - **Anonymous visitors are a supported case,** not an error to guard against.
   They see workspaces marked `public` — which is how the Listening Party stays
   readable at a shareable URL.

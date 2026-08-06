@@ -522,6 +522,30 @@ export type Database = {
         } | null;
       };
       /**
+       * The unexpired, unredeemed invitations addressed to the caller.
+       *
+       * Matched against auth.users.email, the same rule accept_invite()
+       * applies — so everything listed can be accepted, and an invitation you
+       * merely *sent* is not one of yours. Resolves the project's name past
+       * RLS, because an invitee is not a member yet and so cannot read a
+       * private workspace for themselves.
+       *
+       * `role` and `app` are null on an invitation that only grants the right
+       * to create something.
+       */
+      my_pending_invites: {
+        Args: Record<string, never>;
+        Returns: {
+          token: string;
+          role: Database['public']['Enums']['member_role'] | null;
+          workspace_name: string | null;
+          app: Database['public']['Enums']['app_slug'] | null;
+          grant_apps: Database['public']['Enums']['app_slug'][];
+          expires_at: string;
+          invited_by_name: string | null;
+        }[];
+      };
+      /**
        * Creates a workspace, seeds its defaults, and makes the caller owner.
        *
        * GRK03 no entitlement for this app (or quota used up), GRK04 slug taken.
@@ -573,6 +597,8 @@ export type Tables<T extends keyof Public['Tables']> = Public['Tables'][T]['Row'
 export type TablesInsert<T extends keyof Public['Tables']> = Public['Tables'][T]['Insert'];
 export type TablesUpdate<T extends keyof Public['Tables']> = Public['Tables'][T]['Update'];
 export type Enums<T extends keyof Public['Enums']> = Public['Enums'][T];
+/** What an RPC gives back, so a page can name the shape it is mapping over. */
+export type Returns<T extends keyof Public['Functions']> = Public['Functions'][T]['Returns'];
 
 export type AppSlug = Enums<'app_slug'>;
 export type MemberRole = Enums<'member_role'>;
