@@ -339,6 +339,13 @@ hr {
   margin-bottom: var(--space-xl);
 }
 
+/* `hidden` has to win. Every rule below sets `display`, and a UA stylesheet's
+   [hidden] { display: none } loses to any author rule that does — which showed
+   up as an empty bordered box where a hidden button should have been nothing
+   at all. */
+.wbpr-button[hidden],
+[hidden] { display: none !important; }
+
 .wbpr-button {
   display: inline-block;
   font-family: var(--font-mono);

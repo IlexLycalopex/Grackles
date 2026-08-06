@@ -138,7 +138,9 @@ const resumeState = (unfinished?.state ?? {}) as {
   // rather than left all live, because the sequence is the game: the first
   // sitting ran with no cards ever drawn, because typing into the box is the
   // obvious thing to do and nothing said otherwise.
-  let table = { block: 0, cards: [], caller: null };
+  // Shaped like the server's AgentState. Declared with its fields present so
+  // the checker knows `blocks` is a list rather than inferring it away.
+  let table = { block: 0, cards: [], caller: null, blocks: [], closed: false };
   let closed = false;
 
   /**
@@ -152,7 +154,15 @@ const resumeState = (unfinished?.state ?? {}) as {
     if (!sessionId) return null;
     if (closed) return { act: 'log', label: 'Write it up' };
     if (table.block === 0) return { act: 'block', label: 'Draw block 1' };
-    if (!table.caller) return { act: 'roll', label: 'Roll for a caller' };
+
+    // The block's own record, not the surface `caller`. Closing the night
+    // clears the surface one, so a sitting resumed after closing looked like a
+    // block still owing a roll — which is exactly how a finished night got
+    // stuck being offered a fifth caller.
+    const current = (table.blocks || []).find(b => b.position === table.block);
+    const rolled = current ? current.caller : table.caller;
+
+    if (!rolled) return { act: 'roll', label: 'Roll for a caller' };
     if (table.block < 4) return { act: 'block', label: `Draw block ${table.block + 1}` };
     return { act: 'close', label: 'Close the night' };
   }
