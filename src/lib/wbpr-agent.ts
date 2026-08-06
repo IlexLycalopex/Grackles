@@ -85,9 +85,28 @@ export interface Turn {
  * The date is the player's — these are in-fiction 1970s nights and the archive
  * numbers them — so it is passed in rather than taken from the clock.
  */
-export function openBroadcast(session: number, date: string): Turn {
+export function openBroadcast(
+  session: number,
+  date: string,
+  /** What the archive already knows about, newest first. */
+  known: { name: string; status: string }[] = []
+): Turn {
+  // Sent once, in the opening turn, and thereafter carried by the transcript.
+  // Nine sessions of established fact are what makes this archive worth
+  // keeping; without them the model can only invent, and a caller reporting
+  // the frost again would arrive as "Ice Patterns" — a second key, a second
+  // entry, and a catalogue that quietly forks.
+  //
+  // Names and statuses only. The notes are where the length is, and the model
+  // does not need them to recognise something it is being told about.
+  const catalogue = known.length
+    ? `\n\nAlready in the archive, and to be referred to by these exact names if the night touches them: ${
+        known.map(p => `${p.name} (${p.status})`).join(', ')
+      }. Anything genuinely new gets a new name, which is normal — the list grows.`
+    : '';
+
   return {
-    prompt: `Open the broadcast. Session ${session}, ${date}. Set the scene in three sentences at most: equipment, the forest, the sky, the time. Note tonight's particular quality — veil thickness, stellar activity, temperature. End with going live. Do not draw cards.`,
+    prompt: `Open the broadcast. Session ${session}, ${date}. Set the scene in three sentences at most: equipment, the forest, the sky, the time. Note tonight's particular quality — veil thickness, stellar activity, temperature. End with going live. Do not draw cards.${catalogue}`,
     table: `Session ${session} — ${date}. Going live.`,
     state: { block: 0, cards: [], caller: null, blocks: [] },
   };

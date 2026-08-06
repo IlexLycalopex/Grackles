@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { resolveWorkspace } from '../../../../lib/workspace';
 import type { Json } from '../../../../lib/database.types';
 import { chat } from '../../../../lib/minimax';
+import { loadPhenomenaCatalogue } from '../../../../lib/wbpr';
 import {
   buildMessages, closeBroadcast, openBroadcast, rollForCaller, sayAtTable, startBlock,
   type AgentState,
@@ -72,7 +73,13 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
 
     if (error || !created) return json({ error: 'Could not start a sitting.' }, 500);
 
-    return turn(supabase, workspace.id, created.id, openBroadcast(session, date), 'open');
+    // The catalogue, so the night can say "the frost is back" rather than
+    // naming it something new. Derived from the log the same way the phenomena
+    // page derives it — there is no standing table to read.
+    const catalogue = await loadPhenomenaCatalogue(supabase, workspace.id);
+    const known = catalogue.map(p => ({ name: p.name, status: p.status }));
+
+    return turn(supabase, workspace.id, created.id, openBroadcast(session, date, known), 'open');
   }
 
   if (!sessionId) return json({ error: 'No sitting in progress.' }, 400);
@@ -92,6 +99,21 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   // what we put in it. The cast is the one place that width is narrowed, and
   // a resumed sitting is the only reader.
   const state = (sitting.state ?? {}) as unknown as AgentState & { session?: number; date?: string };
+
+  // Killing a sitting. No model call — nothing to ask, and charging for the
+  // privilege of giving up would be a strange design. The transcript is kept
+  // rather than deleted: the tokens were real and the row is the only record
+  // of what they were spent on.
+  if (action === 'abandon') {
+    const { data: killed } = await supabase
+      .from('wbpr_agent_sessions')
+      .update({ status: 'abandoned' })
+      .eq('id', sitting.id)
+      .select('id');
+
+    if (!killed?.length) return json({ error: 'That sitting could not be closed.' }, 500);
+    return json({ abandoned: true });
+  }
 
   if (action === 'block') {
     const next = (sitting.block ?? 0) + 1;

@@ -64,7 +64,9 @@ const resumeState = (unfinished?.state ?? {}) as {
           {unfinished.prompt_tokens + unfinished.completion_tokens} tokens.{' '}
           <button class="wbpr-button wbpr-button--quiet" type="button" id="resume"
                   data-session-id={unfinished.id}
-                  data-state={JSON.stringify(unfinished.state ?? {})}>Resume it</button>
+                  data-state={JSON.stringify(unfinished.state ?? {})}>Resume it</button>{' '}
+          <button class="wbpr-button wbpr-button--danger" type="button" id="discard"
+                  data-session-id={unfinished.id}>Discard it</button>
         </div>
       )
     }
@@ -91,6 +93,9 @@ const resumeState = (unfinished?.state ?? {}) as {
         <button class="wbpr-button wbpr-button--quiet" type="button" data-act="roll">Roll for a caller</button>
         <button class="wbpr-button wbpr-button--quiet" type="button" data-act="close">Close the night</button>
         <button class="wbpr-button" type="button" data-act="log">Write it up</button>
+        <button class="wbpr-button wbpr-button--danger" type="button" data-act="abandon">
+          Abandon the night
+        </button>
       </div>
 
       <p class="wbpr-notice wbpr-notice--ok" id="hint"></p>
@@ -146,6 +151,10 @@ const resumeState = (unfinished?.state ?? {}) as {
       roll: started && !closed && midBlock,
       close: started && !closed && table.block >= 1 && !midBlock,
       log: started && table.block >= 1 && !midBlock,
+      // Always available while a sitting is open, including mid-block. Giving
+      // up is the one thing that should never be gated on being in the right
+      // place in the sequence.
+      abandon: started && !closed,
     };
 
     for (const btn of document.querySelectorAll('#controls button')) {
@@ -265,6 +274,17 @@ const resumeState = (unfinished?.state ?? {}) as {
         return;
       }
 
+      if (act === 'abandon') {
+        // A confirm() is not a confirmation on the day the script fails to
+        // load — but the script *is* the desk, so there is no no-script path
+        // to protect here, and a night's transcript is not a record anybody
+        // came for. It stays in the database regardless.
+        if (!window.confirm('Abandon this broadcast? Nothing is written to the archive.')) return;
+        const gone = await post('chat', { action: 'abandon', session_id: sessionId });
+        if (gone) window.location.reload();
+        return;
+      }
+
       const data = await post('chat', { action: act, session_id: sessionId });
       if (!data) return;
       // Latched rather than derived: after closing, `block` is still 4 and the
@@ -273,6 +293,18 @@ const resumeState = (unfinished?.state ?? {}) as {
       show(data);
     });
   });
+
+  const discard = $('discard');
+  if (discard) {
+    discard.addEventListener('click', async () => {
+      if (!window.confirm('Discard that unfinished sitting?')) return;
+      const gone = await post('chat', {
+        action: 'abandon',
+        session_id: discard.dataset.sessionId,
+      });
+      if (gone) window.location.reload();
+    });
+  }
 
   const resume = $('resume');
   if (resume) {

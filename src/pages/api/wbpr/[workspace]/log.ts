@@ -61,6 +61,17 @@ const oneOf = <T extends string>(value: unknown, allowed: readonly T[], fallback
 const keyFor = (name: string) =>
   name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
+/**
+ * The form a name reduces to for the purpose of "is this the same thing".
+ *
+ * Leading articles and a trailing plural are the two ways the model reliably
+ * misses: "The Watchers" comes back as "Watchers", "Frost Manifestations" as
+ * "Frost Manifestation". Both would mint a second key and split a phenomenon's
+ * history in half, which is the one thing the derived catalogue cannot survive.
+ */
+const canonical = (name: string) =>
+  keyFor(name).replace(/^the-/, '').replace(/s$/, '');
+
 export const POST: APIRoute = async ({ params, request, locals }) => {
   const { supabase, user } = locals;
   if (!user) return json({ error: 'Sign in first.' }, 401);
@@ -200,13 +211,32 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   }
 
   // ── Phenomena ──────────────────────────────────────────────────────
+  // Everything the archive already knows, so a night that touches the frost
+  // again lands on the existing key rather than starting a parallel history
+  // under a name one letter different.
+  const { data: seen } = await supabase
+    .from('wbpr_phenomena')
+    .select('key, name')
+    .eq('workspace_id', workspace.id);
+
+  const established = new Map<string, { key: string; name: string }>();
+  for (const row of (seen ?? []) as { key: string; name: string }[]) {
+    established.set(canonical(row.name), { key: row.key, name: row.name });
+  }
+
   const phenomena = (log.phenomena ?? [])
     .filter(p => p?.name)
+    .map(p => {
+      // The stored spelling wins when it is recognisably the same thing. The
+      // model's variant is not more correct for being newer.
+      const match = established.get(canonical(String(p.name)));
+      return { ...p, key: match?.key ?? keyFor(String(p.name)), name: match?.name ?? String(p.name) };
+    })
     .map(p => ({
       workspace_id: workspace.id,
       broadcast_id: broadcast.id,
-      key: keyFor(String(p.name)),
-      name: String(p.name),
+      key: p.key,
+      name: p.name,
       status: oneOf(p.status, PHENOMENON_STATUSES, 'Active'),
       confidence: oneOf(p.confidence, CONFIDENCES, 'Unconfirmed'),
       locations: Array.isArray(p.locations) ? p.locations.map(String) : [],
