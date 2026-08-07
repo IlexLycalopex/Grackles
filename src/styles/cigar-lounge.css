@@ -747,3 +747,65 @@ textarea.cigar-form__input { resize: vertical; line-height: 1.55; }
   line-height: 1.6;
   color: var(--text-muted);
 }
+
+/* ── The filter box ────────────────────────────────────────────────────
+   Sits above a grid and hides cards that do not match. Rendered hidden and
+   revealed by its script, so a browser without JavaScript is not offered a
+   search field that cannot search. */
+
+.cigar-filter {
+  max-width: 720px;
+  margin: 0 0 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.cigar-filter[hidden] { display: none; }
+
+.cigar-filter__label {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-label);
+  opacity: 0.75;
+}
+
+.cigar-filter__input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+  font-size: 0.95rem;
+  color: inherit;
+  background: rgba(214, 162, 78, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  transition: border-color var(--transition);
+}
+
+.cigar-filter__input::placeholder { color: var(--text-faint); }
+.cigar-filter__input:focus { outline: none; border-color: var(--border-gold); }
+
+.cigar-filter__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
+.cigar-filter__hint code {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--gold-muted);
+}
+
+.cigar-filter__count {
+  margin: 0;
+  min-height: 1.2em;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--gold-muted);
+}
+
+/* Spans the grid it is dropped into, rather than sitting in one column. */
+.cigar-filter__none { grid-column: 1 / -1; margin: 0; }

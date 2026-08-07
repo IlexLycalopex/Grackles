@@ -22,6 +22,8 @@ several people can share a project.
 | ✅ | The launcher reads from the database; all eight sites exist as workspaces |
 | ✅ | WBPR migrated off GitHub Pages — nine sessions, five tables, editable in place |
 | ✅ | The WBPR broadcast agent (MiniMax M3) — running; the one-click write-up is the last untested path |
+| ✅ | Cigar Lounge search — a filter box on the log and the humidor, matching words, wrappers and sizes |
+| ⬜ | Cigar lookup — the endpoint and the cache are built; the migration is not yet applied and nothing calls it from the UI |
 | ⬜ | WBPR's map and veil pages — left behind in the migration, see below |
 | ✅ | Custom SMTP — Supabase's own magic-link and confirmation emails go out through Resend, alongside the app's invitations |
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
@@ -87,6 +89,7 @@ every value of the enum — so this is the only thing stopping it being offered.
 /cigars/:workspace/new             add to the humidor or the log
 /cigars/:workspace/edit/:slug      edit an entry
 /cigars/:workspace/smoke/:slug     take one out of the humidor
+/api/cigars/:workspace/lookup      what is this cigar? (cache first, then the model)
 
 /wbpr/:workspace                   WBPR — the broadcast archive
 /wbpr/:workspace/phenomena         everything seen, folded by key
@@ -347,6 +350,96 @@ crops is a cap that hides the band. Cropping is the card's job.
 Adding real uploads later does not undo any of this — a Supabase storage public
 URL is absolute, so it satisfies the same constraint and lands in the same
 column.
+
+## Searching a lounge, and looking a cigar up
+
+The Cigar Lounge had no search of any kind, and adding a cigar meant typing
+eleven fields. Both are the same question asked from two ends — *which cigar is
+this* — so there is one matcher, one cache and one endpoint behind them.
+
+A query goes through three stages and stops at the first that answers:
+
+1. **The workspace's own entries.** Free. Both list pages already load every row
+   in order to render at all, so `CigarFilter.astro` filters what is on the page
+   rather than asking the server for a narrower set.
+2. **The shared reference cache**, `cl_cigar_reference` — one select, holding
+   every cigar anybody has ever looked up.
+3. **One call to M3**, reached only on a genuine miss.
+
+**Stages 1 and 2 run as you type; stage 3 is a button.** That is the whole cost
+design and it is worth stating plainly, because the obvious implementation — a
+debounced type-ahead against the endpoint — spends money answering queries
+somebody is still halfway through writing.
+
+The matcher lives in `lib/cigar-search.ts` and is imported by the browser script
+and by the endpoint both. One definition means a query that finds a cigar in
+your humidor finds the same cigar in the cache, which is what makes "answer for
+free before answering for money" true rather than aspirational. Words are ANDed;
+accents are folded, because nobody reaches for the compose key to find a Padrón
+they already own; and `5x50` or `rg50` is matched against the measurements
+rather than the text, since `4 7/8"` in one column and `50` in another contain
+that string nowhere.
+
+**The cache is global, not per workspace.** A Serie D No. 4's dimensions are a
+fact about the world, so scoping them per lounge would mean paying for the same
+answer once per member. Shared, the second person to look one up pays nothing.
+`workspace_id` and `looked_up_by` record who asked and who paid — attribution,
+not scope. The table is insert-only at the policy level: one member cannot
+rewrite what another's lookup found, only add alongside it.
+
+**The call is one system message and one user message.** No history — a lookup
+is stateless, and unlike a night at the desk there is nothing to carry. The
+schema and rules are in the system prompt, byte-identical every time, so they
+cost the same tokens as putting them in the user turn and give a provider-side
+prefix cache something to hold; the user turn is the query alone, under twenty
+tokens. `max_tokens` 400, temperature 0.2 — recall rather than invention, which
+also makes two people asking about one cigar likelier to mint one canonical key
+instead of two rows.
+
+`response_format` is not used, because M3 does not usefully support it on the
+OpenAI-compatible path: the parameter documented for MiniMax-Text-01 is accepted
+and ignored rather than rejected, which is the worst of the three possible
+behaviours. The shape is asked for in the prompt and read back by
+`parseJsonObject` in `lib/json.ts`, lifted out of the WBPR write-up so there is
+one copy.
+
+### What it is not asked for
+
+**No rating, no score, no price, and nothing attributed to a publication.** An
+earlier draft of this carried a Cigar Aficionado score and it was cut before any
+of it was built. A CA rating is a specific integer attributed to a real magazine
+for a specific vitola in a specific issue, and a model asked for one returns a
+*plausible* number with no signal that it invented it — the die-roll problem
+from the WBPR desk, printed under somebody else's masthead. The prompt forbids
+it in those terms, and says why, because "never give a score" alone invites a
+model to comply with the letter of it.
+
+What is left is what M3 is actually good for and is most of what makes filling a
+form from a lookup worth doing: brand, line, vitola, dimensions, wrapper, binder,
+filler, country, factory, strength and a flavour profile. Every field may come
+back null, and the prompt says null is the right answer whenever it does not
+specifically know — a field it omits is one you fill in, a field it guesses is a
+wrong record you will not know to correct.
+
+Range bounds do the rest, for free: no cigar is fourteen inches long or has a
+ring gauge of 200, so a reply carrying one is wrong in a way that can be caught
+without asking anybody. They are checked in `readLookup` and again as CHECK
+constraints, the first as a courtesy and the second as the guarantee.
+
+### The gate
+
+`canWrite`, not owner-only — a departure from the WBPR desk and a deliberate
+one. A night at the desk is an open-ended spend and the owner's bill; this is
+one bounded call, and an editor who cannot use quick-add has been given a
+feature that does not work for them.
+
+The daily cap of 50 lookups per lounge is what makes the looser gate defensible,
+and it is a subquery inside the insert policy as well as a count in the route.
+The route's copy exists to produce a sentence; the policy is what holds. Cache
+hits do not count against it, because they do not insert.
+
+Token counts are columns on the row, as they are on `wbpr_agent_sessions`, and
+for the same reason.
 
 ## One write that is not a statement
 

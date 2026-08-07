@@ -9,6 +9,7 @@ import {
   url,
   type Cigar,
 } from '../../lib/cigar-helpers';
+import { haystackFor, sizeOf } from '../../lib/cigar-search';
 
 interface Props {
   cigar: Cigar;
@@ -57,6 +58,13 @@ const hasActions = Boolean(editHref) || showsSmoke;
 // went into the humidor.
 const sortDate = inHumidor ? dateAcquired : dateSmoked;
 const resting = inHumidor ? restingDays(cigar) : null;
+
+// What the filter box searches, built here so it is built once per card at
+// render rather than once per card per keystroke. The size goes as two numbers
+// beside it because `4 7/8"` cannot be compared with a `5x50` typed into the
+// box until somebody has turned it into 4.875.
+const haystack = haystackFor(cigar.data, cigar.body);
+const size = sizeOf(cigar.data);
 ---
 <article
   class:list={['cigar-card', hasActions && 'cigar-card--inset-actions']}
@@ -66,6 +74,9 @@ const resting = inHumidor ? restingDays(cigar) : null;
   data-date={sortDate?.toISOString().slice(0, 10) ?? ''}
   data-rating={rating ?? ''}
   data-name={name}
+  data-search={haystack}
+  data-length={size.lengthInches ?? ''}
+  data-ring={size.ringGauge ?? ''}
 >
   {editHref && (
     <a class="cigar-card__edit" href={editHref} title={`Edit ${name}`} aria-label={`Edit ${name}`}>

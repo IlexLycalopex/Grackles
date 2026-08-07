@@ -1,14 +1,22 @@
 # Looking a cigar up
 
-A plan, not an implementation. It covers the search box the Cigar Lounge does
-not have, the model lookup behind it, and the quick-add path from a lookup into
-the humidor.
+The plan for the search box the Cigar Lounge did not have, the model lookup
+behind it, and the quick-add path from a lookup into the humidor.
+
+**Decided, and reflected below:** the Cigar Aficionado rating is dropped
+entirely rather than shipped under conditions; the gate is `requireWrite` plus a
+daily cap rather than owner-only.
+
+**Built:** steps 1 and 2 — the filter box, the schema, and the endpoint. Steps
+3 onward are still a plan. The migration is written but **not applied**, and
+nothing in the UI calls the endpoint yet.
 
 Two things were asked for and they turn out to be one feature seen from two
 ends:
 
 - find a cigar by brand, name or dimensions and get back what is known about it
-  — tasting notes, a Cigar Aficionado rating, wrapper, size, origin;
+  — tasting notes, wrapper, size, origin (and, as originally asked, a Cigar
+  Aficionado rating; see below for why that one is not here);
 - use the same thing to put a cigar in the humidor without typing eleven fields.
 
 Both are *identify a cigar, then hand its details to something*. The something
@@ -84,8 +92,8 @@ documented for MiniMax-Text-01 and is not reliably supported by M3 on the
 OpenAI-compatible path — sending it appears to be silently ignored rather than
 rejected, which is the worst failure mode. So the shape is instructed in the
 prompt and the response is parsed tolerantly, exactly as `parseLog` in
-`wbpr/log.ts` already does: take the first `{` to the last `}`. That function
-should move to a shared helper rather than being written twice.
+`wbpr/log.ts` already did: take the first `{` to the last `}`. That function has
+moved to `lib/json.ts` rather than being written twice.
 
 ## Accuracy: what it is asked for, and what it is not
 
@@ -101,43 +109,40 @@ that are visibly not yours.
 back null, with an instruction that an omitted value is better than a guessed
 one. Anything null is simply not offered for prefill.
 
-**3. A local validator, no tokens.** Vitola names carry conventional dimensions
-— a Robusto is about 5″ × 50, a Lancero about 7½″ × 38. A small table in
-`lib/cigar-vitolas.ts` (kept out of the prompt, for the same reason the deck is)
-checks the returned vitola against the returned length and ring gauge. A
-"Robusto, 7¼″, ring 38" is caught for free and flagged rather than offered. This
-also gives the dimensions search something real to match against.
+**3. A local validator, no tokens.** Built in two halves. The range check is
+done: no cigar is fourteen inches long or has a ring gauge of 200, so a reply
+carrying one is wrong in a way `readLookup` catches without asking anybody, and
+the same bounds are CHECK constraints on the table. The vitola cross-check is
+step 3 and not yet built — vitola names carry conventional dimensions, a Robusto
+about 5″ × 50 and a Lancero about 7½″ × 38, so a table in `lib/cigar-vitolas.ts`
+(kept out of the prompt, for the same reason the deck is) would catch a
+"Robusto, 7¼″, ring 38" that is individually plausible in every field.
 
 **4. Disagreement is shown, not resolved.** When a lookup contradicts what the
 workspace already recorded for the same cigar, both are displayed. A human
 decides; the app does not silently prefer the newer claim.
 
-### The Cigar Aficionado rating specifically
+### The Cigar Aficionado rating: dropped
 
-This is the one output that could genuinely mislead, and it deserves its own
-decision rather than being carried along with the rest. A CA score is a specific
-integer attributed to a named publication, for a specific vitola, in a specific
-issue. M3 will produce 88, 91 or 93 with complete confidence and no signal that
-it invented one. Stored in a column called `ca_rating` and rendered as
-"Cigar Aficionado: 92", the app would be fabricating a citation to a real
-magazine.
+This was the one output that could genuinely mislead, and it was cut before any
+of it was built. A CA score is a specific integer attributed to a named
+publication, for a specific vitola, in a specific issue. M3 will produce 88, 91
+or 93 with complete confidence and no signal that it invented one. Stored in a
+column called `ca_rating` and rendered as "Cigar Aficionado: 92", the app would
+be fabricating a citation to a real magazine.
 
-The recommendation is to ship it, under three conditions:
+The version that was considered and rejected required the model to name an issue
+before a score was kept at all, rendered it as an unverified claim, and kept it
+out of your own rating and out of the stats averages. That would probably have
+worked. It is a lot of scaffolding around the single field most likely to be
+wrong, and everything it protects is beside the point of the feature: the
+dimensions, wrapper, origin and flavour profile are what M3 is reliable on and
+are most of what makes quick-add worth having.
 
-- **No issue, no score.** The model must return the year or issue alongside the
-  number, and the route drops the rating when it cannot. Real reviews have a
-  date; invented ones generally do not, and this is the cheapest strong filter
-  available.
-- **It renders as a claim, not a fact.** "Cigar Aficionado 92 (2019) — suggested,
-  unverified" with a one-press clear, until somebody confirms it.
-- **It never becomes your rating**, and it never appears in the stats page
-  averages, which are about what you thought of a cigar.
-
-If that reads as too much scaffolding for the value, the alternative is to drop
-the CA score and keep the rest — the dimensions, wrapper, origin and flavour
-profile are the parts M3 is actually reliable on, and they are most of what
-makes quick-add worth having. That is a judgement call worth making before any
-code is written rather than after.
+So the prompt forbids ratings, scores, prices, awards and attribution to any
+publication — in those words, and with the reason attached, because "never give
+a score" on its own invites a model to comply with the letter of it. There is no
+column for one to land in either way.
 
 ## The reply shape
 
@@ -155,11 +160,9 @@ code is written rather than after.
   "country": "Cuba",
   "factory": null,
   "strength": "full",
-  "flavour": "Earth, cocoa, black pepper, a leathery finish.",
-  "ca_rating": 92,
-  "ca_issue": "2018",
+  "flavour": "Earth, cocoa and black pepper over a leathery finish.",
   "confidence": "high",
-  "alternates": ["Partagás Serie E No. 2", "Partagás Serie P No. 2"]
+  "alternates": ["Partagás Serie E No. 2"]
 }
 ```
 
@@ -190,17 +193,21 @@ create table public.cl_cigar_reference (
   factory      text not null default '',
   strength     text check (strength is null or strength in ('mild','medium','full')),
   flavour      text not null default '',
-  ca_rating    integer check (ca_rating is null or ca_rating between 50 and 100),
-  ca_issue     text not null default '',
   confidence   text not null default 'low',
   alternates   text[] not null default '{}',
   model        text not null,
   prompt_tokens     integer not null default 0,
   completion_tokens integer not null default 0,
+  workspace_id uuid references public.workspaces(id) on delete set null,
   looked_up_by uuid not null references public.profiles(id),
   created_at   timestamptz not null default now()
 );
 ```
+
+`workspace_id` is attribution, not scope: it records which lounge paid for the
+lookup so the daily cap has something to count, and every signed-in reader still
+sees every row. See `supabase/migrations/20260807120000_cigar_reference.sql` for
+what was actually written, which adds the range CHECKs and the indexes.
 
 Token counts are columns for the same reason they are on
 `wbpr_agent_sessions`: protecting token usage is only a real property if
@@ -247,57 +254,67 @@ decision because it is the owner's bill. That is right for a night at the desk
 and wrong here: a lookup is one small bounded call, and an editor who cannot use
 quick-add has been given a feature that does not work for them.
 
-So: `requireWrite`, not owner-only — plus a per-workspace daily cap counted in
-the route from `cl_cigar_reference` rows attributed to that workspace today.
-The cap is what makes the looser gate defensible. Suggest 50/day, which is far
-above ordinary use and far below anything alarming.
+So: `requireWrite`, not owner-only — plus a per-workspace daily cap of 50, which
+is far above ordinary use and far below anything alarming. The cap is what makes
+the looser gate defensible.
 
-Both checks belong in the API route. A page check protects the button, not the
-URL that spends money.
+Both checks belong in the API route, because a page check protects the button
+rather than the URL that spends money. As built, both also live in the insert
+policy on the table: the route's copies exist to produce a sentence instead of a
+`42501`, and the policy is the thing that actually holds. Cache hits do not
+count against the cap, because they do not insert — which is the right
+incentive.
 
 ## Order of work
 
-1. **Local search, no model.** Filter box on the log and the humidor. Ships
-   value on its own and is the fallback if everything below is deferred.
-2. **Schema and endpoint.** `cl_cigar_reference`, the migration, and
+1. ✅ **Local search, no model.** Filter box on the log and the humidor. Ships
+   value on its own and was the fallback if everything below were deferred.
+2. ✅ **Schema and endpoint.** `cl_cigar_reference`, the migration, and
    `POST /api/cigars/:workspace/lookup` with the cache check, gate and cap.
    `lib/cigar-lookup.ts` holds the prompt, the parser and the validator.
-3. **The vitola table** and the dimensions validator.
-4. **The lookup panel on `new.astro`** and prefill.
-5. **The reference page** and the entry-page block.
-6. **README section**, in the shape of the WBPR agent one — what the model is
+3. ⬜ **The vitola table** and the dimensions validator. The endpoint currently
+   validates dimensions against the range the physical world allows, which is
+   free and catches a ring gauge of 200; it does not yet catch a "Robusto,
+   7¼″, ring 38", which needs conventional dimensions per vitola name kept in
+   code rather than in the prompt.
+4. ⬜ **The lookup panel on `new.astro`** and prefill.
+5. ⬜ **The reference page** and the entry-page block.
+6. ✅ **README section**, in the shape of the WBPR agent one — what the model is
    asked for, what it is not, and what a lookup costs.
 
-Steps 1–2 are where the value is. Everything after 4 is polish.
+Nothing calls the endpoint until step 4, and the migration has to be applied
+before anything does.
 
 ## Files
 
 | | |
 |---|---|
-| `supabase/migrations/…_cigar_reference.sql` | new table, RLS, `cl_cigars.reference_id` |
-| `src/lib/cigar-lookup.ts` | new — prompt, parse, validate, canonical key |
-| `src/lib/cigar-vitolas.ts` | new — vitola dimensions, out of the prompt |
-| `src/pages/api/cigars/[workspace]/lookup.ts` | new — gate, cache, one call, cap |
-| `src/lib/json.ts` | new — `parseJsonObject`, lifted from `wbpr/log.ts` |
-| `src/lib/cigar-lounge.ts` | reference loading, local match |
-| `src/lib/cigar-helpers.ts` | local search over loaded entries |
-| `src/pages/cigars/[workspace]/new.astro` | the lookup panel |
-| `src/pages/cigars/[workspace]/lookup.astro` | new — the reference page |
-| `src/pages/cigars/[workspace]/index.astro`, `humidor.astro` | filter box |
-| `src/components/cl/CigarFields.astro` | suggested-value marking |
-| `src/styles/cigar-lounge.css` | panel, suggestion marks |
-| `README.md` | a section on the lookup |
+| ✅ `supabase/migrations/20260807120000_cigar_reference.sql` | new table, RLS, the cap, `cl_cigars.reference_id` |
+| ✅ `src/lib/cigar-search.ts` | new — fold, parse a query, match, one matcher for both sides |
+| ✅ `src/lib/cigar-lookup.ts` | new — prompt, parse, validate, canonical key, cache ranking |
+| ✅ `src/lib/json.ts` | new — `parseJsonObject` and `oneOf`, lifted from `wbpr/log.ts` |
+| ✅ `src/pages/api/cigars/[workspace]/lookup.ts` | new — gate, cache, one call, cap |
+| ✅ `src/components/cl/CigarFilter.astro` | new — the filter box and its script |
+| ✅ `src/components/cl/CigarCard.astro` | `data-search`, `data-length`, `data-ring` |
+| ✅ `src/pages/cigars/[workspace]/index.astro`, `humidor.astro` | the filter box |
+| ✅ `src/styles/cigar-lounge.css` | the filter box |
+| ✅ `src/lib/database.types.ts` | the new table, by hand — regenerate once the migration is applied |
+| ⬜ `src/lib/cigar-vitolas.ts` | vitola dimensions, out of the prompt |
+| ⬜ `src/pages/cigars/[workspace]/new.astro` | the lookup panel |
+| ⬜ `src/pages/cigars/[workspace]/lookup.astro` | the reference page |
+| ⬜ `src/components/cl/CigarFields.astro` | suggested-value marking |
 
 ## Open questions
 
-- **The CA rating, in or out.** The three conditions above, or drop it and keep
-  the details M3 is reliable on. Worth deciding first — it is the only part of
-  this that could put a false claim under a real magazine's name.
 - **Whether M3 can be grounded.** MiniMax has offered a built-in `web_search`
   tool on some models; whether M3 supports it on this endpoint is unconfirmed
   and the docs host is unreachable from here. If it does, it changes the
   accuracy story substantially and costs tokens, and the two would need weighing
-  against each other. Everything above is designed to work without it.
+  against each other. Everything here is designed to work without it.
 - **Whether the cache should ever expire.** A cigar's dimensions do not change.
   A discontinued line and a re-blended one do. Insert-only with a `created_at`
   leaves the door open without deciding now.
+- **What the filter should do at scale.** It filters what the page already
+  holds, which is right while a lounge is a few hundred entries and wrong at a
+  few thousand. The matcher is in a module both sides import specifically so
+  that day is a change of caller rather than a rewrite.

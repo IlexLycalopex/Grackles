@@ -1,6 +1,7 @@
 ---
 import ClLayout from '../../../layouts/ClLayout.astro';
 import CigarCard from '../../../components/cl/CigarCard.astro';
+import CigarFilter from '../../../components/cl/CigarFilter.astro';
 import { resolveWorkspace } from '../../../lib/workspace';
 import { humidorFrom, loadCigars, smokedFrom } from '../../../lib/cigar-lounge';
 import { mean, rated, totalCigars } from '../../../lib/cigar-helpers';
@@ -69,7 +70,9 @@ const avg = ratings.length ? mean(ratings) : null;
           {workspace.canWrite ? ' Add an entry to start the log.' : ''}
         </p>
       ) : (
-        <div class="cigar-grid">
+        <>
+        <CigarFilter grid="log-grid" noun="smoked" />
+        <div class="cigar-grid" id="log-grid">
           {smoked.map(cigar => (
             <CigarCard
               cigar={cigar}
@@ -78,6 +81,7 @@ const avg = ratings.length ? mean(ratings) : null;
             />
           ))}
         </div>
+        </>
       )
     }
   </div>

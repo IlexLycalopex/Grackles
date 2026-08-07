@@ -20,6 +20,7 @@ The files in `migrations/` are the additions from 2026-08-05, in apply order:
 | `20260805120400_create_workspace_rpc` | `create_workspace()` — entitlement check, slug handling, default seeding |
 | `20260805120500_tighten_anon_grants` | Withdraws unused write privileges from `anon` (independent of the above) |
 | `20260805120600_invite_lookup` | `invite_email_for_token()` — who an invitation is for, resolved before sign-in |
+| `20260807120000_cigar_reference` | `cl_cigar_reference` — the shared cigar lookup cache — plus `cl_cigars.reference_id`. **Not yet applied.** |
 
 ### What changed conceptually
 
@@ -57,8 +58,21 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 
 ## Applied
 
-All seven are live on `ophmsvqtzffrjmyjyzza` as of 2026-08-05. The filenames here keep their original
-`1200xx` ordering; the versions in the database are the times they actually ran.
+All seven of the 2026-08-05 migrations are live on `ophmsvqtzffrjmyjyzza` as of that date. The
+filenames here keep their original `1200xx` ordering; the versions in the database are the times they
+actually ran.
+
+`20260807120000_cigar_reference` is **not applied**. It is additive — one new table, one new nullable
+column — so it can go out whenever, but it has to go out before anything calls
+`/api/cigars/:workspace/lookup`, which selects from a table that does not exist yet. Its one
+dependency is `app.can_write()`, which has been there since the core tenancy model.
+
+Its insert policy contains a `count(*)` subquery over the table it guards — the daily cap. That is
+unusual enough to be worth knowing about before someone reads it and assumes it is a mistake: the cap
+is a property of the database rather than a courtesy of the route, on the same reasoning that puts
+every other write rule in RLS. It costs a scan of one workspace's rows for the last day, which the
+`(workspace_id, created_at desc)` index serves and which is bounded at fifty by the thing it is
+counting.
 
 ### `search_path` and citext
 

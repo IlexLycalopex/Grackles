@@ -450,6 +450,7 @@ export type Database = {
           note: string;
           photo_path: string;
           tasting_notes: string;
+          reference_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -479,10 +480,76 @@ export type Database = {
           note?: string;
           photo_path?: string;
           tasting_notes?: string;
+          reference_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: Partial<Database['public']['Tables']['cl_cigars']['Insert']>;
+        Relationships: [];
+      };
+      /**
+       * What a model said when asked about a cigar. Global rather than
+       * workspace-scoped — a Serie D No. 4's dimensions are a fact about the
+       * world — with workspace_id recording only who paid for the lookup.
+       *
+       * Insert-only at the policy level, so there is no Update shape that the
+       * database would accept. It is declared as `never` rather than omitted
+       * because the client's generic expects all three.
+       */
+      cl_cigar_reference: {
+        Row: {
+          id: string;
+          key: string;
+          query: string;
+          brand: string;
+          line: string;
+          name: string;
+          vitola: string;
+          length_inches: number | null;
+          ring_gauge: number | null;
+          wrapper: string;
+          binder: string;
+          filler: string;
+          country: string;
+          factory: string;
+          strength: string | null;
+          flavour: string;
+          confidence: string;
+          alternates: string[];
+          model: string;
+          prompt_tokens: number;
+          completion_tokens: number;
+          workspace_id: string | null;
+          looked_up_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          key: string;
+          query?: string;
+          brand?: string;
+          line?: string;
+          name?: string;
+          vitola?: string;
+          length_inches?: number | null;
+          ring_gauge?: number | null;
+          wrapper?: string;
+          binder?: string;
+          filler?: string;
+          country?: string;
+          factory?: string;
+          strength?: string | null;
+          flavour?: string;
+          confidence?: string;
+          alternates?: string[];
+          model?: string;
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          workspace_id?: string | null;
+          looked_up_by: string;
+          created_at?: string;
+        };
+        Update: never;
         Relationships: [];
       };
       /**

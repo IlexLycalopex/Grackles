@@ -1,6 +1,7 @@
 ---
 import ClLayout from '../../../layouts/ClLayout.astro';
 import CigarCard from '../../../components/cl/CigarCard.astro';
+import CigarFilter from '../../../components/cl/CigarFilter.astro';
 import { resolveWorkspace } from '../../../lib/workspace';
 import { humidorFrom, loadCigars } from '../../../lib/cigar-lounge';
 import { totalCigars } from '../../../lib/cigar-helpers';
@@ -45,7 +46,9 @@ const humidor = humidorFrom(await loadCigars(supabase, workspace.id));
       humidor.length === 0 ? (
         <p class="empty-state">The humidor is empty.</p>
       ) : (
-        <div class="cigar-grid">
+        <>
+        <CigarFilter grid="humidor-grid" noun="resting" />
+        <div class="cigar-grid" id="humidor-grid">
           {humidor.map(cigar => (
             <CigarCard
               cigar={cigar}
@@ -55,6 +58,7 @@ const humidor = humidorFrom(await loadCigars(supabase, workspace.id));
             />
           ))}
         </div>
+        </>
       )
     }
   </div>
