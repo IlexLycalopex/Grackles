@@ -3,7 +3,7 @@ import ClLayout from '../../../layouts/ClLayout.astro';
 import CigarFields from '../../../components/cl/CigarFields.astro';
 import CigarLookup from '../../../components/cl/CigarLookup.astro';
 import { requireWrite } from '../../../lib/workspace';
-import { loadCigars } from '../../../lib/cigar-lounge';
+import { loadCigars, loadReference } from '../../../lib/cigar-lounge';
 import { cigarSlug, readCigar } from '../../../lib/records/cigar';
 import { describeWriteError } from '../../../lib/records/save';
 import { uniqueSlug } from '../../../lib/slug';
@@ -37,6 +37,36 @@ const startStatus = wanted === 'humidor' ? 'humidor' : 'smoked';
 // stated there.
 const owned = await loadCigars(supabase, workspace.id);
 
+/**
+ * Arriving from the reference page with a cigar already chosen.
+ *
+ * Only the id travels in the URL, and the row is read here rather than the
+ * values being carried across as query parameters — so what lands in the form
+ * is what the database holds, and a fiddled link can at worst name a different
+ * real reference row. `loadReference` goes through the caller's client, so RLS
+ * has already decided they may see it.
+ */
+const wantedReference = Astro.url.searchParams.get('reference');
+const prefill = wantedReference ? await loadReference(supabase, wantedReference) : null;
+
+// Marked so a suggested value looks the same whether it arrived by button or by
+// URL. Only the fields actually carrying something — marking a blank would be
+// claiming a suggestion nobody made.
+const suggested = prefill
+  ? (
+      [
+        prefill.name && 'name',
+        prefill.brand && 'brand',
+        prefill.vitola && 'vitola',
+        prefill.wrapper && 'wrapper',
+        prefill.country && 'country',
+        prefill.strength && 'strength',
+        prefill.length_inches && 'length_text',
+        prefill.ring_gauge && 'ring_gauge',
+      ].filter(Boolean) as string[]
+    )
+  : [];
+
 let error: string | null = null;
 let submitted: FormData | null = null;
 
@@ -69,7 +99,11 @@ if (Astro.request.method === 'POST') {
       existing.map(c => c.id)
     );
 
-    const referenceId = String(submitted.get('reference_id') ?? '').trim();
+    // From the panel's hidden input, or from the ?reference= this page was
+    // opened with. The form wins: it is the later of the two and the one the
+    // person actually acted on.
+    const referenceId =
+      String(submitted.get('reference_id') ?? '').trim() || (prefill?.id ?? '');
 
     const { error: writeError } = await supabase
       .from('cl_cigars')
@@ -107,15 +141,37 @@ if (Astro.request.method === 'POST') {
 
     <CigarLookup endpoint={`/api/cigars/${workspace.slug}/lookup`} base={base} cigars={owned} />
 
+    {
+      prefill && (
+        <p class="cigar-form__prefilled">
+          Started from a lookup of <strong>{[prefill.brand, prefill.name].filter(Boolean).join(' ')}</strong>.
+          The highlighted fields are its suggestions — correct anything it got wrong.
+        </p>
+      )
+    }
+
     <form method="POST" class="cigar-form">
       <CigarFields
         cigar={null}
         defaults={{
           status: startStatus,
           dateSmoked: startStatus === 'smoked' ? today : '',
+          name: prefill?.name,
+          brand: prefill?.brand,
+          vitola: prefill?.vitola,
+          wrapper: prefill?.wrapper,
+          country: prefill?.country,
+          strength: prefill?.strength ?? undefined,
+          // Decimal inches, because that is what the lookup returned. Rendering
+          // `4 7/8"` from 4.9 would be writing something nobody said.
+          lengthText: prefill?.length_inches ? `${prefill.length_inches}″` : undefined,
+          ringGauge: prefill?.ring_gauge ?? undefined,
         }}
+        suggested={suggested}
         submitted={submitted}
       />
+
+      {prefill && <input type="hidden" name="reference_id" value={prefill.id} />}
 
       <div class="cigar-form__actions">
         <button class="cigar-form__submit" type="submit">Add</button>

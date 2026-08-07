@@ -1,0 +1,255 @@
+---
+import type { StoredReference } from '../../lib/cigar-lookup';
+import { compareToEntry } from '../../lib/cigar-lookup';
+import { checkDimensions } from '../../lib/cigar-vitolas';
+import type { CigarData } from '../../lib/cigar-lounge';
+import { formatDate } from '../../lib/cigar-helpers';
+
+/**
+ * What a lookup said about a cigar, shown as a claim rather than as a record.
+ *
+ * Kept visually separate from everything above it on an entry page, because the
+ * whole design of this feature rests on the two not blurring. What you wrote is
+ * the record. This is working material that happened to be right often enough
+ * to be worth keeping.
+ *
+ * Given the entry's own fields it also reports where the two disagree. Nothing
+ * is corrected in either direction: you had the cigar in front of you and the
+ * model did not, so a difference is as likely to mean the lookup is wrong as
+ * that a field was mistyped — and saying which would be inventing a fact about
+ * which of two sources to trust.
+ */
+interface Props {
+  reference: StoredReference;
+  /** The entry this sits on, when it sits on one. Drives the disagreement list. */
+  entry?: CigarData | null;
+  /** Heading level, so this can be a section on an entry and a panel on its own. */
+  heading?: 'h2' | 'h3';
+}
+
+const { reference, entry = null, heading = 'h2' } = Astro.props;
+const Heading = heading;
+
+const size = [
+  reference.length_inches ? `${reference.length_inches}″` : null,
+  reference.ring_gauge ? `ring ${reference.ring_gauge}` : null,
+]
+  .filter(Boolean)
+  .join(' × ');
+
+const facts = [
+  reference.line && { label: 'Line', value: reference.line },
+  reference.vitola && { label: 'Vitola', value: reference.vitola },
+  size && { label: 'Size', value: size },
+  reference.wrapper && { label: 'Wrapper', value: reference.wrapper },
+  reference.binder && { label: 'Binder', value: reference.binder },
+  reference.filler && { label: 'Filler', value: reference.filler },
+  reference.country && { label: 'Country', value: reference.country },
+  reference.factory && { label: 'Factory', value: reference.factory },
+  reference.strength && { label: 'Strength', value: reference.strength },
+].filter(Boolean) as { label: string; value: string }[];
+
+// The vitola table's opinion, recomputed here rather than stored. Free, and a
+// row cached before the table knew a vitola gets checked correctly now.
+const notes = checkDimensions(reference.vitola, reference.length_inches, reference.ring_gauge);
+const disagreements = entry ? compareToEntry(reference, entry) : [];
+
+const sure =
+  reference.confidence === 'high'
+    ? 'said it knew this one'
+    : reference.confidence === 'medium'
+      ? 'was less sure about this size'
+      : 'was reasoning from the brand alone';
+
+const asked = new Date(reference.created_at);
+---
+
+<section class="reference">
+  <p class="reference__eyebrow">Looked up</p>
+  <Heading class="reference__title">{[reference.brand, reference.name].filter(Boolean).join(' ')}</Heading>
+
+  {
+    facts.length > 0 && (
+      <dl class="reference__facts">
+        {facts.map(f => (
+          <div class="reference__fact">
+            <dt>{f.label}</dt>
+            <dd>{f.value}</dd>
+          </div>
+        ))}
+      </dl>
+    )
+  }
+
+  {reference.flavour && <p class="reference__flavour">{reference.flavour}</p>}
+
+  {
+    notes.length > 0 && (
+      <ul class="reference__notes">
+        {notes.map(note => (
+          <li>{note}</li>
+        ))}
+      </ul>
+    )
+  }
+
+  {
+    disagreements.length > 0 && (
+      <div class="reference__disagree">
+        <p class="reference__disagree-label">This entry does not match the lookup</p>
+        <dl class="reference__diffs">
+          {disagreements.map(d => (
+            <div class="reference__diff">
+              <dt>{d.label}</dt>
+              <dd>
+                <span class="reference__mine">{d.yours}</span>
+                <span class="reference__versus">vs</span>
+                <span class="reference__theirs">{d.looked}</span>
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <p class="reference__disagree-note">
+          Yours on the left. Nothing has been changed either way — you had the cigar
+          in front of you and the model did not.
+        </p>
+      </div>
+    )
+  }
+
+  <p class="reference__provenance">
+    Suggested by {reference.model} on {formatDate(asked)}, from “{reference.query}”. It {sure}.
+    Not part of the record — what you wrote is above.
+  </p>
+</section>
+
+<style>
+  /* Deliberately unlike the entry above it. The entry is a centred masthead in
+     display serif; this is a bordered, left-aligned, mono-labelled aside, so
+     the eye does not read the two as one document. */
+  .reference {
+    max-width: 40rem;
+    margin: 3rem auto 0;
+    padding: 1.4rem 1.5rem;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--gold-dim);
+    border-radius: 6px;
+    background: var(--bg-card);
+  }
+
+  .reference__eyebrow {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gold-muted);
+  }
+
+  .reference__title {
+    margin-top: 0.5rem;
+    font-family: var(--display);
+    font-size: 1.3rem;
+    line-height: 1.25;
+    color: var(--text);
+  }
+
+  .reference__facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+    gap: 0.9rem 1.25rem;
+    margin-top: 1.1rem;
+  }
+
+  .reference__fact { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+
+  .reference__fact dt {
+    font-family: var(--mono);
+    font-size: 0.55rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold-label);
+  }
+
+  .reference__fact dd {
+    font-size: 0.92rem;
+    line-height: 1.35;
+    color: var(--text-2);
+    overflow-wrap: anywhere;
+  }
+
+  .reference__flavour {
+    margin-top: 1.1rem;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: var(--text-2);
+  }
+
+  /* Where the vitola disagrees with the dimensions beside it. */
+  .reference__notes {
+    margin: 1.1rem 0 0;
+    padding-left: 1.05rem;
+    list-style: disc;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: var(--text-muted);
+  }
+
+  .reference__notes li::marker { color: var(--danger); }
+
+  /* Where the lookup disagrees with the entry it is attached to. */
+  .reference__disagree {
+    margin-top: 1.2rem;
+    padding: 0.85rem 1rem;
+    border-left: 2px solid var(--danger);
+    background: rgba(232, 119, 106, 0.05);
+  }
+
+  .reference__disagree-label {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--danger);
+  }
+
+  .reference__diffs { margin-top: 0.7rem; display: flex; flex-direction: column; gap: 0.5rem; }
+  .reference__diff { display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; align-items: baseline; }
+
+  .reference__diff dt {
+    flex: 0 0 6.5rem;
+    font-family: var(--mono);
+    font-size: 0.55rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--gold-label);
+  }
+
+  .reference__diff dd {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    align-items: baseline;
+    font-size: 0.88rem;
+  }
+
+  .reference__mine { color: var(--text); }
+  .reference__versus { font-family: var(--mono); font-size: 0.6rem; color: var(--text-faint); }
+  .reference__theirs { color: var(--text-muted); }
+
+  .reference__disagree-note {
+    margin-top: 0.7rem;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--text-faint);
+  }
+
+  .reference__provenance {
+    margin-top: 1.2rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--border-soft);
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    line-height: 1.6;
+    color: var(--gold-muted);
+  }
+</style>

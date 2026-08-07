@@ -2,8 +2,9 @@
 import ClLayout from '../../../../layouts/ClLayout.astro';
 import StarRating from '../../../../components/cl/StarRating.astro';
 import StrengthChip from '../../../../components/cl/StrengthChip.astro';
+import ReferenceBlock from '../../../../components/cl/ReferenceBlock.astro';
 import { resolveWorkspace } from '../../../../lib/workspace';
-import { humidorFrom, loadCigar, loadCigars, smokedFrom } from '../../../../lib/cigar-lounge';
+import { humidorFrom, loadCigar, loadCigars, loadReference, smokedFrom } from '../../../../lib/cigar-lounge';
 import { formatDate, formatDuration, formatSize, photoUrl, restingDays } from '../../../../lib/cigar-helpers';
 
 export const prerender = false;
@@ -25,6 +26,12 @@ const resting = inHumidor ? restingDays(cigar) : null;
 
 // Previous/next within the list this entry belongs to, so the arrows stay in
 // the same ordering the log or humidor page used.
+// What a lookup said about this cigar, when it was filled from one. Null for
+// an entry typed by hand, and null for a signed-out visitor to a public lounge
+// — the cache is readable to members, and what a model said was never part of
+// the published record anyway.
+const reference = cigar.referenceId ? await loadReference(supabase, cigar.referenceId) : null;
+
 const all = await loadCigars(supabase, workspace.id);
 const siblings = inHumidor ? humidorFrom(all) : smokedFrom(all);
 const index = siblings.findIndex(c => c.id === cigar.id);
@@ -121,6 +128,7 @@ const facts = [
           </section>
         )
       }
+      {reference && <ReferenceBlock reference={reference} entry={d} />}
     </article>
 
     {

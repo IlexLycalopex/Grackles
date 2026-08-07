@@ -23,7 +23,7 @@ several people can share a project.
 | ✅ | WBPR migrated off GitHub Pages — nine sessions, five tables, editable in place |
 | ✅ | The WBPR broadcast agent (MiniMax M3) — running; the one-click write-up is the last untested path |
 | ✅ | Cigar Lounge search — a filter box on the log and the humidor, matching words, wrappers and sizes |
-| ✅ | Cigar lookup — schema applied, endpoint and panel on the add form; the reference block on an entry is the last piece |
+| ✅ | Cigar lookup — schema applied, the reference desk, the panel on the add form, and an entry showing what a lookup said about it |
 | ⬜ | WBPR's map and veil pages — left behind in the migration, see below |
 | ✅ | Custom SMTP — Supabase's own magic-link and confirmation emails go out through Resend, alongside the app's invitations |
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
@@ -89,7 +89,8 @@ every value of the enum — so this is the only thing stopping it being offered.
 /cigars/:workspace/new             add to the humidor or the log
 /cigars/:workspace/edit/:slug      edit an entry
 /cigars/:workspace/smoke/:slug     take one out of the humidor
-/api/cigars/:workspace/lookup      what is this cigar? (cache first, then the model)
+/cigars/:workspace/lookup          the reference desk — what is this cigar? (editors only)
+/api/cigars/:workspace/lookup      the same question as JSON (cache first, then the model)
 
 /wbpr/:workspace                   WBPR — the broadcast archive
 /wbpr/:workspace/phenomena         everything seen, folded by key
@@ -425,6 +426,33 @@ Range bounds do the rest, for free: no cigar is fourteen inches long or has a
 ring gauge of 200, so a reply carrying one is wrong in a way that can be caught
 without asking anybody. They are checked in `readLookup` and again as CHECK
 constraints, the first as a courtesy and the second as the guarantee.
+
+### Where a lookup shows up
+
+Three places, and the separation between them is the point.
+
+**The add form** carries the panel. It fills blank fields only, marks what it
+filled until you touch it, and does not touch tasting notes — a profile "as
+commonly described" is not your note, so copying it across is a separate press.
+
+**The reference desk**, `/cigars/:workspace/lookup`, is the same endpoint with
+nothing to fill: for checking a cigar you are not adding. A result becomes a
+URL — `?reference=<id>` — so it can be kept or passed on, and starting an entry
+from one carries only that id. The add page then reads the row and prefills
+server-side, so what lands in the form is what the database holds rather than
+whatever survived a query string.
+
+**An entry** shows the row it was filled from, in a block that is deliberately
+unlike the entry above it: bordered, left-aligned and mono-labelled, against a
+centred serif masthead, so nobody reads the two as one document. It names the
+model, the date and the words that were typed to get it.
+
+That block is also where the two records are held against each other. Where the
+entry and the lookup disagree on a field they both have an opinion about, both
+are shown, yours first, and neither is changed — you had the cigar in front of
+you and the model did not, so a difference is as likely to mean the lookup is
+wrong. Fields blank on either side are absences rather than disagreements and
+are not listed, or the two or three real ones would drown.
 
 ### The gate
 

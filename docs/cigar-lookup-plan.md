@@ -7,9 +7,8 @@ behind it, and the quick-add path from a lookup into the humidor.
 entirely rather than shipped under conditions; the gate is `requireWrite` plus a
 daily cap rather than owner-only.
 
-**Built:** steps 1 through 4 — the filter box, the schema, the endpoint, the
-vitola check and the lookup panel on the add form. The migrations are applied.
-Step 5, the reference block on an entry's own page, is the remaining piece.
+**Built:** all five steps. The migrations are applied. What is left is the
+open questions at the bottom, none of which block anything.
 
 Two things were asked for and they turn out to be one feature seen from two
 ends:
@@ -21,7 +20,8 @@ ends:
 
 Both are *identify a cigar, then hand its details to something*. The something
 is a page in one case and a prefilled form in the other. So there is one
-endpoint, one cache, and two surfaces.
+endpoint, one cache, and — as built — three surfaces: the add form, the
+reference desk, and an entry showing what a lookup said about it.
 
 ## The three-stage search, cheapest first
 
@@ -123,9 +123,11 @@ value is precisely that it is independent of the answer it checks.
 **4. Disagreement is shown, not resolved.** A dimension that contradicts its own
 vitola is reported beside the suggestion and nothing is withheld: we know the
 three fields cannot all be right, and we do not know which one is wrong.
-Guessing would be the same error one level up. The wider version of this — a
-lookup contradicting what the workspace already recorded for the same cigar —
-falls out of step 5, once an entry can show its reference row.
+Guessing would be the same error one level up. The wider version of this is on
+an entry's own page: where the entry and the lookup disagree on a field they
+both have an opinion about, both are shown, yours first, and neither is changed.
+Fields blank on either side are absences rather than disagreements and are not
+listed, or the two or three real ones would drown in them.
 
 ### The Cigar Aficionado rating: dropped
 
@@ -290,13 +292,16 @@ what the database enforces is worth exactly one query to check.
    `lib/cigar-vitolas.ts`, which catches a "Robusto, 7¼″, ring 38" — three
    individually plausible fields that disagree with each other.
 4. ✅ **The lookup panel on `new.astro`** and prefill.
-5. ⬜ **The reference page** and the entry-page block.
+5. ✅ **The reference page** and the entry-page block.
 6. ✅ **README section**, in the shape of the WBPR agent one — what the model is
    asked for, what it is not, and what a lookup costs.
 
-Step 5 is the only one left, and nothing depends on it: an entry filled from a
-lookup already carries `reference_id`, so the block is a join away whenever it
-gets written.
+One thing changed shape in the building. The reference page was planned to hand
+its result across to the add form; instead a result *becomes* a URL there
+(`?reference=<id>`), and only the id travels. That makes the page shareable, and
+it means prefilling happens server-side from the row rather than client-side
+from a query string — so it also works without JavaScript, which the panel's own
+fill does not.
 
 ## Files
 
@@ -317,8 +322,11 @@ gets written.
 | ✅ `src/lib/cigar-vitolas.ts` | vitola dimensions, out of the prompt |
 | ✅ `src/components/cl/CigarLookup.astro` | the panel, its script and the prefill |
 | ✅ `src/pages/cigars/[workspace]/new.astro` | the panel, and `reference_id` on insert |
-| ⬜ `src/pages/cigars/[workspace]/lookup.astro` | the reference page |
-| ⬜ `src/pages/cigars/[workspace]/cigar/[cigar].astro` | the reference block on an entry |
+| ✅ `src/pages/cigars/[workspace]/lookup.astro` | the reference desk |
+| ✅ `src/components/cl/ReferenceBlock.astro` | the block, and the disagreement list |
+| ✅ `src/pages/cigars/[workspace]/cigar/[cigar].astro` | the block on an entry |
+| ✅ `src/components/cl/CigarFields.astro` | lookup defaults and suggested-value marking |
+| ✅ `src/layouts/ClLayout.astro` | the reference desk in the nav, for editors |
 
 ## Open questions
 

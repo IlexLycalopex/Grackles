@@ -1002,3 +1002,17 @@ textarea.cigar-form__input { resize: vertical; line-height: 1.55; }
   border-color: var(--border-gold);
   background: rgba(214, 162, 78, 0.09);
 }
+
+/* The line above the add form when it was opened from a lookup. */
+.cigar-form__prefilled {
+  max-width: 720px;
+  margin: 1.25rem 0 0;
+  padding: 0.7rem 0.95rem;
+  border-left: 3px solid var(--border-gold);
+  background: rgba(214, 162, 78, 0.06);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.cigar-form__prefilled strong { color: var(--text); font-weight: normal; }

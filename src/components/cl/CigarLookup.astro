@@ -22,9 +22,16 @@ interface Props {
   base: string;
   /** The lounge's own entries. Stage zero, and the only free one. */
   cigars: Cigar[];
+  /**
+   * `form` sits above the add form and fills it in place. `standalone` is the
+   * reference page, where there is nothing to fill — a result offers to start
+   * an entry instead, carrying only the reference id, so the prefilling happens
+   * server-side on the page that has the form.
+   */
+  mode?: 'form' | 'standalone';
 }
 
-const { endpoint, base, cigars } = Astro.props;
+const { endpoint, base, cigars, mode = 'form' } = Astro.props;
 
 const local = cigars.map(cigar => ({
   id: cigar.id,
@@ -37,7 +44,13 @@ const local = cigars.map(cigar => ({
 }));
 ---
 
-<section class="cigar-lookup" data-cigar-lookup data-endpoint={endpoint} hidden>
+<section
+  class="cigar-lookup"
+  data-cigar-lookup
+  data-endpoint={endpoint}
+  data-mode={mode}
+  hidden
+>
   <p class="cigar-lookup__label">Look it up</p>
 
   <div class="cigar-lookup__row">
@@ -116,8 +129,13 @@ const local = cigars.map(cigar => ({
     const go = panel.querySelector<HTMLButtonElement>('[data-lookup-go]');
     const status = panel.querySelector<HTMLElement>('[data-lookup-status]');
     const results = panel.querySelector<HTMLElement>('[data-lookup-result]');
+    const standalone = panel.dataset.mode === 'standalone';
+
+    // Absent on the reference page, and that is the whole difference between
+    // the two modes — so it is optional here rather than a reason to bail.
     const form = document.querySelector<HTMLFormElement>('.cigar-form');
-    if (!endpoint || !input || !go || !status || !results || !form) continue;
+    if (!endpoint || !input || !go || !status || !results) continue;
+    if (!standalone && !form) continue;
 
     panel.hidden = false;
 
@@ -208,24 +226,30 @@ const local = cigars.map(cigar => ({
 
       const actions = el('div', 'cigar-lookup__actions');
 
-      const use = el('button', 'cigar-lookup__use', 'Fill the blanks below') as HTMLButtonElement;
-      use.type = 'button';
-      use.addEventListener('click', () => fill(match));
-      actions.append(use);
+      // Standalone only reaches here for a match with no id — a lookup that
+      // could not be cached — which is exactly the case that cannot be
+      // permalinked. Anything with an id has already navigated. There is
+      // nothing to offer: no form to fill, and no row to start an entry from.
+      if (!standalone && form) {
+        const use = el('button', 'cigar-lookup__use', 'Fill the blanks below') as HTMLButtonElement;
+        use.type = 'button';
+        use.addEventListener('click', () => fill(match));
+        actions.append(use);
 
-      if (match.flavour) {
-        const copy = el('button', 'cigar-lookup__copy', 'Copy the profile into tasting notes') as HTMLButtonElement;
-        copy.type = 'button';
-        copy.addEventListener('click', () => {
-          const notes = form.querySelector<HTMLTextAreaElement>('[name="tasting_notes"]');
-          if (!notes || notes.value.trim()) return;
-          notes.value = match.flavour ?? '';
-          mark(notes);
-        });
-        actions.append(copy);
+        if (match.flavour) {
+          const copy = el('button', 'cigar-lookup__copy', 'Copy the profile into tasting notes') as HTMLButtonElement;
+          copy.type = 'button';
+          copy.addEventListener('click', () => {
+            const notes = form.querySelector<HTMLTextAreaElement>('[name="tasting_notes"]');
+            if (!notes || notes.value.trim()) return;
+            notes.value = match.flavour ?? '';
+            mark(notes);
+          });
+          actions.append(copy);
+        }
       }
 
-      results.append(actions);
+      if (actions.childElementCount) results.append(actions);
 
       // Alternates are names only, so following one is another lookup — which
       // usually lands in the cache rather than on the model.
@@ -259,7 +283,7 @@ const local = cigars.map(cigar => ({
     };
 
     const set = (name: string, value: string | null | undefined) => {
-      if (!value) return 0;
+      if (!value || !form) return 0;
       const field = form.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`);
       if (!field || field.value.trim()) return 0;
       field.value = value;
@@ -271,6 +295,7 @@ const local = cigars.map(cigar => ({
     };
 
     const fill = (match: Match) => {
+      if (!form) return;
       let filled = 0;
       filled += set('name', match.name);
       filled += set('brand', match.brand);
@@ -329,6 +354,15 @@ const local = cigars.map(cigar => ({
 
         if (!data.match) {
           status.textContent = 'Nothing came back for that one. Fill the form in by hand.';
+          return;
+        }
+
+        // On the reference desk a result becomes a page rather than a panel:
+        // the full block renders server-side with its provenance and its vitola
+        // check, and the URL is one somebody can keep or pass on. The panel's
+        // own summary would be a second, thinner rendering of the same row.
+        if (standalone && data.match.id) {
+          window.location.href = `${window.location.pathname}?reference=${encodeURIComponent(data.match.id)}`;
           return;
         }
 

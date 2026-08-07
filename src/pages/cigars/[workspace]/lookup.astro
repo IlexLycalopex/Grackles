@@ -1,0 +1,92 @@
+---
+import ClLayout from '../../../layouts/ClLayout.astro';
+import CigarLookup from '../../../components/cl/CigarLookup.astro';
+import ReferenceBlock from '../../../components/cl/ReferenceBlock.astro';
+import { requireWrite } from '../../../lib/workspace';
+import { loadCigars, loadReference } from '../../../lib/cigar-lounge';
+
+export const prerender = false;
+
+/**
+ * The reference desk: what is this cigar, without adding one.
+ *
+ * Gated with `requireWrite` rather than left open to viewers, because this is
+ * the page whose button spends money — the same gate the endpoint enforces, so
+ * a viewer is told here rather than being shown a control that answers 403.
+ *
+ * Static segment, so it beats nothing: its siblings at this level are all
+ * static too (`humidor`, `stats`, `new`), and the dynamic cigar routes are a
+ * directory deeper. The rule in the README about `pick/new` winning over
+ * `pick/[selection]` has no bearing here, but it is the reason to check.
+ */
+const { supabase, user } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const gate = await requireWrite(
+  supabase,
+  'cigar-lounge',
+  wsSlug,
+  user?.id ?? null,
+  Astro.url.pathname + Astro.url.search
+);
+if (!gate.ok) return gate.response;
+const workspace = gate.workspace;
+
+const base = `/cigars/${workspace.slug}`;
+
+// Stage zero, the same as on the add page: this lounge's own entries, matched
+// in the browser for nothing before anybody presses the button.
+const owned = await loadCigars(supabase, workspace.id);
+
+// A permalink to something already looked up — what the panel links to when it
+// offers an alternate, and what somebody pastes to a friend. Rendered by the
+// same block the entry page uses, without an entry to compare against.
+const wanted = Astro.url.searchParams.get('reference');
+const reference = wanted ? await loadReference(supabase, wanted) : null;
+---
+
+<ClLayout title={`Look a cigar up · ${workspace.name}`} workspace={workspace}>
+  <div class="container">
+    <div class="page-header">
+      <p class="eyebrow">The reference desk</p>
+      <h1>Look a cigar up</h1>
+      <p class="subtitle">
+        What a cigar is, without adding one. Anything this lounge already holds
+        answers instantly and for nothing; the button asks the model, and what it
+        finds is kept so nobody pays for the same cigar twice.
+      </p>
+    </div>
+
+    <CigarLookup
+      endpoint={`/api/cigars/${workspace.slug}/lookup`}
+      base={base}
+      cigars={owned}
+      mode="standalone"
+    />
+
+    {reference && <ReferenceBlock reference={reference} heading="h2" />}
+
+    {
+      reference && (
+        <p class="reference-actions">
+          <a class="record-actions__btn record-actions__btn--primary" href={`${base}/new?status=humidor&reference=${reference.id}`}>
+            Add one to the humidor
+          </a>
+          <a class="record-actions__btn" href={`${base}/new?status=smoked&reference=${reference.id}`}>
+            Log one smoked
+          </a>
+        </p>
+      )
+    }
+  </div>
+</ClLayout>
+
+<style>
+  .reference-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+    max-width: 40rem;
+    margin: 1.5rem auto 4rem;
+  }
+</style>

@@ -1,6 +1,6 @@
 import type { ChatMessage } from './minimax';
 import { oneOf, oneOfOrNull, parseJsonObject } from './json';
-import { fold, matches, parseQuery, type Query } from './cigar-search';
+import { fold, lengthInches, matches, parseQuery, type Query } from './cigar-search';
 import { STRENGTHS, type Strength } from './records/cigar';
 import { slugify } from './slug';
 
@@ -211,6 +211,92 @@ export function referenceKey(reference: {
 }): string {
   const stem = slugify([reference.brand, reference.name].filter(Boolean).join(' '));
   return reference.ring_gauge ? `${stem}-${reference.ring_gauge}` : stem;
+}
+
+/**
+ * A reference row as it comes back out of the database.
+ *
+ * The provenance columns are on it because they are the point: a row is a claim
+ * somebody's lookup produced, and a page showing one has to be able to say when
+ * it was produced, by which model, and how sure it said it was.
+ */
+export interface StoredReference extends CigarReference {
+  id: string;
+  key: string;
+  query: string;
+  model: string;
+  created_at: string;
+}
+
+/** One field where the entry and the lookup do not agree. */
+export interface Disagreement {
+  label: string;
+  /** What the entry records. */
+  yours: string;
+  /** What the lookup claims. */
+  looked: string;
+}
+
+/**
+ * Where an entry and the reference it was filled from have drifted apart.
+ *
+ * Only fields where *both* have something to say: a blank on either side is not
+ * a disagreement, it is an absence, and reporting it would bury the two or
+ * three real ones under a list of things nobody filled in.
+ *
+ * Nothing is corrected. You have the cigar in front of you and the model does
+ * not, so where the two differ the interesting fact is simply that they do —
+ * and it is as likely to mean the lookup was wrong as that you typed the wrong
+ * thing.
+ */
+export function compareToEntry(
+  reference: Pick<
+    StoredReference,
+    'brand' | 'vitola' | 'wrapper' | 'country' | 'strength' | 'ring_gauge' | 'length_inches'
+  >,
+  entry: {
+    brand?: string;
+    vitola?: string;
+    wrapper?: string;
+    country?: string;
+    strength?: string;
+    ringGauge?: number;
+    length?: string;
+  }
+): Disagreement[] {
+  const out: Disagreement[] = [];
+
+  const text = (label: string, yours: string | undefined, looked: string) => {
+    if (!yours || !looked) return;
+    if (fold(yours) === fold(looked)) return;
+    out.push({ label, yours, looked });
+  };
+
+  text('Brand', entry.brand, reference.brand);
+  text('Vitola', entry.vitola, reference.vitola);
+  text('Wrapper', entry.wrapper, reference.wrapper);
+  text('Country', entry.country, reference.country);
+  text('Strength', entry.strength, reference.strength ?? '');
+
+  if (entry.ringGauge && reference.ring_gauge && entry.ringGauge !== reference.ring_gauge) {
+    out.push({ label: 'Ring gauge', yours: String(entry.ringGauge), looked: String(reference.ring_gauge) });
+  }
+
+  // Compared as numbers, so `4 7/8"` and 4.875 agree rather than differing as
+  // strings. The tolerance is the search box's, for the same reason: a marque
+  // that rounds 4.9 to 5 on the box has not contradicted anybody.
+  const yourLength = lengthInches(entry.length);
+  if (yourLength !== null && reference.length_inches !== null) {
+    if (Math.abs(yourLength - reference.length_inches) > 0.2) {
+      out.push({
+        label: 'Length',
+        yours: entry.length ?? String(yourLength),
+        looked: `${reference.length_inches}″`,
+      });
+    }
+  }
+
+  return out;
 }
 
 /** The searchable text of a cached row, in the same form a cigar card carries. */
