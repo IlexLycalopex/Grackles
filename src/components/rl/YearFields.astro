@@ -1,6 +1,7 @@
 ---
 import { fieldValue } from '../../lib/forms';
 import type { YearData } from '../../lib/reading-list';
+import { YEAR_STATUSES, YEAR_STATUS_LABELS, defaultStatusFor } from '../../lib/records/year';
 
 interface Props {
   year: YearData | null;
@@ -13,7 +14,11 @@ const { year, defaultYear, submitted = null } = Astro.props;
 const v = (key: string, stored?: string | number | null, fallback: string | number = '') =>
   fieldValue(submitted, key, stored, fallback);
 
-const status = v('status', year?.status, 'active');
+// A year created ahead of the calendar opens as a plan; this year's opens as
+// in progress. Editing an existing year shows what it already says.
+const status = v('status', year?.status, defaultStatusFor(year?.year ?? defaultYear));
+
+const recorded = year?.books.length ?? 0;
 ---
 
 <label class="book-form__field">
@@ -40,14 +45,35 @@ const status = v('status', year?.status, 'active');
   <label class="book-form__field">
     <span class="book-form__label">Status</span>
     <select class="book-form__input" name="status">
-      <option value="active" selected={status === 'active'}>In progress</option>
-      <option value="complete" selected={status === 'complete'}>Complete</option>
+      {
+        YEAR_STATUSES.map(s => (
+          <option value={s} selected={status === s}>
+            {YEAR_STATUS_LABELS[s]}
+          </option>
+        ))
+      }
     </select>
+    <span class="book-form__hint">
+      A year in planning is next year's list, built before it starts. It is kept out of the totals
+      and is never the year a book is filed under by default — move it to <em>in progress</em> when
+      the year comes round.
+    </span>
   </label>
 
   <label class="book-form__field">
     <span class="book-form__label">Target</span>
-    <input class="book-form__input" type="number" name="total_books" min="0" value={v('total_books', year?.total_books)} />
-    <span class="book-form__hint">How many books you are aiming for. Leave blank if you are not counting.</span>
+    <input
+      class="book-form__input"
+      type="number"
+      name="total_books"
+      min="1"
+      value={v('total_books', year?.total_books)}
+    />
+    <span class="book-form__hint">
+      How many books you are aiming for. Shown as a progress bar on the year and on the overview —
+      against the calendar while the year runs, and against the list while it is being planned.
+      {recorded > 0 && ` ${recorded} book${recorded === 1 ? '' : 's'} recorded so far.`}
+      Leave blank if you are not counting.
+    </span>
   </label>
 </div>

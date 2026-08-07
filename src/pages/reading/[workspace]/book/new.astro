@@ -2,7 +2,7 @@
 import RlLayout from '../../../../layouts/RlLayout.astro';
 import BookFields from '../../../../components/rl/BookFields.astro';
 import { requireWrite } from '../../../../lib/workspace';
-import { loadYears } from '../../../../lib/reading-list';
+import { currentYear, loadYears } from '../../../../lib/reading-list';
 import { readBook } from '../../../../lib/records/book';
 import { describeWriteError } from '../../../../lib/records/save';
 
@@ -24,12 +24,17 @@ const workspace = gate.workspace;
 const base = `/reading/${workspace.slug}`;
 const years = await loadYears(supabase, workspace.id);
 
-// No years yet, so there is nothing to file a book under.
-if (years.length === 0) return Astro.redirect(`${base}/year/new`);
-
-// The year the button was pressed on, else the most recent.
+// The year the button was pressed on, else the one under way — deliberately
+// not the newest, which is next year's plan once one exists. No years at all
+// means there is nothing to file a book under.
 const requested = Number(Astro.url.searchParams.get('year'));
-const year = years.find(y => y.year === requested) ?? years[0]!;
+const year = years.find(y => y.year === requested) ?? currentYear(years);
+if (!year) return Astro.redirect(`${base}/year/new`);
+
+// A book put on a year that has not started is by definition not read yet, so
+// the form opens with "coming up" ticked. It is a checkbox like any other and
+// can be cleared.
+const planning = year.status === 'planning';
 
 /**
  * The next free position in a year.
@@ -81,7 +86,9 @@ const orderRead = await nextPosition(year.id);
   <div class="container">
     <div class="page-header">
       <h1>Add a book</h1>
-      <p class="subtitle">Book {orderRead} of {year.year}</p>
+      <p class="subtitle">
+        {planning ? `Book ${orderRead} of the ${year.year} plan` : `Book ${orderRead} of ${year.year}`}
+      </p>
     </div>
 
     {error && <p class="form-error" role="alert">{error}</p>}
@@ -90,7 +97,7 @@ const orderRead = await nextPosition(year.id);
       <BookFields
         book={null}
         years={years}
-        defaults={{ yearId: year.id, orderRead }}
+        defaults={{ yearId: year.id, orderRead, comingUp: planning }}
         submitted={submitted}
       />
 

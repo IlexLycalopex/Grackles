@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
+import { YEAR_STATUSES, type YearStatus } from './records/year';
 
 /**
  * Data access for the Reading List.
@@ -38,15 +39,26 @@ export interface Book {
 
 export interface YearMeta {
   id: string;
-  status: 'complete' | 'active';
+  status: YearStatus;
 }
 
 export interface YearData {
   id: string;
   year: number;
-  status: 'complete' | 'active';
+  status: YearStatus;
   total_books: number | null;
   books: Book[];
+}
+
+/**
+ * The status column is plain text, so a row can in principle say anything the
+ * CHECK constraint has been widened to allow but this build has not heard of.
+ * A year that has started is the safe reading of an unknown value: it is the
+ * only one of the three that neither hides the year's books from the totals
+ * nor claims they were all read.
+ */
+function toStatus(raw: string | null): YearStatus {
+  return (YEAR_STATUSES as readonly string[]).includes(raw ?? '') ? (raw as YearStatus) : 'active';
 }
 
 const BOOK_COLUMNS = `
@@ -100,7 +112,7 @@ export async function loadYears(
   return (data ?? []).map(y => ({
     id: y.id,
     year: y.year,
-    status: y.status === 'complete' ? 'complete' : 'active',
+    status: toStatus(y.status),
     total_books: y.total_books,
     books: [],
   }));
@@ -129,10 +141,28 @@ export async function loadYear(
   return {
     id: yearRow.id,
     year: yearRow.year,
-    status: yearRow.status === 'complete' ? 'complete' : 'active',
+    status: toStatus(yearRow.status),
     total_books: yearRow.total_books,
     books: (books ?? []).map(toBook),
   };
+}
+
+/**
+ * The year a page means when nobody said which one.
+ *
+ * Not simply the newest: years come back newest-first, so once next year exists
+ * as a plan it is the newest, and "add a book" would file this evening's book
+ * under a year that has not started. The year under way is the one still being
+ * read — falling back to the newest year that is at least not a plan, and only
+ * then to the newest of all, which is the answer when every year is a plan.
+ */
+export function currentYear(years: YearData[]): YearData | null {
+  return (
+    years.find(y => y.status === 'active') ??
+    years.find(y => y.status !== 'planning') ??
+    years[0] ??
+    null
+  );
 }
 
 export async function loadAllBooks(
@@ -224,3 +254,80 @@ export function statsFor(books: Book[]): ReadingStats {
     audioPct: totalBooks > 0 ? Math.round((audioCount / totalBooks) * 100) : 0,
   };
 }
+
+// ── The target ──────────────────────────────────────────────────────
+
+export interface YearProgress {
+  target: number;
+  /** Books that count: read, in a year under way — chosen, in one being planned. */
+  counted: number;
+  /** Books still wanted. Zero once the target is reached, never negative. */
+  remaining: number;
+  /** 0–100, capped so the bar cannot overflow. `over` is the honest answer. */
+  percent: number;
+  over: boolean;
+  /**
+   * Only for a year in progress *right now*: how many books the target implies
+   * by today's date, and how far ahead (+) or behind (−) of it the year is.
+   * Null for a plan, for a finished year, and for a year left marked in
+   * progress after it ended — a pace against a date already passed is noise.
+   */
+  pace: { expected: number; delta: number } | null;
+}
+
+/**
+ * How a year stands against its target, or null when it has none.
+ *
+ * What counts depends on the state of the year, and the difference matters:
+ *
+ * - A year under way or finished counts books **read**, so anything flagged
+ *   `coming_up` is excluded. Counting intentions would let a target be met by
+ *   writing a list, which is the one thing a target exists to rule out.
+ * - A year being planned counts **every** book in it, because choosing them is
+ *   the whole activity. Its books are all `coming_up` by definition, and
+ *   excluding them would make every plan read as zero.
+ *
+ * `today` is a parameter so the pace is testable and does not change meaning
+ * between a page render and a test run.
+ */
+export function yearProgress(
+  year: { year: number; status: YearStatus; total_books: number | null },
+  books: Book[],
+  today = new Date()
+): YearProgress | null {
+  const target = year.total_books;
+  if (target === null || target < 1) return null;
+
+  const counted =
+    year.status === 'planning' ? books.length : books.filter(b => !b.coming_up).length;
+
+  return {
+    target,
+    counted,
+    remaining: Math.max(0, target - counted),
+    percent: Math.min(100, Math.round((counted / target) * 100)),
+    over: counted > target,
+    pace: year.status === 'active' && year.year === today.getFullYear()
+      ? paceFor(target, counted, today)
+      : null,
+  };
+}
+
+/**
+ * The target spread evenly across the year, read at today's date.
+ *
+ * Deliberately linear. Reading is not evenly paced — a fortnight off does more
+ * for the count than a fortnight of work — but a target is a flat number and
+ * the only pace that can be checked against it is a flat one. Anything cleverer
+ * would be a model of a reading year, and it would be wrong about this one.
+ */
+function paceFor(target: number, counted: number, today: Date) {
+  const start = Date.UTC(today.getFullYear(), 0, 1);
+  const end = Date.UTC(today.getFullYear() + 1, 0, 1);
+  const now = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+
+  const elapsed = (now - start) / (end - start);
+  const expected = Math.round(target * elapsed);
+  return { expected, delta: counted - expected };
+}
+

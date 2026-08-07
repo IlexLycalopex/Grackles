@@ -14,7 +14,7 @@ interface Props {
   book: Book | null;
   years: YearData[];
   /** For a new book: the year it is being added to and its position in it. */
-  defaults?: { yearId?: string; orderRead?: number };
+  defaults?: { yearId?: string; orderRead?: number; comingUp?: boolean };
   submitted?: FormData | null;
 }
 
@@ -31,7 +31,14 @@ const format = v('format', book?.format, 'print');
   <label class="book-form__field">
     <span class="book-form__label">Year read</span>
     <select class="book-form__input" name="year_id" required>
-      {years.map(y => <option value={y.id} selected={y.id === yearId}>{y.year}</option>)}
+      {
+        years.map(y => (
+          <option value={y.id} selected={y.id === yearId}>
+            {y.year}
+            {y.status === 'planning' ? ' — planning' : ''}
+          </option>
+        ))
+      }
     </select>
   </label>
 
@@ -115,7 +122,11 @@ const format = v('format', book?.format, 'print');
     <span>Currently reading</span>
   </label>
   <label class="book-form__check">
-    <input type="checkbox" name="coming_up" checked={fieldChecked(submitted, 'coming_up', book?.coming_up)} />
+    <input
+      type="checkbox"
+      name="coming_up"
+      checked={fieldChecked(submitted, 'coming_up', book?.coming_up ?? defaults.comingUp)}
+    />
     <span>Coming up</span>
   </label>
 </div>

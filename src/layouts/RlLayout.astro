@@ -49,8 +49,9 @@ const { user } = Astro.locals;
             years.map(y => (
               <a
                 href={`${base}/${y.year}`}
-                class={`site-nav__pill site-nav__pill--year${pathname === `${base}/${y.year}` ? ' active' : ''}`}
+                class={`site-nav__pill site-nav__pill--year${y.status === 'planning' ? ' site-nav__pill--planning' : ''}${pathname === `${base}/${y.year}` ? ' active' : ''}`}
                 aria-current={pathname === `${base}/${y.year}` ? 'page' : undefined}
+                title={y.status === 'planning' ? `${y.year} — in planning` : undefined}
               >
                 {y.year}
               </a>

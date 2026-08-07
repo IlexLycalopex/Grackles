@@ -4,7 +4,7 @@ import YearFields from '../../../../components/rl/YearFields.astro';
 import { requireWrite } from '../../../../lib/workspace';
 import { loadYear, loadYears } from '../../../../lib/reading-list';
 import ConfirmDelete from '../../../../components/ConfirmDelete.astro';
-import { readYear } from '../../../../lib/records/year';
+import { YEAR_STATUS_LABELS, readYear } from '../../../../lib/records/year';
 import { NOTHING_DELETED, describeDeleteError, describeWriteError } from '../../../../lib/records/save';
 
 export const prerender = false;
@@ -92,7 +92,9 @@ if (Astro.request.method === 'POST') {
     <div class="page-header">
       <h1>{year.year}</h1>
       <p class="subtitle">
-        {year.books.length} book{year.books.length !== 1 ? 's' : ''} recorded
+        {year.books.length} book{year.books.length !== 1 ? 's' : ''}
+        {year.status === 'planning' ? ' chosen' : ' recorded'} ·
+        {YEAR_STATUS_LABELS[year.status].toLowerCase()}
       </p>
     </div>
 
@@ -106,7 +108,7 @@ if (Astro.request.method === 'POST') {
           consequences={
             year.books.length > 0
               ? [
-                  `All ${year.books.length} book${year.books.length === 1 ? '' : 's'} recorded in ${year.year} will be deleted with it.`,
+                  `All ${year.books.length} book${year.books.length === 1 ? '' : 's'} ${year.status === 'planning' ? 'chosen for' : 'recorded in'} ${year.year} will be deleted with it.`,
                   'They will disappear from the author and publisher pages too.',
                 ]
               : ['Nothing has been recorded in this year yet.']

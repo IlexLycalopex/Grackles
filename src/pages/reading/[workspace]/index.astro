@@ -1,8 +1,9 @@
 ---
 import RlLayout from '../../../layouts/RlLayout.astro';
 import BookCard from '../../../components/rl/BookCard.astro';
+import YearProgress from '../../../components/rl/YearProgress.astro';
 import { resolveWorkspace } from '../../../lib/workspace';
-import { loadAllBooks, loadYears, statsFor } from '../../../lib/reading-list';
+import { loadAllBooks, loadYears, statsFor, yearProgress } from '../../../lib/reading-list';
 
 export const prerender = false;
 
@@ -18,16 +19,30 @@ const [years, allBooks] = await Promise.all([
 ]);
 
 const base = `/reading/${workspace.slug}`;
-const stats = statsFor(allBooks);
-const nowReading = allBooks.filter(b => b.reading);
 
 // Per-year counts come from the books actually loaded rather than the stored
 // total_books, so the page never claims more than it can show.
-const byYear = new Map<number, typeof allBooks>();
+const byYear = new Map<string, typeof allBooks>();
 for (const b of allBooks) {
-  if (!byYear.has(b.year_read)) byYear.set(b.year_read, []);
-  byYear.get(b.year_read)!.push(b);
+  if (!byYear.has(b.year_id)) byYear.set(b.year_id, []);
+  byYear.get(b.year_id)!.push(b);
 }
+
+/**
+ * The totals count what has been read, so a year still being planned is left
+ * out of every one of them. Adding twenty books to next year should not move
+ * the pages read, the audio share, or the number of years on the shelf — the
+ * headline figures are claims about what happened, and a plan has not happened.
+ */
+const planningYears = years.filter(y => y.status === 'planning');
+const planningIds = new Set(planningYears.map(y => y.id));
+const readBooks = allBooks.filter(b => !planningIds.has(b.year_id));
+
+const stats = statsFor(readBooks);
+const yearsRead = years.length - planningYears.length;
+const plannedCount = allBooks.length - readBooks.length;
+
+const nowReading = readBooks.filter(b => b.reading);
 ---
 
 <RlLayout
@@ -39,7 +54,13 @@ for (const b of allBooks) {
   <div class="container">
     <div class="page-header">
       <h1>{workspace.name}</h1>
-      <p class="subtitle">Years of reading. Everything finished.</p>
+      <p class="subtitle">
+        {
+          planningYears.length > 0
+            ? `Years of reading. Everything finished, and ${planningYears.length === 1 ? `${planningYears[0]!.year}` : `${planningYears.length} years`} still being planned.`
+            : 'Years of reading. Everything finished.'
+        }
+      </p>
     </div>
 
     <div class="stats-strip">
@@ -52,13 +73,21 @@ for (const b of allBooks) {
         <span class="stat__label">Pages</span>
       </div>
       <div class="stat">
-        <span class="stat__value">{years.length}</span>
+        <span class="stat__value">{yearsRead}</span>
         <span class="stat__label">Years</span>
       </div>
       <div class="stat">
         <span class="stat__value">{stats.audioPct}%</span>
         <span class="stat__label">Audio</span>
       </div>
+      {
+        plannedCount > 0 && (
+          <div class="stat stat--planned">
+            <span class="stat__value">{plannedCount}</span>
+            <span class="stat__label">Planned</span>
+          </div>
+        )
+      }
     </div>
 
     {
@@ -91,16 +120,26 @@ for (const b of allBooks) {
     <div class="year-grid">
       {
         years.map(y => {
-          const books = byYear.get(y.year) ?? [];
+          const books = byYear.get(y.id) ?? [];
           const pages = books.reduce((s, b) => s + (b.pages ?? 0), 0);
+          const planning = y.status === 'planning';
+          const progress = yearProgress(y, books);
           return (
-            <a class="year-card" href={`${base}/${y.year}`}>
+            <a
+              class:list={['year-card', planning && 'year-card--planning']}
+              href={`${base}/${y.year}`}
+            >
               <span class="year-card__year">{y.year}</span>
               <span class="year-card__count">
                 {books.length} book{books.length !== 1 ? 's' : ''}
+                {planning ? ' chosen' : ''}
               </span>
-              <span class="year-card__pages">{pages.toLocaleString('en-GB')} pages</span>
+              {!planning && (
+                <span class="year-card__pages">{pages.toLocaleString('en-GB')} pages</span>
+              )}
+              {progress && <YearProgress progress={progress} status={y.status} compact />}
               {y.status === 'active' && <span class="year-card__active">In progress</span>}
+              {planning && <span class="year-card__planning">In planning</span>}
             </a>
           );
         })

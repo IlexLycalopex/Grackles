@@ -165,6 +165,66 @@ not raise, it narrows the statement to zero rows and reports success. Without
 the check, a viewer whose role changed mid-session would be told the record was
 deleted while it sat there untouched.
 
+## Planning next year
+
+A reading year is `planning`, `active` or `complete`. The third state is the new
+one, and it exists because next year's list gets built while this year is still
+being read.
+
+Written as `active` it would be a *second* year in progress, and that breaks one
+thing in particular: years come back newest-first, so every page that wants "the
+year this list is on" would take the plan. Adding a book in November would file
+it under a year that has not started. `currentYear()` is that question asked
+once — the newest year still being read, skipping over anything being planned —
+and `book/new` is what asks it. **The year under way stays the default
+everywhere; a plan is only ever reached by asking for it by name.**
+
+A year created ahead of the calendar opens as a plan, and a book added to one
+opens with *coming up* ticked. Both are defaults on a form, not rules: the
+status is a field and the checkbox is a checkbox.
+
+The overview leaves plans out of its totals — books, pages, years, audio share.
+Those numbers are claims about what happened, and twenty books chosen for next
+year should not move any of them. They are counted separately, under *Planned*.
+The authors and publishers pages do include them, on the same footing as any
+book already marked *coming up*; those pages are a catalogue of the list rather
+than a tally of it.
+
+## The target
+
+`rl_years.total_books` was collected by the form and read by nothing. It now
+draws a bar in two places — the year's own page and its card on the overview —
+and what it is measured against depends on what the year is:
+
+| | |
+|---|---|
+| planning | books chosen against books wanted, and how many are still to choose |
+| active | books read against the target, **and against the calendar** — the target spread evenly across the year, read at today's date, so the year is so many ahead of or behind pace |
+| complete | met, beaten, or short by so many |
+
+Two things decide what counts, and they differ on purpose. A year under way
+counts only books that are not `coming_up`: counting intentions would let a
+target be met by writing a list, which is the one thing a target exists to rule
+out. A year being planned counts every book in it, because choosing them is the
+whole activity and they are all `coming_up` by definition.
+
+The pace is linear, and that is a choice rather than a simplification worth
+fixing. Reading is not evenly paced — a fortnight off does more for the count
+than a fortnight of work — but a target is a flat number, and the only pace that
+can be checked against a flat number is a flat one. Anything cleverer would be a
+model of a reading year, and it would be wrong about this one.
+
+**A target of zero is refused by the form.** Blank means "not counting", which is
+a different thing: zero is a target the year meets before it starts, and every
+reading of it downstream is nonsense.
+
+One thing to know about the imported data: on the years that came across from
+the static site, `total_books` holds the number of books that year *ended up*
+with, not a number set in advance. Every finished year therefore reads as
+exactly met. That is what the column contained; setting real targets on them
+retroactively is the only thing that would change it, and only 2026 onward has
+a target that was a target.
+
 ## WBPR
 
 The fourth app, and the first of the five outside sites to actually move in.

@@ -914,3 +914,89 @@ textarea.book-form__input { resize: vertical; line-height: 1.55; }
   line-height: 1.6;
   color: var(--text-muted);
 }
+
+/* ── A year in planning, and the target ──────────────────────────── */
+
+/* Next year's list is dimmer than the years that happened, and marked in the
+   same slot the "in progress" badge uses, so a card only ever carries one. */
+.year-card--planning { border-style: dashed; }
+
+.year-card__planning {
+  display: block;
+  font-size: 12px;
+  color: var(--text-faint);
+  letter-spacing: 0.04em;
+}
+
+.site-nav__pill--planning { color: var(--text-faint); font-style: italic; }
+
+.stat--planned .stat__value { color: var(--text-muted); }
+
+.year-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 14px 0 0;
+}
+
+/* On the year's own page it is a band under the heading rather than part of a
+   card, so it gets the breathing room the card version cannot afford. */
+.year-progress:not(.year-progress--compact) {
+  margin: 4px 0 8px;
+  padding: 14px 0 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.year-progress__track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  overflow: hidden;
+}
+
+.year-progress--compact .year-progress__track { height: 4px; }
+
+.year-progress__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width var(--transition);
+}
+
+/* A plan is not progress, so it does not get the accent — the bar says how
+   full the list is, not how much reading has been done. */
+.year-progress--planning .year-progress__fill { background: var(--text-faint); }
+.year-progress--complete .year-progress__fill { background: var(--accent-graphic); }
+
+.year-progress__line {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.year-progress--compact .year-progress__line {
+  display: block;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.year-progress__count strong {
+  font-family: var(--display);
+  font-size: 20px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+.year-progress__caption { color: var(--text-faint); }
+
+.year-planning-note {
+  margin-top: 8px;
+  max-width: 60ch;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-faint);
+}

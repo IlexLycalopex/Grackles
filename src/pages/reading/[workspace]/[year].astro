@@ -2,8 +2,9 @@
 import RlLayout from '../../../layouts/RlLayout.astro';
 import BookCard from '../../../components/rl/BookCard.astro';
 import FilterBar from '../../../components/rl/FilterBar.astro';
+import YearProgress from '../../../components/rl/YearProgress.astro';
 import { resolveWorkspace } from '../../../lib/workspace';
-import { loadYear, loadYears, statsFor } from '../../../lib/reading-list';
+import { loadYear, loadYears, statsFor, yearProgress } from '../../../lib/reading-list';
 
 export const prerender = false;
 
@@ -25,6 +26,8 @@ if (!yearData) return new Response('Not found', { status: 404 });
 
 const base = `/reading/${workspace.slug}`;
 const stats = statsFor(yearData.books);
+const progress = yearProgress(yearData, yearData.books);
+const planning = yearData.status === 'planning';
 ---
 
 <RlLayout
@@ -37,17 +40,28 @@ const stats = statsFor(yearData.books);
     <div class="page-header">
       <h1>{year}</h1>
       <p class="subtitle">
-        {stats.totalBooks} book{stats.totalBooks !== 1 ? 's' : ''} ·
-        {stats.totalPages.toLocaleString('en-GB')} pages
+        {stats.totalBooks} book{stats.totalBooks !== 1 ? 's' : ''}
+        {planning ? ' chosen' : ` · ${stats.totalPages.toLocaleString('en-GB')} pages`}
         {yearData.status === 'active' ? ' · in progress' : ''}
+        {planning ? ' · in planning' : ''}
       </p>
+      {
+        planning && (
+          <p class="year-planning-note">
+            This year has not started. Its books are kept out of the totals on the overview until
+            the year is marked in progress.
+          </p>
+        )
+      }
     </div>
+
+    {progress && <YearProgress progress={progress} status={yearData.status} />}
 
     {
       workspace.canWrite && (
         <div class="record-actions">
           <a class="record-actions__btn record-actions__btn--primary" href={`${base}/book/new?year=${year}`}>
-            + Add a book
+            {planning ? '+ Add a book to the plan' : '+ Add a book'}
           </a>
           <a class="record-actions__btn" href={`${base}/year/${year}`}>
             Year settings
@@ -75,7 +89,9 @@ const stats = statsFor(yearData.books);
 
     {
       yearData.books.length === 0 && (
-        <p class="subtitle" style="padding:48px 0;">Nothing recorded for {year} yet.</p>
+        <p class="subtitle" style="padding:48px 0;">
+          {planning ? `Nothing chosen for ${year} yet.` : `Nothing recorded for ${year} yet.`}
+        </p>
       )
     }
   </div>
