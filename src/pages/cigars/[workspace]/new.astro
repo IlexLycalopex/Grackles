@@ -1,6 +1,7 @@
 ---
 import ClLayout from '../../../layouts/ClLayout.astro';
 import CigarFields from '../../../components/cl/CigarFields.astro';
+import CigarLookup from '../../../components/cl/CigarLookup.astro';
 import { requireWrite } from '../../../lib/workspace';
 import { loadCigars } from '../../../lib/cigar-lounge';
 import { cigarSlug, readCigar } from '../../../lib/records/cigar';
@@ -31,8 +32,26 @@ const today = new Date().toISOString().slice(0, 10);
 const wanted = Astro.url.searchParams.get('status');
 const startStatus = wanted === 'humidor' ? 'humidor' : 'smoked';
 
+// Stage zero of the lookup: what this lounge already has. Loaded for the panel
+// rather than for the write below, which keeps its own read for the reason
+// stated there.
+const owned = await loadCigars(supabase, workspace.id);
+
 let error: string | null = null;
 let submitted: FormData | null = null;
+
+/**
+ * The reference row an entry was filled from, if the lookup panel filled it.
+ *
+ * Read straight off the form rather than through `readCigar`, and deliberately:
+ * `readCigar` also serves the edit page, which would then carry this column on
+ * every correction and clear it on any form that had never heard of it. This
+ * is only ever set once, by the panel, on the page the panel is on.
+ *
+ * Checked for shape because it goes into a uuid column, where anything else is
+ * a 22P02 rather than a sentence.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 if (Astro.request.method === 'POST') {
   submitted = await Astro.request.formData();
@@ -50,9 +69,16 @@ if (Astro.request.method === 'POST') {
       existing.map(c => c.id)
     );
 
+    const referenceId = String(submitted.get('reference_id') ?? '').trim();
+
     const { error: writeError } = await supabase
       .from('cl_cigars')
-      .insert({ workspace_id: workspace.id, slug, ...parsed.values });
+      .insert({
+        workspace_id: workspace.id,
+        slug,
+        ...parsed.values,
+        reference_id: UUID.test(referenceId) ? referenceId : null,
+      });
 
     if (writeError) {
       error = describeWriteError(writeError, 'cl_cigars insert');
@@ -78,6 +104,8 @@ if (Astro.request.method === 'POST') {
     </div>
 
     {error && <p class="form-error" role="alert">{error}</p>}
+
+    <CigarLookup endpoint={`/api/cigars/${workspace.slug}/lookup`} base={base} cigars={owned} />
 
     <form method="POST" class="cigar-form">
       <CigarFields

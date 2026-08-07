@@ -20,7 +20,9 @@ The files in `migrations/` are the additions from 2026-08-05, in apply order:
 | `20260805120400_create_workspace_rpc` | `create_workspace()` — entitlement check, slug handling, default seeding |
 | `20260805120500_tighten_anon_grants` | Withdraws unused write privileges from `anon` (independent of the above) |
 | `20260805120600_invite_lookup` | `invite_email_for_token()` — who an invitation is for, resolved before sign-in |
-| `20260807120000_cigar_reference` | `cl_cigar_reference` — the shared cigar lookup cache — plus `cl_cigars.reference_id`. **Not yet applied.** |
+| `20260807120000_cigar_reference` | `cl_cigar_reference` — the shared cigar lookup cache — plus `cl_cigars.reference_id` |
+| `20260807140000_cigar_lookup_cap` | `app.cigar_lookups_today()`, and the insert policy rewritten to use it — the cap as first written could not run |
+| `20260807150000_cigar_reference_grants` | Withdraws the UPDATE/DELETE/TRUNCATE that Supabase's default privileges had already granted on the new table |
 
 ### What changed conceptually
 
@@ -62,17 +64,42 @@ All seven of the 2026-08-05 migrations are live on `ophmsvqtzffrjmyjyzza` as of 
 filenames here keep their original `1200xx` ordering; the versions in the database are the times they
 actually ran.
 
-`20260807120000_cigar_reference` is **not applied**. It is additive — one new table, one new nullable
-column — so it can go out whenever, but it has to go out before anything calls
-`/api/cigars/:workspace/lookup`, which selects from a table that does not exist yet. Its one
-dependency is `app.can_write()`, which has been there since the core tenancy model.
+The three 2026-08-07 migrations are live as of that date. They must go out together and in order:
+`20260807120000` shipped a policy that could not run, and the two after it are the corrections.
 
-Its insert policy contains a `count(*)` subquery over the table it guards — the daily cap. That is
-unusual enough to be worth knowing about before someone reads it and assumes it is a mistake: the cap
-is a property of the database rather than a courtesy of the route, on the same reasoning that puts
-every other write rule in RLS. It costs a scan of one workspace's rows for the last day, which the
-`(workspace_id, created_at desc)` index serves and which is bounded at fifty by the thing it is
-counting.
+### A policy may not read its own table
+
+`20260807120000` put the daily lookup cap directly in the insert policy, as a correlated subquery
+counting `cl_cigar_reference` — the table the policy is *on*. Postgres answers that with `42P17`,
+infinite recursion: evaluating the `WITH CHECK` reads the table, reading the table invokes its
+policies, and round it goes.
+
+The failure mode is worth naming because it is not the one you would guess. It was not a cap that
+leaked; it was a table that **rejected every insert**, so no lookup could ever have been cached and
+the feature would have been dead on arrival. It had been asserted to work in three places before
+anybody ran it.
+
+`20260807140000` fixes it with `app.cigar_lookups_today()` — `SECURITY DEFINER`, `STABLE`,
+`search_path` pinned, exactly like `app.can_write()` and the seven other helpers. That is what steps
+outside RLS long enough to answer a question about the table being guarded, and it is the pattern
+this schema already had. The cap stops being a special case.
+
+`app` is not an exposed schema, so the new function is reachable from the policy and not as an RPC.
+
+### Naming grants does not withhold the rest
+
+`20260807120000` also said `grant select, insert … to authenticated` and left it there, on the
+assumption that naming two privileges withheld the others. Supabase's default privileges on `public`
+had already granted `authenticated` the full set on the new table, so that GRANT was additive on top
+of DELETE, UPDATE, TRUNCATE and REFERENCES.
+
+Nothing was exposed — there is no update policy and no delete policy, so both resolve to false and a
+tampering UPDATE silently touched zero rows. But it made RLS the sole barrier, which is the same
+finding `20260805120500` was written about. `20260807150000` revokes them, and a tampering UPDATE now
+fails with `42501` at the grant level before RLS is consulted.
+
+The generalisation for anything added later: a new table in `public` starts with full DML granted to
+`authenticated`, so a `GRANT` narrows nothing. Withholding takes a `REVOKE`.
 
 ### `search_path` and citext
 

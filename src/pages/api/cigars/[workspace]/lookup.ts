@@ -6,6 +6,7 @@ import {
   parseQuery, readLookup, referenceKey,
   type CachedRow, type CigarReference,
 } from '../../../../lib/cigar-lookup';
+import { checkDimensions } from '../../../../lib/cigar-vitolas';
 
 export const prerender = false;
 
@@ -30,15 +31,49 @@ export const prerender = false;
  * desk deliberately: a night at the desk is an open-ended spend and the owner's
  * bill, whereas this is one bounded call, and an editor who cannot use quick-add
  * has a feature that does not work for them. The daily cap is what makes the
- * looser gate defensible, and it is a CHECK inside the insert policy as well as
- * a count here — this route tells you what happened in a sentence, the policy is
- * what actually holds.
+ * looser gate defensible, and it is in the insert policy as well as counted
+ * here — this route tells you what happened in a sentence, the policy is what
+ * actually holds.
  */
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
-/** Must agree with the count in `cl_cigar_reference_insert`. */
+/**
+ * The three fields the dimension check reads. Everything else on a match is
+ * passed through untouched, so this is deliberately narrower than the row.
+ */
+interface Measured {
+  vitola: string | null;
+  length_inches: number | null;
+  ring_gauge: number | null;
+}
+
+/**
+ * A match, with whatever the vitola table has to say about it.
+ *
+ * Computed at read rather than stored, and computed for cached rows as well as
+ * fresh ones. It costs nothing, so there is no reason to persist it — and a row
+ * cached before the table knew about a vitola gets checked correctly the next
+ * time somebody asks, which a stored verdict would not.
+ *
+ * The disagreement is reported and nothing is withheld: when a Robusto comes
+ * back 7¼ inches long we know the fields cannot all be right, and we do not
+ * know which one is wrong. Guessing would be the same error one level up.
+ */
+const answered = (
+  source: 'cache' | 'model',
+  match: Measured & Record<string, unknown>,
+  extra: Record<string, unknown> = {}
+) =>
+  json({
+    source,
+    match,
+    notes: checkDimensions(match.vitola ?? '', match.length_inches, match.ring_gauge),
+    ...extra,
+  });
+
+/** Must agree with the ceiling in `app.cigar_lookups_today()`'s caller policy. */
 const DAILY_CAP = 50;
 
 /** How many candidate rows the cache select may return before ranking. */
@@ -97,13 +132,15 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       .eq('id', cached.id)
       .maybeSingle();
 
-    if (full) return json({ source: 'cache', match: full });
+    if (full) return answered('cache', full as Measured & Record<string, unknown>);
   }
 
   // ── Stage 2: the model ─────────────────────────────────────────────
-  // Checked here so a lounge at its limit is told so in a sentence. The policy
-  // on the table is what stops it, and would reject the insert below whether or
-  // not this ran — but a 42501 is not an explanation.
+  // Checked here so a lounge at its limit is told so in a sentence, and before
+  // the call rather than after — a 429 that arrives having already spent the
+  // tokens is a bill for a refusal. `app.cigar_lookups_today()` in the insert
+  // policy is what actually stops it, and would reject the write below whether
+  // or not this ran; a 42501 is simply not an explanation.
   const since = new Date(Date.now() - 86_400_000).toISOString();
   const { count } = await supabase
     .from('cl_cigar_reference')
@@ -146,7 +183,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       query: asked,
       sample: result.content.slice(0, 300),
     });
-    return json({ source: 'model', match: null, usage: result.usage });
+    return json({ source: 'model', match: null, notes: [], usage: result.usage });
   }
 
   const key = referenceKey(reference);
@@ -166,7 +203,9 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     .select(FULL_COLUMNS)
     .single();
 
-  if (stored) return json({ source: 'model', match: stored, usage: result.usage });
+  if (stored) {
+    return answered('model', stored as Measured & Record<string, unknown>, { usage: result.usage });
+  }
 
   // A duplicate key means somebody else's lookup landed on this cigar between
   // our cache read and our write. Theirs is as good as ours and is already
@@ -179,17 +218,21 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       .eq('key', key)
       .maybeSingle();
 
-    if (theirs) return json({ source: 'cache', match: theirs, usage: result.usage });
+    if (theirs) {
+      return answered('cache', theirs as Measured & Record<string, unknown>, { usage: result.usage });
+    }
   }
 
   // Anything else — the cap, most likely, if it filled between the count above
   // and here. The answer is still returned rather than thrown away, because it
   // was paid for; it simply will not be there for the next person.
   console.error('cigar lookup: could not cache', writeError);
-  return json({
-    source: 'model',
-    match: { ...reference, id: null, key } satisfies CigarReference & { id: null; key: string },
-    usage: result.usage,
-    warning: 'That lookup was not saved, so asking again will cost another one.',
-  });
+  return answered(
+    'model',
+    { ...reference, id: null, key } satisfies CigarReference & { id: null; key: string },
+    {
+      usage: result.usage,
+      warning: 'That lookup was not saved, so asking again will cost another one.',
+    }
+  );
 };

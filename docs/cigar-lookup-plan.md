@@ -7,9 +7,9 @@ behind it, and the quick-add path from a lookup into the humidor.
 entirely rather than shipped under conditions; the gate is `requireWrite` plus a
 daily cap rather than owner-only.
 
-**Built:** steps 1 and 2 — the filter box, the schema, and the endpoint. Steps
-3 onward are still a plan. The migration is written but **not applied**, and
-nothing in the UI calls the endpoint yet.
+**Built:** steps 1 through 4 — the filter box, the schema, the endpoint, the
+vitola check and the lookup panel on the add form. The migrations are applied.
+Step 5, the reference block on an entry's own page, is the remaining piece.
 
 Two things were asked for and they turn out to be one feature seen from two
 ends:
@@ -109,18 +109,23 @@ that are visibly not yours.
 back null, with an instruction that an omitted value is better than a guessed
 one. Anything null is simply not offered for prefill.
 
-**3. A local validator, no tokens.** Built in two halves. The range check is
-done: no cigar is fourteen inches long or has a ring gauge of 200, so a reply
-carrying one is wrong in a way `readLookup` catches without asking anybody, and
-the same bounds are CHECK constraints on the table. The vitola cross-check is
-step 3 and not yet built — vitola names carry conventional dimensions, a Robusto
-about 5″ × 50 and a Lancero about 7½″ × 38, so a table in `lib/cigar-vitolas.ts`
-(kept out of the prompt, for the same reason the deck is) would catch a
-"Robusto, 7¼″, ring 38" that is individually plausible in every field.
+**3. A local validator, no tokens.** Two halves, both built. Range bounds in
+`readLookup`: no cigar is fourteen inches long or has a ring gauge of 200, so a
+reply carrying one is wrong in a way that can be caught without asking anybody,
+and the same bounds are CHECK constraints on the table. Then `cigar-vitolas.ts`,
+which holds what a vitola is roughly the size of — a Robusto about 5″ × 50, a
+Lancero about 7½″ × 38 — and is kept out of the prompt for the same reason the
+deck is. It catches "Robusto, 7¼″, ring 38", where every field is individually
+plausible and only their disagreement gives it away. A model handed the expected
+dimensions would return them whether or not it knew this cigar's, so the table's
+value is precisely that it is independent of the answer it checks.
 
-**4. Disagreement is shown, not resolved.** When a lookup contradicts what the
-workspace already recorded for the same cigar, both are displayed. A human
-decides; the app does not silently prefer the newer claim.
+**4. Disagreement is shown, not resolved.** A dimension that contradicts its own
+vitola is reported beside the suggestion and nothing is withheld: we know the
+three fields cannot all be right, and we do not know which one is wrong.
+Guessing would be the same error one level up. The wider version of this — a
+lookup contradicting what the workspace already recorded for the same cigar —
+falls out of step 5, once an entry can show its reference row.
 
 ### The Cigar Aficionado rating: dropped
 
@@ -265,6 +270,14 @@ policy on the table: the route's copies exist to produce a sentence instead of a
 count against the cap, because they do not insert — which is the right
 incentive.
 
+The cap took two more migrations to actually work, and the way it failed is the
+part worth carrying forward. Written as a `count(*)` subquery inside the policy
+over the table the policy guards, it is `42P17` — infinite recursion — and the
+symptom is not a leaky cap but a table that refuses every insert. It reads
+correctly. It was asserted to work here, in the README and in the migration's
+own comments before anybody ran it, which is the actual lesson: a claim about
+what the database enforces is worth exactly one query to check.
+
 ## Order of work
 
 1. ✅ **Local search, no model.** Filter box on the log and the humidor. Ships
@@ -272,18 +285,18 @@ incentive.
 2. ✅ **Schema and endpoint.** `cl_cigar_reference`, the migration, and
    `POST /api/cigars/:workspace/lookup` with the cache check, gate and cap.
    `lib/cigar-lookup.ts` holds the prompt, the parser and the validator.
-3. ⬜ **The vitola table** and the dimensions validator. The endpoint currently
-   validates dimensions against the range the physical world allows, which is
-   free and catches a ring gauge of 200; it does not yet catch a "Robusto,
-   7¼″, ring 38", which needs conventional dimensions per vitola name kept in
-   code rather than in the prompt.
-4. ⬜ **The lookup panel on `new.astro`** and prefill.
+3. ✅ **The vitola table** and the dimensions validator. Two halves: range
+   bounds in `readLookup`, which catch a ring gauge of 200, and
+   `lib/cigar-vitolas.ts`, which catches a "Robusto, 7¼″, ring 38" — three
+   individually plausible fields that disagree with each other.
+4. ✅ **The lookup panel on `new.astro`** and prefill.
 5. ⬜ **The reference page** and the entry-page block.
 6. ✅ **README section**, in the shape of the WBPR agent one — what the model is
    asked for, what it is not, and what a lookup costs.
 
-Nothing calls the endpoint until step 4, and the migration has to be applied
-before anything does.
+Step 5 is the only one left, and nothing depends on it: an entry filled from a
+lookup already carries `reference_id`, so the block is a join away whenever it
+gets written.
 
 ## Files
 
@@ -299,10 +312,13 @@ before anything does.
 | ✅ `src/pages/cigars/[workspace]/index.astro`, `humidor.astro` | the filter box |
 | ✅ `src/styles/cigar-lounge.css` | the filter box |
 | ✅ `src/lib/database.types.ts` | the new table, by hand — regenerate once the migration is applied |
-| ⬜ `src/lib/cigar-vitolas.ts` | vitola dimensions, out of the prompt |
-| ⬜ `src/pages/cigars/[workspace]/new.astro` | the lookup panel |
+| ✅ `supabase/migrations/20260807140000_cigar_lookup_cap.sql` | the cap, rewritten so it can run |
+| ✅ `supabase/migrations/20260807150000_cigar_reference_grants.sql` | revoking the DML the defaults had granted |
+| ✅ `src/lib/cigar-vitolas.ts` | vitola dimensions, out of the prompt |
+| ✅ `src/components/cl/CigarLookup.astro` | the panel, its script and the prefill |
+| ✅ `src/pages/cigars/[workspace]/new.astro` | the panel, and `reference_id` on insert |
 | ⬜ `src/pages/cigars/[workspace]/lookup.astro` | the reference page |
-| ⬜ `src/components/cl/CigarFields.astro` | suggested-value marking |
+| ⬜ `src/pages/cigars/[workspace]/cigar/[cigar].astro` | the reference block on an entry |
 
 ## Open questions
 

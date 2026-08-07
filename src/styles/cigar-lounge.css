@@ -809,3 +809,196 @@ textarea.cigar-form__input { resize: vertical; line-height: 1.55; }
 
 /* Spans the grid it is dropped into, rather than sitting in one column. */
 .cigar-filter__none { grid-column: 1 / -1; margin: 0; }
+
+/* ── The lookup panel ──────────────────────────────────────────────────
+   Sits above the add form. Rendered hidden and revealed by its script, like
+   the filter box, because none of it does anything without JavaScript. */
+
+.cigar-lookup {
+  max-width: 720px;
+  margin: 1.75rem 0 0;
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-gold);
+  border-radius: 6px;
+  background: var(--bg-card);
+}
+
+.cigar-lookup[hidden] { display: none; }
+
+.cigar-lookup__label {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-label);
+}
+
+.cigar-lookup__row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+
+.cigar-lookup__input {
+  flex: 1 1 16rem;
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+  font-size: 0.95rem;
+  color: inherit;
+  background: rgba(214, 162, 78, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  transition: border-color var(--transition);
+}
+
+.cigar-lookup__input::placeholder { color: var(--text-faint); }
+.cigar-lookup__input:focus { outline: none; border-color: var(--border-gold); }
+
+.cigar-lookup__go {
+  padding: 0.6rem 1.1rem;
+  font: inherit;
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--bg-deep);
+  background: var(--foil-sheen);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.cigar-lookup__go:hover { opacity: 0.75; }
+.cigar-lookup__go:disabled { opacity: 0.4; cursor: default; }
+
+.cigar-lookup__hint,
+.cigar-lookup__status {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
+.cigar-lookup__status:empty { display: none; }
+
+.cigar-lookup__local,
+.cigar-lookup__result {
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border-soft);
+}
+
+.cigar-lookup__local[hidden], .cigar-lookup__result[hidden] { display: none; }
+
+.cigar-lookup__local-label {
+  margin: 0 0 0.4rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-muted);
+}
+
+.cigar-lookup__list { margin: 0; padding: 0; list-style: none; }
+
+.cigar-lookup__hit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.25rem 0;
+  font-size: 0.88rem;
+}
+
+.cigar-lookup__hit[hidden] { display: none; }
+.cigar-lookup__hit a { color: var(--foil); text-decoration: underline; }
+.cigar-lookup__detail { font-size: 0.75rem; color: var(--text-faint); }
+
+.cigar-lookup__found {
+  margin: 0 0 0.5rem;
+  font-family: var(--display);
+  font-size: 1.15rem;
+  color: var(--text);
+}
+
+.cigar-lookup__facts {
+  margin: 0 0 0.6rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+.cigar-lookup__term {
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold-muted);
+  align-self: center;
+}
+
+.cigar-lookup__value { margin: 0; color: var(--text-2); }
+
+.cigar-lookup__flavour {
+  margin: 0 0 0.6rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-2);
+}
+
+/* Provenance, always shown. What is above it is a claim, not a record. */
+.cigar-lookup__provenance {
+  margin: 0 0 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--gold-muted);
+}
+
+/* Where the vitola table disagrees with the dimensions beside it. */
+.cigar-lookup__note {
+  margin: 0 0 0.5rem;
+  padding-left: 0.7rem;
+  border-left: 2px solid var(--danger);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.cigar-lookup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  align-items: center;
+  margin-top: 0.2rem;
+}
+
+.cigar-lookup__use,
+.cigar-lookup__copy,
+.cigar-lookup__alternate {
+  padding: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--foil);
+  background: none;
+  border: none;
+  border-bottom: 1px solid currentColor;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.cigar-lookup__use:hover,
+.cigar-lookup__copy:hover,
+.cigar-lookup__alternate:hover { opacity: 0.7; }
+
+.cigar-lookup__copy { color: var(--gold-muted); }
+
+.cigar-lookup__alternates {
+  margin: 0.7rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+}
+
+/* A field the panel filled, until you touch it. */
+.cigar-form__input--suggested {
+  border-color: var(--border-gold);
+  background: rgba(214, 162, 78, 0.09);
+}

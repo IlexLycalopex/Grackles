@@ -86,8 +86,13 @@ alter table public.cl_cigar_reference enable row level security;
 
 -- Readable by anyone signed in, including members of a workspace that never
 -- looked anything up. That is the sharing that makes the cache worth having.
+-- `(select auth.uid())` rather than a bare call, here and below: Postgres
+-- re-evaluates the bare form once per row, and Supabase's linter flags every
+-- policy that uses it. The older policies in this project have the same fault
+-- and are noted in supabase/README.md as worth a sweep; new ones do not need to
+-- join them.
 create policy cl_cigar_reference_read on public.cl_cigar_reference
-  for select using (auth.uid() is not null);
+  for select using ((select auth.uid()) is not null);
 
 -- Insert carries the whole gate, and it carries it here rather than only in the
 -- API route. A route check protects the button; this decides what the database
@@ -104,7 +109,7 @@ create policy cl_cigar_reference_read on public.cl_cigar_reference
 --   * that workspace has not already had 50 lookups in the last day.
 create policy cl_cigar_reference_insert on public.cl_cigar_reference
   for insert with check (
-    looked_up_by = auth.uid()
+    looked_up_by = (select auth.uid())
     and workspace_id is not null
     and app.can_write(workspace_id)
     and (

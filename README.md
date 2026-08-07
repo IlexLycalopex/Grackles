@@ -23,7 +23,7 @@ several people can share a project.
 | ✅ | WBPR migrated off GitHub Pages — nine sessions, five tables, editable in place |
 | ✅ | The WBPR broadcast agent (MiniMax M3) — running; the one-click write-up is the last untested path |
 | ✅ | Cigar Lounge search — a filter box on the log and the humidor, matching words, wrappers and sizes |
-| ⬜ | Cigar lookup — the endpoint and the cache are built; the migration is not yet applied and nothing calls it from the UI |
+| ✅ | Cigar lookup — schema applied, endpoint and panel on the add form; the reference block on an entry is the last piece |
 | ⬜ | WBPR's map and veil pages — left behind in the migration, see below |
 | ✅ | Custom SMTP — Supabase's own magic-link and confirmation emails go out through Resend, alongside the app's invitations |
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
@@ -434,9 +434,19 @@ one bounded call, and an editor who cannot use quick-add has been given a
 feature that does not work for them.
 
 The daily cap of 50 lookups per lounge is what makes the looser gate defensible,
-and it is a subquery inside the insert policy as well as a count in the route.
-The route's copy exists to produce a sentence; the policy is what holds. Cache
-hits do not count against it, because they do not insert.
+and it is in the insert policy as well as in the route. The route's copy exists
+to produce a sentence; the policy is what holds. Cache hits do not count against
+it, because they do not insert.
+
+The cap did not work as first written. It was a `count(*)` subquery inside the
+policy over the very table the policy guards, which Postgres answers with
+`42P17` — and not by leaking, but by refusing every insert, so nothing could
+ever have been cached. It reads correctly, and it was asserted to work in three
+places before anyone ran it. The fix is `app.cigar_lookups_today()`, a
+`SECURITY DEFINER` helper alongside `app.can_write()` and the rest, because
+stepping outside RLS is what lets a policy ask a question about its own table.
+See `supabase/README.md` for that and for the second half of the same lesson,
+which is that `GRANT select, insert` withholds nothing.
 
 Token counts are columns on the row, as they are on `wbpr_agent_sessions`, and
 for the same reason.
