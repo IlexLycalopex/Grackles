@@ -65,6 +65,20 @@ grant execute on function auth.jwt(), auth.uid() to anon, authenticated, service
 create schema app;
 grant usage on schema app to anon, authenticated, service_role;
 
+-- Core schema, predating every migration here. The baseline was missing it, so
+-- the documented `for f in migrations/*.sql` run stopped at the first migration
+-- that attached a trigger — everything from 20260806170000 onward went
+-- unexercised.
+create function public.touch_updated_at() returns trigger
+language plpgsql
+set search_path to 'public', 'pg_temp'
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
 create type member_role as enum ('owner', 'editor', 'viewer');
 create type app_slug   as enum ('listening-party', 'reading-list', 'cigar-lounge');
 create type visibility as enum ('private', 'unlisted', 'public');
@@ -120,16 +134,109 @@ create unique index workspace_invites_pending_idx
   on public.workspace_invites (workspace_id, email)
   where accepted_at is null;
 
+-- Full production shape. It was previously abridged to the columns the invite
+-- and creation migrations touched, which was enough for those but hid
+-- `smoke_from_humidor` — a function whose whole fault was a column list that
+-- had drifted from the table. A stub table cannot catch that.
 create table public.cl_cigars (
-  id           uuid primary key default gen_random_uuid(),
-  workspace_id uuid not null references public.workspaces (id) on delete cascade,
-  slug         text not null check (slug <> ''),
-  status       text not null default 'smoked' check (status in ('humidor', 'smoked')),
-  quantity     integer not null default 1 check (quantity > 0),
-  name         text not null check (name <> ''),
-  photo_path   text not null default '',
+  id                uuid primary key default gen_random_uuid(),
+  workspace_id      uuid not null references public.workspaces (id) on delete cascade,
+  slug              text not null check (slug <> ''),
+  status            text not null default 'smoked' check (status in ('humidor', 'smoked')),
+  quantity          integer not null default 1 check (quantity > 0),
+  name              text not null check (name <> ''),
+  brand             text not null default '',
+  vitola            text not null default '',
+  wrapper           text not null default '',
+  length_text       text not null default '',
+  ring_gauge        integer,
+  country           text not null default '',
+  strength          text,
+  bought_at         text not null default '',
+  smoked_at         text not null default '',
+  date_acquired     date,
+  date_smoked       date,
+  price_text        text not null default '',
+  price_gbp         numeric,
+  price_approximate boolean not null default false,
+  rating            numeric,
+  pairing           text not null default '',
+  note              text not null default '',
+  photo_path        text not null default '',
+  tasting_notes     text not null default '',
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now(),
   unique (workspace_id, slug)
 );
+
+create trigger touch_cl_cigars before update on public.cl_cigars
+  for each row execute function public.touch_updated_at();
+
+-- `smoke_from_humidor` as 20260731103318 left it, faults and all: the insert on
+-- the stack-splitting path omits `photo_path`, so the log entry comes out with
+-- no image. Reproduced here rather than corrected so that
+-- 20260809120000_smoke_carries_photo has something to actually fix, and so the
+-- test that proves it can fail against the old version.
+create function public.smoke_from_humidor(
+  p_cigar_id      uuid,
+  p_slug          text,
+  p_date_smoked   date,
+  p_smoked_at     text    default '',
+  p_pairing       text    default '',
+  p_note          text    default '',
+  p_rating        numeric default null,
+  p_tasting_notes text    default ''
+) returns uuid
+language plpgsql
+set search_path to 'public', 'pg_temp'
+as $smoke$
+declare
+  src    public.cl_cigars%rowtype;
+  new_id uuid;
+begin
+  select * into src from public.cl_cigars where id = p_cigar_id for update;
+
+  if not found then
+    raise exception 'that cigar is not in this humidor' using errcode = 'no_data_found';
+  end if;
+  if src.status <> 'humidor' then
+    raise exception 'that cigar has already been smoked' using errcode = 'check_violation';
+  end if;
+
+  if src.quantity > 1 then
+    insert into public.cl_cigars (
+      workspace_id, slug, status, quantity, name, brand, vitola, wrapper,
+      length_text, ring_gauge, country, strength, bought_at, smoked_at,
+      date_acquired, date_smoked, price_text, price_gbp, price_approximate,
+      rating, pairing, note, tasting_notes
+    ) values (
+      src.workspace_id, p_slug, 'smoked', 1, src.name, src.brand, src.vitola,
+      src.wrapper, src.length_text, src.ring_gauge, src.country, src.strength,
+      src.bought_at, coalesce(p_smoked_at, ''), src.date_acquired, p_date_smoked,
+      src.price_text, src.price_gbp, src.price_approximate,
+      p_rating, coalesce(p_pairing, ''), coalesce(p_note, ''),
+      coalesce(p_tasting_notes, '')
+    )
+    returning id into new_id;
+
+    update public.cl_cigars set quantity = quantity - 1 where id = src.id;
+  else
+    update public.cl_cigars
+       set status        = 'smoked',
+           quantity      = 1,
+           date_smoked   = p_date_smoked,
+           smoked_at     = coalesce(p_smoked_at, ''),
+           rating        = p_rating,
+           pairing       = coalesce(p_pairing, ''),
+           note          = coalesce(p_note, ''),
+           tasting_notes = coalesce(p_tasting_notes, '')
+     where id = src.id
+    returning id into new_id;
+  end if;
+
+  return new_id;
+end;
+$smoke$;
 
 create table public.rl_years (
   id           uuid primary key default gen_random_uuid(),

@@ -198,6 +198,55 @@ check "anon can still read a public workspace" ok \
   "do \$\$ begin if not exists (select 1 from public.workspaces where slug='brothers')
      then raise exception 'public workspace not visible'; end if; end \$\$;" "$as_anon"
 
+echo "── smoking off a stack"
+# The seed cigar: two of them in the humidor, with a photo. Each check runs in
+# its own transaction and rolls back, so the stack is whole again afterwards.
+LOUNGE='2faab0b7-59b1-4616-bba5-47b564925268'
+PHOTO='https://example.invalid/curivari.webp'
+seed_stack="insert into public.cl_cigars
+    (id, workspace_id, slug, status, quantity, name, brand, vitola, photo_path, date_acquired)
+  values ('c1000000-0000-4000-8000-000000000001','$LOUNGE','stack','humidor',2,
+          'Picadores 42 Corona','Curivari','Corona','$PHOTO','2026-08-02');"
+
+check "one off a stack carries the photo into the log" ok \
+  "$seed_stack
+   do \$\$ declare new_id uuid; p text; begin
+     new_id := public.smoke_from_humidor('c1000000-0000-4000-8000-000000000001','stack-smoked','2026-08-09');
+     select photo_path into p from public.cl_cigars where id = new_id;
+     if coalesce(p,'') = '' then raise exception 'log entry has no photo'; end if;
+     if p <> '$PHOTO' then raise exception 'wrong photo: %', p; end if;
+   end \$\$;" "$as_jamie"
+check "the one left in the humidor keeps its photo and loses a count" ok \
+  "$seed_stack
+   do \$\$ declare q integer; p text; begin
+     perform public.smoke_from_humidor('c1000000-0000-4000-8000-000000000001','stack-smoked','2026-08-09');
+     select quantity, photo_path into q, p from public.cl_cigars
+       where id = 'c1000000-0000-4000-8000-000000000001';
+     if q <> 1 then raise exception 'expected 1 left, got %', q; end if;
+     if p <> '$PHOTO' then raise exception 'humidor entry lost its photo'; end if;
+   end \$\$;" "$as_jamie"
+check "the last one carries the photo too" ok \
+  "$seed_stack
+   do \$\$ declare new_id uuid; p text; begin
+     update public.cl_cigars set quantity = 1
+       where id = 'c1000000-0000-4000-8000-000000000001';
+     new_id := public.smoke_from_humidor('c1000000-0000-4000-8000-000000000001','stack-smoked','2026-08-09');
+     select photo_path into p from public.cl_cigars where id = new_id;
+     if p <> '$PHOTO' then raise exception 'in-place conversion lost the photo: %', p; end if;
+   end \$\$;" "$as_jamie"
+check "the reference the entry was filled from carries too" ok \
+  "$seed_stack
+   do \$\$ declare ref uuid; new_id uuid; got uuid; begin
+     insert into public.cl_cigar_reference (key, query, name, workspace_id, looked_up_by)
+       values ('curivari-picadores-42','curivari picadores 42','Picadores 42 Corona',
+               '$LOUNGE','$JAMIE')
+       returning id into ref;
+     update public.cl_cigars set reference_id = ref
+       where id = 'c1000000-0000-4000-8000-000000000001';
+     new_id := public.smoke_from_humidor('c1000000-0000-4000-8000-000000000001','stack-smoked','2026-08-09');
+     select reference_id into got from public.cl_cigars where id = new_id;
+     if got is distinct from ref then raise exception 'log entry lost its reference'; end if;
+   end \$\$;" "$as_jamie"
 echo
 echo "passed: $pass   failed: $fail"
 [ $fail -eq 0 ]

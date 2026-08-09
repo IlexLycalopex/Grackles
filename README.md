@@ -487,6 +487,22 @@ It is a database function (`smoke_from_humidor`) so the two cannot come apart,
 `SECURITY INVOKER` so RLS still decides, and it converts the last one in place
 rather than replacing it — the entry keeps its id and its URL.
 
+Those two paths are not symmetric, and that asymmetry cost a photograph. The
+in-place conversion is an `UPDATE` that names only the columns a smoke changes,
+so everything describing the *cigar* — its picture, its dimensions, the
+reference it was filled from — survives without anyone deciding it should.
+Splitting one off a stack is an `INSERT` into a new row, and there every one of
+those columns has to be named or it silently takes the column default.
+`photo_path` and `reference_id` were not named, so a cigar smoked off a stack
+of two produced a log entry with no image while the one left in the humidor
+kept its own. `20260809120000_smoke_carries_photo` names them, and backfills the
+entries the old version wrote.
+
+The general shape is worth keeping in mind before adding a column to
+`cl_cigars`: nothing fails when this list falls behind the table. Ask whether
+the new column describes the cigar or the occasion. If it describes the cigar,
+it belongs in the insert.
+
 ## Running it
 
 ```bash

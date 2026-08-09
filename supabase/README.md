@@ -23,6 +23,7 @@ The files in `migrations/` are the additions from 2026-08-05, in apply order:
 | `20260807120000_cigar_reference` | `cl_cigar_reference` — the shared cigar lookup cache — plus `cl_cigars.reference_id` |
 | `20260807140000_cigar_lookup_cap` | `app.cigar_lookups_today()`, and the insert policy rewritten to use it — the cap as first written could not run |
 | `20260807150000_cigar_reference_grants` | Withdraws the UPDATE/DELETE/TRUNCATE that Supabase's default privileges had already granted on the new table |
+| `20260809120000_smoke_carries_photo` | `smoke_from_humidor` copies `photo_path` and `reference_id` when it splits one off a stack, plus a backfill for the entries the old version wrote |
 
 ### What changed conceptually
 
@@ -67,6 +68,9 @@ actually ran.
 The three 2026-08-07 migrations are live as of that date. They must go out together and in order:
 `20260807120000` shipped a policy that could not run, and the two after it are the corrections.
 
+`20260809120000` is live as of 2026-08-09. It is self-contained and depends only on
+`20260807120000` having added `cl_cigars.reference_id`.
+
 ### A policy may not read its own table
 
 `20260807120000` put the daily lookup cap directly in the insert policy, as a correlated subquery
@@ -85,6 +89,38 @@ outside RLS long enough to answer a question about the table being guarded, and 
 this schema already had. The cap stops being a special case.
 
 `app` is not an exposed schema, so the new function is reachable from the policy and not as an RPC.
+
+### An insert that names its columns has to be kept in step
+
+`smoke_from_humidor` takes one cigar out of the humidor. It has two paths, and only one of
+them can have this fault.
+
+When the last one goes, the humidor row *becomes* the log entry: an `UPDATE` naming the
+columns a smoke changes, leaving everything else alone. When one comes off a stack of
+several, the log entry is a **new row** — an `INSERT` naming its columns explicitly — and the
+original is decremented. That insert named 23 columns of the 28 on `cl_cigars`. Three of the
+five omissions are right (`id`, `created_at`, `updated_at` have defaults that mean it). Two
+were not: `photo_path` and `reference_id`.
+
+A named-column insert takes the column default for anything it leaves out, and both of those
+default to empty. So a cigar smoked off a stack of two produced a log entry with no image and
+no link back to the reference it had been filled from, sitting next to a humidor entry for the
+same cigar that still had both.
+
+Two things kept it hidden. The failure is silent — an empty `photo_path` is a legal value, not
+an error — and it needs a stack to show up at all, so every single-cigar smoke, which is the
+path exercised first and most, was fine.
+
+The generalisation, because this will happen again: **nothing fails when this column list falls
+behind the table.** Adding a column to `cl_cigars` does not break the function, does not break
+a test, and does not warn. Before adding one, ask whether it describes the *cigar* or the
+*occasion*. `wrapper` and `photo_path` describe the cigar and must be copied; `rating` and
+`pairing` describe the occasion and must not be. Only the second kind may be left out.
+
+`20260809120000` also backfills, matching a photo-less smoked entry against a humidor entry
+for the same workspace, brand and name. It fills only entries that are empty, so nothing set
+by hand is overwritten, and `having count(distinct …) = 1` declines to guess where siblings
+disagree. It corrected one row in production.
 
 ### Naming grants does not withhold the rest
 
@@ -149,7 +185,8 @@ create policy workspaces_insert on public.workspaces for insert
 `tests/` contains a reconstruction of the pre-migration schema plus Supabase
 platform stubs (`auth.uid()`, `auth.jwt()`, the `anon`/`authenticated` roles),
 and a behavioural suite covering entitlements, invite issuing and acceptance,
-quota enforcement, privilege escalation and anonymous access.
+quota enforcement, privilege escalation, anonymous access, and taking a cigar
+out of the humidor.
 
 ```sh
 createdb grackles
@@ -159,8 +196,22 @@ tests/test.sh
 ```
 
 The baseline seeds current production data (one profile, three workspaces, one
-pending invite) so the backfill is exercised against real shape. 37 assertions,
-all passing as of `20260805120600`.
+pending invite) so the backfill is exercised against real shape. 41 assertions,
+all passing as of `20260809120000`.
+
+Two gaps in the baseline were closed to get there, and both had been hiding
+things rather than merely omitting them:
+
+- **`cl_cigars` was abridged** to the handful of columns the invite and creation
+  migrations touched. `smoke_from_humidor` could not be reproduced against it at
+  all, which is precisely why a fault in that function's column list went
+  unnoticed. It now carries the production shape, and the pre-fix function, so
+  the four new checks fail against the old version and pass against the new.
+- **`touch_updated_at` was missing.** It predates every migration here, so
+  nothing in `migrations/` creates it — and the first migration that attaches an
+  `updated_at` trigger (`20260806170000_wbpr_schema`) therefore aborted. The
+  documented `for f in migrations/*.sql` run had been stopping there, leaving
+  everything from WBPR onward unexercised.
 
 ## Two security fixes worth noting
 
