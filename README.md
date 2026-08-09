@@ -24,6 +24,7 @@ several people can share a project.
 | ✅ | The WBPR broadcast agent (MiniMax M3) — running; the one-click write-up is the last untested path |
 | ✅ | Cigar Lounge search — a filter box on the log and the humidor, matching words, wrappers and sizes |
 | ✅ | Cigar lookup — schema applied, the reference desk, the panel on the add form, and an entry showing what a lookup said about it |
+| ✅ | Album covers looked up on save — the build step the migration dropped, moved to the write |
 | ⬜ | WBPR's map and veil pages — left behind in the migration, see below |
 | ✅ | Custom SMTP — Supabase's own magic-link and confirmation emails go out through Resend, alongside the app's invitations |
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
@@ -335,6 +336,37 @@ of Clubs that was never drawn.
 Token counts are columns on the session rather than something inferred
 afterwards. Protecting token usage is only a real property if somebody can see
 what was spent.
+
+## Album covers
+
+A pick's cover is `lp_selections.artwork_url`, and nothing about it changed in
+the migration — which is exactly how it broke. In the old repo a build step ran
+on every commit and filled the field in for any entry naming an album and an
+artist without one: iTunes first, the album's Wikipedia article when iTunes had
+nothing. That is where all 32 imported covers came from. The field came across,
+the form's *"left blank, this is filled in automatically"* came across, and the
+step did not, so the first week added here was completed with an empty field and
+stayed that way. It was never the deploy that made it work; it was a build
+running on every commit, and there are no commits any more.
+
+`lib/artwork.ts` moves the lookup to the write. Both pick routes call
+`fillArtwork()` on the parsed values, so a week gets a cover on whichever save
+first gives it an album and an artist — usually the one that marks it completed.
+Two properties are the whole design:
+
+- **A lookup never fails a save.** Every path returns `''` — a timeout, a 500, a
+  refused host, no convincing match — and the row is written either way. Clearing
+  the field is still the retry, exactly as it was in the YAML.
+- **A wrong cover is worse than none.** iTunes answers every query with
+  *something*, so a result is only taken when the artist and the album both look
+  like what was asked for, after edition suffixes and accents are normalised
+  away. Wikipedia is only consulted through the link already on the pick —
+  searching it by title would find an article for anything, and the wrong
+  article has a picture too.
+
+`src/lib/artwork.test.mjs` pins that matcher against fixture responses
+(`node --experimental-strip-types src/lib/artwork.test.mjs`). It stubs `fetch`;
+it is not a check that Apple still answers.
 
 ## Photographs
 

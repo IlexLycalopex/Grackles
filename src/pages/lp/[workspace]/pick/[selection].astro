@@ -5,6 +5,7 @@ import { requireWrite } from '../../../../lib/workspace';
 import { loadContributors, loadSeasons, loadSelection } from '../../../../lib/listening-party';
 import ConfirmDelete from '../../../../components/ConfirmDelete.astro';
 import { readSelection } from '../../../../lib/records/selection';
+import { fillArtwork } from '../../../../lib/artwork';
 import { NOTHING_DELETED, describeDeleteError, describeWriteError } from '../../../../lib/records/save';
 
 export const prerender = false;
@@ -65,9 +66,14 @@ if (Astro.request.method === 'POST') {
     if (!parsed.ok) {
       error = parsed.error;
     } else {
+      // Filling a week in is the moment a cover becomes findable, so the
+      // lookup happens here as well as on create — an upcoming week has no
+      // album to search for, and marking it completed is the save that does.
+      const values = await fillArtwork(parsed.values);
+
       const { error: writeError } = await supabase
         .from('lp_selections')
-        .update(parsed.values)
+        .update(values)
         .eq('id', pick.id);
 
       if (writeError) {
