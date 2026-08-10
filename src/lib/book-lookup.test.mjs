@@ -28,7 +28,7 @@ globalThis.fetch = async url => {
   return { ok: true, status: 200, text: async () => JSON.stringify(body) };
 };
 
-const { lookupBook, fillFromLookup } = await import('./book-lookup.ts');
+const { lookupBook, fillFromLookup, fillCover } = await import('./book-lookup.ts');
 
 const asked = host => calls.filter(u => u.includes(host));
 const param = (u, k) => new URL(u).searchParams.get(k);
@@ -198,5 +198,49 @@ globalThis.fetch = async (url, init) => {
 openLibrary = () => ({ docs: [SATSUMA] });
 await lookupBook({ title: 'x', author: '', isbn: '' });
 assert.ok(sentHeaders['user-agent'].includes('Grackles'));
+
+// ── fillCover: the same lookup on the save itself ──────────────────
+// Nobody presses the button on every book, so a blank cover is filled on the
+// way to the database. Nobody reviews that one, which changes the rules.
+
+const book = o => ({ title: '', author: '', isbn: '', cover_url: '', ...o });
+
+// 13. A blank cover is filled.
+reset();
+openLibrary = () => ({ docs: [SATSUMA] });
+let saved = await fillCover(book({ title: 'The Satsuma Complex', author: 'Bob Mortimer' }));
+assert.equal(saved.cover_url, 'https://covers.openlibrary.org/b/id/12583579-L.jpg');
+
+// 14. One that is already there is left alone, and nobody is asked.
+reset();
+openLibrary = () => ({ docs: [SATSUMA] });
+saved = await fillCover(book({ title: 'The Satsuma Complex', cover_url: 'https://example.test/mine.jpg' }));
+assert.equal(saved.cover_url, 'https://example.test/mine.jpg');
+assert.equal(calls.length, 0);
+
+// 15. The rule the button does not need: a wrong cover is worse than none.
+//     "Middlemarch" must not accept a cover for something else entirely.
+reset();
+openLibrary = () => ({ docs: [{ ...SATSUMA, title: 'A Completely Different Book' }] });
+saved = await fillCover(book({ title: 'Middlemarch', author: 'George Eliot' }));
+assert.equal(saved.cover_url, '', 'a mismatched title is refused');
+
+// …but an edition suffix or an accent is not a mismatch.
+reset();
+openLibrary = () => ({ docs: [{ ...SATSUMA, title: '2666 (Picador Classic)' }] });
+saved = await fillCover(book({ title: '2666', author: 'Roberto Bolano' }));
+assert.equal(saved.cover_url, 'https://covers.openlibrary.org/b/id/12583579-L.jpg');
+
+// 16. A lookup never fails a save.
+reset();
+openLibrary = () => undefined;
+googleBooks = () => undefined;
+saved = await fillCover(book({ title: 'The Satsuma Complex' }));
+assert.deepEqual(saved, book({ title: 'The Satsuma Complex' }), 'values come back untouched');
+
+// 17. Nothing to go on, so nobody is asked.
+reset();
+saved = await fillCover(book({}));
+assert.equal(calls.length, 0);
 
 console.log('all book lookup checks passed');

@@ -4,7 +4,7 @@ import BookFields from '../../../../components/rl/BookFields.astro';
 import { requireWrite } from '../../../../lib/workspace';
 import { currentYear, loadYears } from '../../../../lib/reading-list';
 import { readBook } from '../../../../lib/records/book';
-import { fillFromLookup } from '../../../../lib/book-lookup';
+import { fillCover, fillFromLookup } from '../../../../lib/book-lookup';
 import { describeWriteError } from '../../../../lib/records/save';
 
 export const prerender = false;
@@ -74,9 +74,13 @@ if (Astro.request.method === 'POST') {
     if (!parsed.ok) {
       error = parsed.error;
     } else {
+      // Nobody has to press "Fetch details", so a blank cover is looked up on
+      // the way past. It never fails the save.
+      const values = await fillCover(parsed.values);
+
       const { error: writeError } = await supabase
         .from('rl_books')
-        .insert({ workspace_id: workspace.id, ...parsed.values });
+        .insert({ workspace_id: workspace.id, ...values });
 
       if (writeError) {
         error = describeWriteError(writeError, 'rl_books insert');

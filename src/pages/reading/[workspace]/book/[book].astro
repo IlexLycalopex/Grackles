@@ -5,7 +5,7 @@ import { requireWrite } from '../../../../lib/workspace';
 import { loadBook, loadYears } from '../../../../lib/reading-list';
 import ConfirmDelete from '../../../../components/ConfirmDelete.astro';
 import { readBook } from '../../../../lib/records/book';
-import { fillFromLookup } from '../../../../lib/book-lookup';
+import { fillCover, fillFromLookup } from '../../../../lib/book-lookup';
 import { NOTHING_DELETED, describeDeleteError, describeWriteError } from '../../../../lib/records/save';
 
 export const prerender = false;
@@ -68,9 +68,13 @@ if (Astro.request.method === 'POST') {
     if (!parsed.ok) {
       error = parsed.error;
     } else {
+      // Same on a correction, which is what makes clearing the cover field the
+      // way to ask for a different one.
+      const values = await fillCover(parsed.values);
+
       const { error: writeError } = await supabase
         .from('rl_books')
-        .update(parsed.values)
+        .update(values)
         .eq('id', book.id);
 
       if (writeError) {

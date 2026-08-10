@@ -1,4 +1,5 @@
 import type { SelectionValues } from './records/selection';
+import { looselyEqual, normalise, stripEdition } from './title-match.ts';
 
 /**
  * Finding a cover for a week's pick.
@@ -48,49 +49,6 @@ const LOOKUP_TIMEOUT_MS = 4000;
  * legible from the other end.
  */
 const USER_AGENT = 'Grackles/1.0 (+https://grackles.co.uk)';
-
-/**
- * Down to letters and digits, so punctuation and accents cannot decide a match.
- *
- * `NFD` splits an accented letter into a letter and a combining mark and the
- * range strips the mark, which is what makes *Björk* and *Bjork* the same
- * string. The ellipsis in "…Grace the Corner of Our Rooms…" goes the same way.
- */
-function normalise(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
-
-/**
- * Drops the qualifier a store puts on a title: "(Deluxe Edition)",
- * "[Remastered]", "- 2011 Remaster". The pressing is not the album, and a
- * catalogue rarely holds the one somebody typed.
- */
-function stripEdition(title: string): string {
-  return title
-    .replace(/\s*[\(\[][^\)\]]*[\)\]]\s*$/g, '')
-    .replace(/\s+-\s+[^-]*\b(remaster(ed)?|edition|version|reissue|anniversary)\b.*$/i, '')
-    .trim();
-}
-
-/**
- * Equal, or one a prefix of the other and not by a landslide.
- *
- * The prefix half is what accepts a catalogue's truncated title against a full
- * one. The length guard is what stops "live" matching "live at leeds" — a
- * prefix that throws away more than half the longer string is not the same
- * record, it is a different one that happens to start the same way.
- */
-function looselyEqual(a: string, b: string): boolean {
-  if (!a || !b) return false;
-  if (a === b) return true;
-  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
-  return longer.startsWith(shorter) && shorter.length * 2 >= longer.length;
-}
 
 /** One JSON GET, with a timeout, that reports failure by returning null. */
 async function getJson(url: string, context: string): Promise<any | null> {

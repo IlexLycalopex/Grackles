@@ -27,6 +27,9 @@
  * it filled so they know where to look.
  */
 
+import type { BookValues } from './records/book';
+import { looselyEqual, normalise, stripEdition } from './title-match.ts';
+
 const OPEN_LIBRARY = 'https://openlibrary.org/search.json';
 const GOOGLE_BOOKS = 'https://www.googleapis.com/books/v1/volumes';
 
@@ -332,4 +335,60 @@ export async function fillFromLookup(form: FormData): Promise<string> {
       : ' — check them before saving.';
 
   return `Filled in ${sentence(filled)}${caveat}`;
+}
+
+// ── The same lookup, on the way to the database ─────────────────────
+
+/**
+ * The row about to be written, with a cover if one was missing and one could be
+ * found.
+ *
+ * The button above is the deliberate version of this, and it exists because a
+ * person filling in a book usually wants to see what came back. But nobody has
+ * to press it, and a book saved without pressing it used to land with a
+ * placeholder and no way to notice — which is the whole complaint this feature
+ * started from. So the lookup also runs on the save itself, exactly as
+ * `fillArtwork` does for a week's pick.
+ *
+ * Two rules make that a fair trade, both borrowed from there:
+ *
+ * - **A lookup never fails a save.** Every failure returns the values untouched
+ *   and the caller writes the row regardless. A cover is worth a second of
+ *   somebody's save; it is not worth losing what they typed because Open
+ *   Library was slow.
+ * - **A wrong cover is worse than none.** Nobody is reviewing this one, so the
+ *   title that comes back has to look like the title that was asked for. The
+ *   button skips this check on purpose — there, a person is looking at the
+ *   result and can throw it away.
+ *
+ * A book whose cover field is cleared gets asked about again on the next save,
+ * which is how a bad match is retried rather than being stuck.
+ */
+export async function fillCover(values: BookValues): Promise<BookValues> {
+  if (values.cover_url) return values;
+  if (!values.title && !values.isbn) return values;
+
+  let found: Lookup | null;
+  try {
+    found = await lookupBook({ title: values.title, author: values.author, isbn: values.isbn });
+  } catch {
+    // Already logged where it failed. The save carries on.
+    return values;
+  }
+
+  const cover = found?.details.cover_url;
+  if (!cover) return values;
+
+  // An ISBN names one edition, so a result found by one needs no second
+  // opinion. A title match does.
+  if (!values.isbn) {
+    const wanted = normalise(stripEdition(values.title));
+    const got = normalise(stripEdition(found!.details.title));
+    if (!looselyEqual(got, wanted)) {
+      console.warn(`cover lookup rejected: asked "${values.title}", got "${found!.details.title}"`);
+      return values;
+    }
+  }
+
+  return { ...values, cover_url: cover };
 }

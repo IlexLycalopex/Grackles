@@ -240,12 +240,25 @@ that ran first:
 - **Upgrade Google's thumbnail to https.** It still hands them out as `http://`,
   which a browser blocks as mixed content — a cover that silently fails to load.
 
-Two rules hold the whole file together. **It only fills blanks**, so the button
-is safe to press twice and safe on a book that already exists — it tops up what
-is missing rather than replacing the record with a stranger's idea of it. And
-**nothing is written to the database**: a lookup edits the submitted `FormData`
-and re-renders, arriving through the same door a rejected save does, and Save is
+Two rules hold the button together. **It only fills blanks**, so it is safe to
+press twice and safe on a book that already exists — it tops up what is missing
+rather than replacing the record with a stranger's idea of it. And **nothing is
+written to the database**: a lookup edits the submitted `FormData` and
+re-renders, arriving through the same door a rejected save does, and Save is
 still a separate press.
+
+Nobody has to press it, though, and a book saved without pressing it would land
+with a placeholder and no way to notice — the original complaint, back again. So
+`fillCover()` runs the same lookup on the save itself, exactly as `fillArtwork()`
+does for a week's pick. That path carries two more rules, both borrowed from
+there: **a lookup never fails a save**, and **a wrong cover is worse than none**
+— nobody is reviewing that one, so the title that comes back has to look like the
+title that was asked for. The button skips that check on purpose, because there a
+person is looking at the result. Clearing a cover field is how a bad match gets
+asked again.
+
+The matcher those checks run on is `lib/title-match.ts`, shared with the artwork
+lookup rather than copied into both — same reason as `json.ts`.
 
 `description` is deliberately not fetched. The column exists and holds what the
 old script put there, but nothing in this app renders it — filling it would add
