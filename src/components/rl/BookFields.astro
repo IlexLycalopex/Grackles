@@ -59,6 +59,23 @@ const format = v('format', book?.format, 'print');
   <input class="book-form__input" type="text" name="author" value={v('author', book?.author)} />
 </label>
 
+{/*
+  Fetching is a submit like any other, told apart by its intent — the same shape
+  as the delete button. `formnovalidate` is what lets a bare ISBN be looked up:
+  the title is required to save, but not to ask.
+*/}
+<div class="book-form__lookup">
+  <button class="book-form__lookup-btn" type="submit" name="intent" value="lookup" formnovalidate>
+    Fetch details
+  </button>
+  <span class="book-form__hint">
+    Fills in whatever is still blank below — cover, ISBN, publisher, pages, genre, year — from the
+    title and author above, or from an ISBN if you have one. Open Library first, Google Books if it
+    has no cover. It never overwrites something you have typed, and nothing is saved until you
+    press {book ? 'Save' : 'Add book'}.
+  </span>
+</div>
+
 <div class="book-form__row">
   <label class="book-form__field">
     <span class="book-form__label">Pages</span>

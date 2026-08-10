@@ -195,6 +195,62 @@ The authors and publishers pages do include them, on the same footing as any
 book already marked *coming up*; those pages are a catalogue of the list rather
 than a tally of it.
 
+## Filling a book in
+
+Every cover on this list arrived with the migration. The old repo ran
+`scripts/fetch-metadata.js` on every deploy: it swept the YAML for
+`cover_url: ""`, asked Open Library and then Google Books, and committed what
+came back. Nothing replaced it when the list moved here, so every book imported
+has a cover and every book added since has a placeholder — which is how the gap
+was noticed.
+
+`lib/book-lookup.ts` is that script's knowledge moved to where a book is
+actually entered — the same move `lib/artwork.ts` makes for a week's pick, and
+for the same reason. `src/lib/book-lookup.test.mjs` pins it against fixture
+responses (`node --experimental-strip-types src/lib/book-lookup.test.mjs`),
+stubbing `fetch`; it never asks the real endpoints. **Fetch details** on the book form fills in whatever is still
+blank — cover, ISBN, publisher, pages, genre, year, Open Library link — from the
+title and author, or from an ISBN if there is one.
+
+The setting changed, so two things about it did. A deploy hook sweeping a year
+can afford half a second between calls and three retries; a person waiting on a
+button cannot, so this makes at most two requests and gives up after six
+seconds. And a sweep has to be right unattended, while this puts the values in
+front of somebody before anything is written — which is the honest arrangement,
+because these APIs index *works* and a work has many editions.
+
+What was worth carrying across, all of it learned the hard way by the script
+that ran first:
+
+- **Ask for five results and prefer one that has a cover.** The first hit for a
+  title is regularly a reprint or a study guide with no artwork.
+- **Drop the volume number.** "Chew Vol 9 Chicken Tenders" is indexed as "Chew
+  Chicken Tenders", and this list has a lot of graphic novels.
+- **Use the first author only.** A joint credit — "A & B", "A and B", "A; B" —
+  matches nothing as written.
+- **Build the cover from the cover id, never from the ISBN.** The ISBN route
+  answers with a *blank image* rather than a 404 unless told otherwise, which
+  lands in the column as a cover that is not there. A cover id only exists when
+  the picture does.
+- **Fall back to Google Books, and only for a cover.** It is the one thing it is
+  reliably better at, and it is why a few covers on this list are served by
+  Google. `GOOGLE_BOOKS_API_KEY` is optional: the old script needed it because it
+  swept every book on every deploy from a shared CI runner, and this asks once
+  per button press.
+- **Upgrade Google's thumbnail to https.** It still hands them out as `http://`,
+  which a browser blocks as mixed content — a cover that silently fails to load.
+
+Two rules hold the whole file together. **It only fills blanks**, so the button
+is safe to press twice and safe on a book that already exists — it tops up what
+is missing rather than replacing the record with a stranger's idea of it. And
+**nothing is written to the database**: a lookup edits the submitted `FormData`
+and re-renders, arriving through the same door a rejected save does, and Save is
+still a separate press.
+
+`description` is deliberately not fetched. The column exists and holds what the
+old script put there, but nothing in this app renders it — filling it would add
+another field that feeds nothing, which is the problem the target had.
+
 ## The target
 
 `rl_years.total_books` was collected by the form and read by nothing. It now

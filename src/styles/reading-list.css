@@ -1000,3 +1000,48 @@ textarea.book-form__input { resize: vertical; line-height: 1.55; }
   line-height: 1.6;
   color: var(--text-faint);
 }
+
+/* ── Fetching a book from Open Library ───────────────────────────── */
+
+/* The same shape as .form-error, in the muted palette: this reports what
+   happened rather than what went wrong, and the two should not look alike. */
+.form-notice {
+  max-width: 720px;
+  margin: 20px 0 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-muted);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.book-form__lookup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: -6px 0 2px;
+}
+
+/* Deliberately quieter than the submit button beneath it. Fetching is a step on
+   the way to saving, not a second thing the form does. */
+.book-form__lookup-btn {
+  align-self: flex-start;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition);
+}
+
+.book-form__lookup-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}

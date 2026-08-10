@@ -4,6 +4,7 @@ import BookFields from '../../../../components/rl/BookFields.astro';
 import { requireWrite } from '../../../../lib/workspace';
 import { currentYear, loadYears } from '../../../../lib/reading-list';
 import { readBook } from '../../../../lib/records/book';
+import { fillFromLookup } from '../../../../lib/book-lookup';
 import { describeWriteError } from '../../../../lib/records/save';
 
 export const prerender = false;
@@ -56,25 +57,34 @@ async function nextPosition(yearId: string): Promise<number> {
 }
 
 let error: string | null = null;
+let notice: string | null = null;
 let submitted: FormData | null = null;
 
 if (Astro.request.method === 'POST') {
   submitted = await Astro.request.formData();
-  const parsed = readBook(submitted);
 
-  if (!parsed.ok) {
-    error = parsed.error;
+  // A lookup fills the blanks of what was typed and stops. The form re-renders
+  // from `submitted` either way, so the fetched values arrive by the same route
+  // a rejected save does.
+  if (submitted.get('intent') === 'lookup') {
+    notice = await fillFromLookup(submitted);
   } else {
-    const { error: writeError } = await supabase
-      .from('rl_books')
-      .insert({ workspace_id: workspace.id, ...parsed.values });
+    const parsed = readBook(submitted);
 
-    if (writeError) {
-      error = describeWriteError(writeError, 'rl_books insert');
+    if (!parsed.ok) {
+      error = parsed.error;
     } else {
-      return Astro.redirect(
-        `${base}/${years.find(y => y.id === parsed.values.year_id)?.year ?? year.year}`
-      );
+      const { error: writeError } = await supabase
+        .from('rl_books')
+        .insert({ workspace_id: workspace.id, ...parsed.values });
+
+      if (writeError) {
+        error = describeWriteError(writeError, 'rl_books insert');
+      } else {
+        return Astro.redirect(
+          `${base}/${years.find(y => y.id === parsed.values.year_id)?.year ?? year.year}`
+        );
+      }
     }
   }
 }
@@ -92,6 +102,7 @@ const orderRead = await nextPosition(year.id);
     </div>
 
     {error && <p class="form-error" role="alert">{error}</p>}
+    {notice && <p class="form-notice" role="status">{notice}</p>}
 
     <form method="POST" class="book-form">
       <BookFields

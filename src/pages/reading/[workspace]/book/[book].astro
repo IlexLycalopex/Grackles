@@ -5,6 +5,7 @@ import { requireWrite } from '../../../../lib/workspace';
 import { loadBook, loadYears } from '../../../../lib/reading-list';
 import ConfirmDelete from '../../../../components/ConfirmDelete.astro';
 import { readBook } from '../../../../lib/records/book';
+import { fillFromLookup } from '../../../../lib/book-lookup';
 import { NOTHING_DELETED, describeDeleteError, describeWriteError } from '../../../../lib/records/save';
 
 export const prerender = false;
@@ -30,12 +31,18 @@ const base = `/reading/${workspace.slug}`;
 const confirmingDelete = Astro.url.searchParams.get('delete') === '1';
 
 let error: string | null = null;
+let notice: string | null = null;
 let submitted: FormData | null = null;
 
 if (Astro.request.method === 'POST') {
   submitted = await Astro.request.formData();
 
-  if (submitted.get('intent') === 'delete') {
+  // On a book that already exists this tops up what is missing — a cover for
+  // one entered before there was anything to fetch it — and leaves every field
+  // that has a value alone.
+  if (submitted.get('intent') === 'lookup') {
+    notice = await fillFromLookup(submitted);
+  } else if (submitted.get('intent') === 'delete') {
     const { data: removed, error: deleteError } = await supabase
       .from('rl_books')
       .delete()
@@ -90,6 +97,7 @@ if (Astro.request.method === 'POST') {
     </div>
 
     {error && <p class="form-error" role="alert">{error}</p>}
+    {notice && <p class="form-notice" role="status">{notice}</p>}
 
     {
       confirmingDelete ? (
