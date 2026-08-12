@@ -1,7 +1,7 @@
 # Grackles
 
 The front door at [grackles.co.uk](https://grackles.co.uk), and — as of this
-branch — the app that the Listening Party, Reading List and Cigar Lounge are
+branch — the app that the Listening Party, Reading List and Cedarhouse are
 moving into.
 
 Those three used to be separate static Astro sites on GitHub Pages, each
@@ -28,6 +28,7 @@ several people can share a project.
 | ⬜ | WBPR's map and veil pages — left behind in the migration, see below |
 | ✅ | Custom SMTP — Supabase's own magic-link and confirmation emails go out through Resend, alongside the app's invitations |
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
+| ✅ | Cedarhouse — the cigar lounge off Oxblood Foil and onto the shared paper tokens, with an editorial log page, facet chips and specimen plates |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.
 Its nav is whatever the visitor is a member of: signed out it offers one thing,
@@ -83,7 +84,7 @@ every value of the enum — so this is the only thing stopping it being offered.
 /reading/:workspace/year/new       add a year
 /reading/:workspace/year/:year     year status and target
 
-/cigars/:workspace                 Cigar Lounge — the log
+/cigars/:workspace                 Cedarhouse — the log
 /cigars/:workspace/humidor         what is resting
 /cigars/:workspace/stats           ratings, brands, spend
 /cigars/:workspace/cigar/:slug     one entry
@@ -677,7 +678,7 @@ src/
 │   ├── settings/            per-workspace members, roles, visibility
 │   ├── lp/                  Listening Party
 │   ├── reading/             Reading List
-│   └── cigars/              Cigar Lounge
+│   └── cigars/              Cedarhouse (the cigar lounge)
 └── styles/
     ├── tokens.css           shared palette and type
     ├── launcher.css         the front door, scoped to body.launcher

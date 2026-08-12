@@ -131,10 +131,10 @@ const asked = new Date(reference.created_at);
     max-width: 40rem;
     margin: 3rem auto 0;
     padding: 1.4rem 1.5rem;
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--gold-dim);
-    border-radius: 6px;
-    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    background: var(--paper-raised);
   }
 
   .reference__eyebrow {
@@ -142,7 +142,7 @@ const asked = new Date(reference.created_at);
     font-size: 0.58rem;
     letter-spacing: 0.22em;
     text-transform: uppercase;
-    color: var(--gold-muted);
+    color: var(--ink-muted);
   }
 
   .reference__title {
@@ -150,7 +150,7 @@ const asked = new Date(reference.created_at);
     font-family: var(--display);
     font-size: 1.3rem;
     line-height: 1.25;
-    color: var(--text);
+    color: var(--ink);
   }
 
   .reference__facts {
@@ -167,13 +167,13 @@ const asked = new Date(reference.created_at);
     font-size: 0.55rem;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: var(--gold-label);
+    color: var(--ink-muted);
   }
 
   .reference__fact dd {
     font-size: 0.92rem;
     line-height: 1.35;
-    color: var(--text-2);
+    color: var(--ink-soft);
     overflow-wrap: anywhere;
   }
 
@@ -181,7 +181,7 @@ const asked = new Date(reference.created_at);
     margin-top: 1.1rem;
     font-size: 0.95rem;
     line-height: 1.7;
-    color: var(--text-2);
+    color: var(--ink-soft);
   }
 
   /* Where the vitola disagrees with the dimensions beside it. */
@@ -191,7 +191,7 @@ const asked = new Date(reference.created_at);
     list-style: disc;
     font-size: 0.8rem;
     line-height: 1.55;
-    color: var(--text-muted);
+    color: var(--ink-soft);
   }
 
   .reference__notes li::marker { color: var(--danger); }
@@ -201,7 +201,7 @@ const asked = new Date(reference.created_at);
     margin-top: 1.2rem;
     padding: 0.85rem 1rem;
     border-left: 2px solid var(--danger);
-    background: rgba(232, 119, 106, 0.05);
+    background: rgba(155, 59, 47, 0.05);
   }
 
   .reference__disagree-label {
@@ -221,7 +221,7 @@ const asked = new Date(reference.created_at);
     font-size: 0.55rem;
     letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: var(--gold-label);
+    color: var(--ink-muted);
   }
 
   .reference__diff dd {
@@ -232,24 +232,24 @@ const asked = new Date(reference.created_at);
     font-size: 0.88rem;
   }
 
-  .reference__mine { color: var(--text); }
-  .reference__versus { font-family: var(--mono); font-size: 0.6rem; color: var(--text-faint); }
-  .reference__theirs { color: var(--text-muted); }
+  .reference__mine { color: var(--ink); }
+  .reference__versus { font-family: var(--mono); font-size: 0.6rem; color: var(--ink-muted); }
+  .reference__theirs { color: var(--ink-soft); }
 
   .reference__disagree-note {
     margin-top: 0.7rem;
     font-size: 0.75rem;
     line-height: 1.5;
-    color: var(--text-faint);
+    color: var(--ink-muted);
   }
 
   .reference__provenance {
     margin-top: 1.2rem;
     padding-top: 0.8rem;
-    border-top: 1px solid var(--border-soft);
+    border-top: 1px solid var(--rule-soft);
     font-family: var(--mono);
     font-size: 0.65rem;
     line-height: 1.6;
-    color: var(--gold-muted);
+    color: var(--ink-muted);
   }
 </style>

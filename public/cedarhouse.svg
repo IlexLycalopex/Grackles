@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Cedarhouse: paper ground, ink hairline frame, one cigar with a
+       terracotta band. Squared corners and flat fills, like the app. -->
+  <rect width="32" height="32" fill="#eae7e0"/>
+  <rect x="2.5" y="2.5" width="27" height="27" fill="none" stroke="#c8c3b6"/>
+  <g transform="rotate(-38 16 16)">
+    <rect x="6" y="14" width="20" height="4" fill="#1e1d2e"/>
+    <rect x="18" y="14" width="4" height="4" fill="#a8503a"/>
+  </g>
+</svg>

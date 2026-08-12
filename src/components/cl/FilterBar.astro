@@ -1,249 +1,194 @@
 ---
 /**
- * Client-side filter/sort for the log. The dataset is small and fully
- * rendered at build time, so this just shows/hides and reorders the cards
- * already in the DOM — no index, no framework.
+ * The chips over a grid of plates: country, then strength, then the sort
+ * control pushed to the right.
+ *
+ * A facet is only offered once something on the page carries it — a lounge
+ * with nothing Dominican in it has no reason to show a Dominican chip — so the
+ * caller passes the values it actually found rather than a fixed list.
+ *
+ * Like the search box beside it, this filters what is already rendered instead
+ * of asking the server for a narrower set: both list pages load every entry in
+ * the workspace to draw at all. The chosen chip and sort round-trip through the
+ * query string, so a filtered log survives a reload and can be linked to.
  */
-interface Props {
-  brands: string[];
-  vendors: string[];
-  venues: string[];
+interface Sort {
+  /** recent | oldest | rating | name — the orders the script knows. */
+  key: string;
+  label: string;
 }
 
-const { brands, vendors, venues } = Astro.props;
+interface Props {
+  /** id of the grid element whose children are filtered. */
+  grid: string;
+  countries: string[];
+  strengths: string[];
+  /** Offered in order; the control cycles through them. First is the default. */
+  sorts?: Sort[];
+}
+
+const {
+  grid,
+  countries,
+  strengths,
+  sorts = [
+    { key: 'recent', label: 'Recent' },
+    { key: 'rating', label: 'Rated' },
+    { key: 'name', label: 'A–Z' },
+  ],
+} = Astro.props;
+
+// Nothing to filter by means nothing to render: a lone "All" chip is a control
+// that cannot change anything.
+const facets = [
+  ...countries.map(value => ({ type: 'country', value })),
+  ...strengths.map(value => ({ type: 'strength', value })),
+];
 ---
-<div class="filter-bar">
-  <label class="filter-bar__field">
-    <span class="filter-bar__label">Brand</span>
-    <select id="filter-brand">
-      <option value="">All brands</option>
-      {brands.map((b) => <option value={b}>{b}</option>)}
-    </select>
-  </label>
+{
+  facets.length > 0 && (
+    <div class="facet-bar" data-facet-bar data-grid={grid} data-sorts={JSON.stringify(sorts)} hidden>
+      <button class="facet" type="button" data-facet-type="" data-facet-value="" aria-pressed="true">
+        All
+      </button>
 
-  {vendors.length > 0 && (
-    <label class="filter-bar__field">
-      <span class="filter-bar__label">Bought at</span>
-      <select id="filter-vendor">
-        <option value="">All vendors</option>
-        {vendors.map((v) => <option value={v}>{v}</option>)}
-      </select>
-    </label>
-  )}
+      {facets.map(f => (
+        <button
+          class="facet"
+          type="button"
+          data-facet-type={f.type}
+          data-facet-value={f.value}
+          aria-pressed="false"
+        >
+          {f.value}
+        </button>
+      ))}
 
-  {venues.length > 0 && (
-    <label class="filter-bar__field">
-      <span class="filter-bar__label">Smoked at</span>
-      <select id="filter-venue">
-        <option value="">All places</option>
-        {venues.map((v) => <option value={v}>{v}</option>)}
-      </select>
-    </label>
-  )}
-
-  <label class="filter-bar__field">
-    <span class="filter-bar__label">Sort</span>
-    <select id="sort-by">
-      <option value="date-desc">Newest first</option>
-      <option value="date-asc">Oldest first</option>
-      <option value="rating-desc">Highest rated</option>
-      <option value="rating-asc">Lowest rated</option>
-    </select>
-  </label>
-
-  <span class="filter-bar__count" id="filter-count" aria-live="polite"></span>
-
-  <button class="filter-bar__clear" id="clear-filters" type="button">Clear filters</button>
-</div>
-
-<p class="filter-bar__empty empty-state" id="filter-empty" hidden aria-live="polite">
-  No cigars match those filters.
-</p>
-
-<style>
-  .filter-bar {
-    display: flex;
-    gap: 1.25rem;
-    align-items: flex-end;
-    flex-wrap: wrap;
-    padding: 1.4rem 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .filter-bar__field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.45rem;
-    min-width: 0;
-  }
-
-  .filter-bar__label {
-    font-family: var(--mono);
-    font-size: 0.58rem;
-    letter-spacing: 0.24em;
-    text-transform: uppercase;
-    color: var(--gold-label);
-  }
-
-  .filter-bar select {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 24px;
-    color: var(--text);
-    padding: 0.55rem 0.95rem;
-    font-family: var(--font);
-    font-weight: 300;
-    font-size: 0.88rem;
-    min-width: 11rem;
-    max-width: 100%;
-    cursor: pointer;
-    transition: border-color var(--transition), color var(--transition);
-  }
-
-  /* Native option lists inherit the page background on some platforms and
-     go unreadable, so pin them to the sunk ground explicitly. */
-  .filter-bar select option {
-    background: var(--bg-sunk);
-    color: var(--text);
-  }
-
-  .filter-bar select:hover { border-color: var(--border-gold); }
-  .filter-bar select:focus {
-    outline: none;
-    border-color: var(--foil);
-    color: var(--foil-light);
-  }
-
-  .filter-bar__count {
-    font-family: var(--mono);
-    font-size: 0.66rem;
-    letter-spacing: 0.12em;
-    color: var(--gold-muted);
-    padding-bottom: 0.65rem;
-    margin-left: auto;
-  }
-
-  .filter-bar__clear {
-    background: none;
-    border: none;
-    color: var(--gold-dim);
-    font-family: var(--mono);
-    font-size: 0.62rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    cursor: pointer;
-    padding: 0.3rem 0 0.65rem;
-    transition: color var(--transition);
-  }
-
-  .filter-bar__clear:hover { color: var(--foil); }
-
-  @media (max-width: 620px) {
-    .filter-bar { gap: 0.85rem; }
-    .filter-bar__field { flex: 1 1 100%; }
-    /* 16px keeps iOS Safari from zooming the page on focus */
-    .filter-bar select { width: 100%; min-width: 0; font-size: 1rem; }
-    .filter-bar__count { margin-left: 0; }
-  }
-</style>
+      <button class="facet-bar__sort" type="button" data-facet-sort>
+        {sorts[0]!.label} ↓
+      </button>
+    </div>
+  )
+}
 
 <script>
-  const grid = document.getElementById('cigar-grid');
-  const brandSel = document.getElementById('filter-brand') as HTMLSelectElement | null;
-  const vendorSel = document.getElementById('filter-vendor') as HTMLSelectElement | null;
-  const venueSel = document.getElementById('filter-venue') as HTMLSelectElement | null;
-  const sortSel = document.getElementById('sort-by') as HTMLSelectElement | null;
-  const countEl = document.getElementById('filter-count');
-  const emptyEl = document.getElementById('filter-empty');
-  const clearBtn = document.getElementById('clear-filters');
+  import { refresh, setOut } from '../../lib/cigar-grid';
 
-  if (grid && brandSel && sortSel) {
-    const cards = Array.from(grid.querySelectorAll<HTMLElement>('.cigar-card'));
-    const DEFAULT_SORT = 'date-desc';
+  interface Sort {
+    key: string;
+    label: string;
+  }
 
-    /** Unrated entries have an empty data-rating and sort last, both directions. */
-    function ratingOf(el: HTMLElement): number | null {
-      const raw = el.dataset.rating;
-      return raw ? Number(raw) : null;
-    }
+  /** Unrated entries sort last, whichever way round the others go. */
+  function ratingOf(card: HTMLElement): number | null {
+    const raw = card.dataset.rating;
+    return raw ? Number(raw) : null;
+  }
 
-    function byRating(a: HTMLElement, b: HTMLElement, ascending: boolean): number {
-      const ra = ratingOf(a);
-      const rb = ratingOf(b);
-      if (ra === null && rb === null) return 0;
-      if (ra === null) return 1;
-      if (rb === null) return -1;
-      return ascending ? ra - rb : rb - ra;
-    }
-
-    function compare(a: HTMLElement, b: HTMLElement, mode: string): number {
-      switch (mode) {
-        case 'date-asc':
-          return (a.dataset.date ?? '').localeCompare(b.dataset.date ?? '');
-        case 'rating-desc':
-          return byRating(a, b, false);
-        case 'rating-asc':
-          return byRating(a, b, true);
-        default: // date-desc
-          return (b.dataset.date ?? '').localeCompare(a.dataset.date ?? '');
+  function compare(a: HTMLElement, b: HTMLElement, key: string): number {
+    switch (key) {
+      case 'oldest':
+        return (a.dataset.date ?? '').localeCompare(b.dataset.date ?? '');
+      case 'rating': {
+        const ra = ratingOf(a);
+        const rb = ratingOf(b);
+        if (ra === null && rb === null) return 0;
+        if (ra === null) return 1;
+        if (rb === null) return -1;
+        return rb - ra;
       }
+      case 'name':
+        return (a.dataset.name ?? '').localeCompare(b.dataset.name ?? '');
+      default: // recent
+        return (b.dataset.date ?? '').localeCompare(a.dataset.date ?? '');
     }
+  }
 
-    function apply() {
-      const brand = brandSel!.value;
-      const vendor = vendorSel?.value ?? '';
-      const venue = venueSel?.value ?? '';
-      const mode = sortSel!.value;
+  for (const bar of document.querySelectorAll<HTMLElement>('[data-facet-bar]')) {
+    const grid = document.getElementById(bar.dataset.grid ?? '');
+    const sortBtn = bar.querySelector<HTMLButtonElement>('[data-facet-sort]');
+    if (!grid || !sortBtn) continue;
 
-      let visible = 0;
+    const chips = Array.from(bar.querySelectorAll<HTMLElement>('[data-facet-type]'));
+    const cards = Array.from(grid.querySelectorAll<HTMLElement>('[data-search]'));
+    const sorts: Sort[] = JSON.parse(bar.dataset.sorts ?? '[]');
+    if (cards.length < 2 || sorts.length === 0) continue;
+    bar.hidden = false;
+
+    // The rendered order is the first sort, so returning to it means putting
+    // the cards back where they started rather than sorting by it again —
+    // which for the humidor is a different comparison from the one the server
+    // used to break ties.
+    const rendered = cards.slice();
+
+    let type = '';
+    let value = '';
+    let sort = 0;
+
+    const apply = () => {
+      for (const chip of chips) {
+        const on = (chip.dataset.facetType ?? '') === type && (chip.dataset.facetValue ?? '') === value;
+        chip.setAttribute('aria-pressed', String(on));
+      }
+
       for (const card of cards) {
-        const show =
-          (!brand || card.dataset.brand === brand) &&
-          (!vendor || card.dataset.boughtAt === vendor) &&
-          (!venue || card.dataset.smokedAt === venue);
-        card.hidden = !show;
-        if (show) visible++;
+        const has = !type || (card.dataset[type as 'country' | 'strength'] ?? '') === value;
+        setOut(card, 'facet', !has);
       }
 
-      // Ties fall back to the build-time order (newest first, then name).
-      const ordered = [...cards].sort((a, b) => compare(a, b, mode) || 0);
-      for (const card of ordered) grid!.appendChild(card);
+      const order = sort === 0 ? rendered : cards.slice().sort((a, b) => compare(a, b, sorts[sort]!.key));
+      for (const card of order) grid.append(card);
 
-      if (countEl) countEl.textContent = visible < cards.length ? `${visible} of ${cards.length}` : '';
-      if (emptyEl) emptyEl.hidden = visible > 0;
+      sortBtn.textContent = `${sorts[sort]!.label} ↓`;
+      refresh(grid);
+    };
 
-      const params = new URLSearchParams();
-      if (brand) params.set('brand', brand);
-      if (vendor) params.set('vendor', vendor);
-      if (venue) params.set('venue', venue);
-      if (mode !== DEFAULT_SORT) params.set('sort', mode);
-      const qs = params.toString();
-      history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname);
+    const remember = () => {
+      const url = new URL(window.location.href);
+      // Both kinds go, then the chosen one comes back: only one chip can be
+      // pressed, so leaving the other kind's parameter behind would hand out a
+      // link describing a filter the page is not applying.
+      url.searchParams.delete('country');
+      url.searchParams.delete('strength');
+      if (type) url.searchParams.set(type, value);
+      if (sort > 0) url.searchParams.set('sort', sorts[sort]!.key);
+      else url.searchParams.delete('sort');
+      history.replaceState(null, '', url);
+    };
+
+    for (const chip of chips) {
+      chip.addEventListener('click', () => {
+        type = chip.dataset.facetType ?? '';
+        value = chip.dataset.facetValue ?? '';
+        apply();
+        remember();
+      });
     }
 
-    /** Only accept a value the select actually offers. */
-    function setIfValid(sel: HTMLSelectElement | null, value: string | null) {
-      if (!sel || !value) return;
-      if (Array.from(sel.options).some((o) => o.value === value)) sel.value = value;
-    }
-
-    for (const sel of [brandSel, vendorSel, venueSel, sortSel]) {
-      sel?.addEventListener('change', apply);
-    }
-
-    clearBtn?.addEventListener('click', () => {
-      brandSel!.value = '';
-      if (vendorSel) vendorSel.value = '';
-      if (venueSel) venueSel.value = '';
-      sortSel!.value = DEFAULT_SORT;
+    sortBtn.addEventListener('click', () => {
+      sort = (sort + 1) % sorts.length;
       apply();
+      remember();
     });
 
+    // What the query string asked for, if it asked for anything this page can
+    // honour. A stale link naming a country nobody has smoked here any more
+    // falls back to showing everything rather than an empty grid.
     const params = new URLSearchParams(window.location.search);
-    setIfValid(brandSel, params.get('brand'));
-    setIfValid(vendorSel, params.get('vendor'));
-    setIfValid(venueSel, params.get('venue'));
-    setIfValid(sortSel, params.get('sort'));
-    if (params.toString()) apply();
+    for (const kind of ['country', 'strength'] as const) {
+      const wanted = params.get(kind);
+      const chip = wanted
+        ? chips.find(c => c.dataset.facetType === kind && c.dataset.facetValue === wanted)
+        : null;
+      if (chip) {
+        type = kind;
+        value = wanted!;
+      }
+    }
+
+    const wantedSort = sorts.findIndex(s => s.key === params.get('sort'));
+    if (wantedSort > 0) sort = wantedSort;
+
+    apply();
   }
 </script>

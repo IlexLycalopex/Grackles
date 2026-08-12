@@ -44,6 +44,7 @@ const inputId = `filter-${grid}`;
 </div>
 
 <script>
+  import { refresh, setOut } from '../../lib/cigar-grid';
   import { matches, parseQuery } from '../../lib/cigar-search';
 
   for (const box of document.querySelectorAll<HTMLElement>('[data-cigar-filter]')) {
@@ -58,13 +59,6 @@ const inputId = `filter-${grid}`;
     box.hidden = false;
 
     const noun = box.dataset.noun ?? 'entries';
-
-    // Created once and reused. Appended to the grid rather than after it so it
-    // lands inside the same layout, spanning every column.
-    const nothing = document.createElement('p');
-    nothing.className = 'empty-state cigar-filter__none';
-    nothing.hidden = true;
-    grid.append(nothing);
 
     // Read once, not per keystroke. Parsing eighteen fractions out of
     // `4 7/8"` for every card on every letter typed is work with a known
@@ -82,22 +76,20 @@ const inputId = `filter-${grid}`;
       const raw = input.value;
       const query = parseQuery(raw);
 
-      let shown = 0;
       for (const entry of entries) {
-        const hit = matches(entry.haystack, entry.size, query);
-        entry.card.hidden = !hit;
-        if (hit) shown++;
+        setOut(entry.card, 'search', !matches(entry.haystack, entry.size, query));
       }
 
-      if (query.empty) {
-        count.textContent = '';
-        nothing.hidden = true;
-        return;
-      }
+      // The chips above this box are hiding plates too, so what is left on
+      // screen is not this box's verdict alone — hence the shared tally rather
+      // than a count of what matched here. The note it leaves in an emptied
+      // grid names the search only when there is a search to name.
+      const shown = refresh(
+        grid,
+        query.empty ? 'Nothing here matches those filters.' : `Nothing here matches “${raw.trim()}”.`
+      );
 
-      count.textContent = `${shown} of ${entries.length} ${noun}`;
-      nothing.hidden = shown > 0;
-      if (shown === 0) nothing.textContent = `Nothing here matches “${raw.trim()}”.`;
+      count.textContent = query.empty ? '' : `${shown} of ${entries.length} ${noun}`;
     };
 
     input.addEventListener('input', apply);

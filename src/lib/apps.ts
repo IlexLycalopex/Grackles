@@ -38,9 +38,11 @@ export const APPS: AppDefinition[] = [
     tagline: 'Everything read, by year.',
   },
   {
+    // The slug is the database's name for the app and stays as it is; `name`
+    // is what people read, and the app goes by Cedarhouse.
     slug: 'cigar-lounge',
     path: 'cigars',
-    name: 'Cigar Lounge',
+    name: 'Cedarhouse',
     hosted: true,
     tagline: 'Humidor and tasting notes.',
   },

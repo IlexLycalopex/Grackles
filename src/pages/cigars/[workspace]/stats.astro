@@ -47,10 +47,10 @@ const spendApproximate = priced.some(p => p.price.approximate);
 
 <ClLayout title={`Stats · ${workspace.name}`} workspace={workspace}>
   <div class="container">
-    <div class="page-header">
-      <p class="eyebrow">The numbers</p>
-      <h1>Stats</h1>
-    </div>
+    <header class="page-header">
+      <p class="label">The numbers · {smoked.length} smoked</p>
+      <h1>What it all <em>adds up to.</em></h1>
+    </header>
 
     <div class="stats-strip">
       <div class="stat">
@@ -108,7 +108,7 @@ const spendApproximate = priced.some(p => p.price.approximate);
               </span>
               <span class="dist__count">
                 {b.count}
-                {b.averageRating !== null ? ` · ${b.averageRating.toFixed(1)}★` : ''}
+                {b.averageRating !== null ? ` · ${b.averageRating.toFixed(1)} avg` : ''}
               </span>
             </li>
           ))}
