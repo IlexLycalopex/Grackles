@@ -920,6 +920,57 @@ export type Database = {
         };
         Returns: string;
       };
+      /**
+       * Blackletter — where today's game stands for the caller.
+       *
+       * `answer` is null until the game is over. That is not a convention this
+       * file is describing, it is the property the whole app is built on: the
+       * word is in the function's scope throughout and is put into the reply
+       * only once knowing it can no longer change the outcome.
+       */
+      blackletter_state: {
+        Args: { p_workspace: string; p_length: number };
+        Returns: BlackletterGame;
+      };
+      /**
+       * Blackletter — submit a guess and get it back marked.
+       *
+       * GRK06 not a word in the guess list, GRK07 the game is finished or out
+       * of attempts. Both are shown to the player as written.
+       */
+      blackletter_guess: {
+        Args: { p_workspace: string; p_length: number; p_guess: string };
+        Returns: BlackletterGame;
+      };
+      /**
+       * Blackletter — how everybody in the workspace did on a given day.
+       *
+       * Marks and never guesses, which is what makes it safe to show to
+       * somebody who has not played yet.
+       */
+      blackletter_scoreboard: {
+        Args: { p_workspace: string; p_length: number; p_date?: string };
+        Returns: {
+          user_id: string;
+          display_name: string;
+          status: BlackletterStatus;
+          attempts_used: number;
+          marks: string[];
+          finished_at: string | null;
+        }[];
+      };
+      /** Blackletter — the caller's record at one word length. Derived, never stored. */
+      blackletter_stats: {
+        Args: { p_workspace: string; p_length: number };
+        Returns: {
+          played: number;
+          won: number;
+          streak: number;
+          max_streak: number;
+          /** Guess count → how many wins took that many. Absent keys are zero. */
+          distribution: Record<string, number>;
+        };
+      };
       smoke_from_humidor: {
         Args: {
           p_cigar_id: string;
@@ -944,7 +995,8 @@ export type Database = {
         | 'lanternwood'
         | 'spelltome'
         | 'scoundrel'
-        | 'wbpr';
+        | 'wbpr'
+        | 'blackletter';
       member_role: 'owner' | 'editor' | 'viewer';
       visibility: 'private' | 'unlisted' | 'public';
     };
@@ -960,6 +1012,23 @@ export type TablesUpdate<T extends keyof Public['Tables']> = Public['Tables'][T]
 export type Enums<T extends keyof Public['Enums']> = Public['Enums'][T];
 /** What an RPC gives back, so a page can name the shape it is mapping over. */
 export type Returns<T extends keyof Public['Functions']> = Public['Functions'][T]['Returns'];
+
+/** 'c' correct, 'p' present, 'a' absent — one character per letter. */
+export type BlackletterMark = 'c' | 'p' | 'a';
+export type BlackletterStatus = 'playing' | 'won' | 'lost';
+
+/** What both Blackletter game RPCs return. */
+export interface BlackletterGame {
+  date: string;
+  length: number;
+  attempts: number;
+  guesses: string[];
+  /** Parallel to `guesses`; each string is one mark character per letter. */
+  marks: string[];
+  status: BlackletterStatus;
+  /** Null while the game is live. See blackletter_state. */
+  answer: string | null;
+}
 
 export type AppSlug = Enums<'app_slug'>;
 export type MemberRole = Enums<'member_role'>;
