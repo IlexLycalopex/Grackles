@@ -42,6 +42,15 @@ export function visibleCards(cards: HTMLElement[]): HTMLElement[] {
  * Called by both controls after they have set their own verdicts, so the
  * result reflects the pair of them and not whichever ran last.
  */
+export interface RefreshDetail {
+  shown: number;
+  total: number;
+}
+
+/** Announced on the grid after every refresh, so a control that renders a
+ *  count of its own can restate it when the *other* control moves. */
+export const REFRESHED = 'cigargrid:refreshed';
+
 export function refresh(grid: HTMLElement, message = 'Nothing here matches those filters.'): number {
   const cards = Array.from(grid.querySelectorAll<HTMLElement>('[data-search]'));
   const shown = visibleCards(cards);
@@ -71,6 +80,12 @@ export function refresh(grid: HTMLElement, message = 'Nothing here matches those
   }
   none.textContent = message;
   none.hidden = shown.length > 0;
+
+  grid.dispatchEvent(
+    new CustomEvent<RefreshDetail>(REFRESHED, {
+      detail: { shown: shown.length, total: cards.length },
+    })
+  );
 
   return shown.length;
 }

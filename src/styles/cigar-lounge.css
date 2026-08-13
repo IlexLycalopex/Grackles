@@ -400,9 +400,18 @@ main { flex: 1; }
 
 /* Filtered out by the chips or the search box. `display: none` rather than the
    `hidden` attribute's default, so a rejected cell leaves the grid instead of
-   holding a column open with its borders. */
+   holding a column open with its borders.
+
+   `!important` because the cell is a component that lays itself out. Astro
+   scopes a component's own styles by appending an attribute — `.cigar-card`
+   becomes `.cigar-card[data-astro-cid-…]` — which ties this selector's
+   specificity exactly, and it emits those scoped rules after this sheet, so
+   the tie goes to the card's `display: flex` and the plate stays on screen.
+   The counts still moved, which is what made this look like a search that
+   knew the answer and would not act on it. A state that overrules layout has
+   to say so rather than hope it is read last. */
 .cigar-grid > [data-out-facet],
-.cigar-grid > [data-out-search] { display: none; }
+.cigar-grid > [data-out-search] { display: none !important; }
 
 /* Shown when nothing on the page survives the filters. Spans the grid rather
    than sitting in one column, and carries no cell borders. */

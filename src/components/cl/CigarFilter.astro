@@ -44,7 +44,7 @@ const inputId = `filter-${grid}`;
 </div>
 
 <script>
-  import { refresh, setOut } from '../../lib/cigar-grid';
+  import { REFRESHED, refresh, setOut, type RefreshDetail } from '../../lib/cigar-grid';
   import { matches, parseQuery } from '../../lib/cigar-search';
 
   for (const box of document.querySelectorAll<HTMLElement>('[data-cigar-filter]')) {
@@ -72,24 +72,33 @@ const inputId = `filter-${grid}`;
       },
     }));
 
+    // The chips above this box are hiding plates too, so what is left on screen
+    // is not this box's verdict alone — hence a count of what survived both
+    // rather than of what matched here. Which means it is also out of date the
+    // moment a chip moves, so the count is rendered from the grid's own
+    // announcement rather than from the keystroke that happened to cause it.
+    let searching = false;
+
+    grid.addEventListener(REFRESHED, event => {
+      const { shown, total } = (event as CustomEvent<RefreshDetail>).detail;
+      count.textContent = searching ? `${shown} of ${total} ${noun}` : '';
+    });
+
     const apply = () => {
       const raw = input.value;
       const query = parseQuery(raw);
+      searching = !query.empty;
 
       for (const entry of entries) {
         setOut(entry.card, 'search', !matches(entry.haystack, entry.size, query));
       }
 
-      // The chips above this box are hiding plates too, so what is left on
-      // screen is not this box's verdict alone — hence the shared tally rather
-      // than a count of what matched here. The note it leaves in an emptied
-      // grid names the search only when there is a search to name.
-      const shown = refresh(
+      // The note left in an emptied grid names the search only when there is a
+      // search to name.
+      refresh(
         grid,
         query.empty ? 'Nothing here matches those filters.' : `Nothing here matches “${raw.trim()}”.`
       );
-
-      count.textContent = query.empty ? '' : `${shown} of ${entries.length} ${noun}`;
     };
 
     input.addEventListener('input', apply);
