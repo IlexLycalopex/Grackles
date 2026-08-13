@@ -29,7 +29,7 @@ several people can share a project.
 | ✅ | Custom SMTP — Supabase's own magic-link and confirmation emails go out through Resend, alongside the app's invitations |
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
 | ✅ | Cedarhouse — the cigar lounge off Oxblood Foil and onto the shared paper tokens, with an editorial log page, facet chips and specimen plates |
-| ⬜ | Blackletter — the word game. Built and tested; the migrations are not applied to the project yet, so there is nothing at `/blackletter` until they are |
+| ✅ | Blackletter — the word game, at five, six and seven letters. Schema, dictionary and workspace are live on the project |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.
 Its nav is whatever the visitor is a member of: signed out it offers one thing,
@@ -670,20 +670,37 @@ SOMBER as an *answer* reads as a misspelling, and SOMBRE as a *guess* was not in
 the list at all. Both spellings are guessable; only the British one can be the
 answer.
 
-### Before it can be played
+### What is live
 
-Nothing is live. In order:
+All three migrations are applied to `ophmsvqtzffrjmyjyzza`, `bl_words` holds all
+46,989 words, and the workspace exists at `/blackletter/words`, private, owned by
+Jamie. Today's puzzles are minted at all three lengths.
 
-```sh
-# 1. the three migrations, in filename order
-# 2. the dictionary — 47,000 rows, about a second
-psql -f supabase/seed/blackletter-words.sql
-# 3. an entitlement, then create the workspace through /new
-insert into app_grants (user_id, app, max_workspaces) values ('<you>', 'blackletter', 1);
-```
+The enum migration went out on its own, and has to: `ALTER TYPE ... ADD VALUE`
+cannot be used in the transaction that uses the value.
 
-The enum migration has to go out on its own: `ALTER TYPE ... ADD VALUE` cannot
-be used in the transaction that uses the value.
+Loading the dictionary was the awkward part and is worth writing down in case it
+is ever done again. There is no direct Postgres route into the project from the
+environment the migrations were run from, and 47,000 words is too much to push
+through a management API by hand. What worked was to install `http` into the
+`extensions` schema, have Postgres itself fetch the generated seed from a
+**pinned commit SHA** of this repo, parse the word literals out of it in SQL, and
+then drop the extension again. Outbound HTTP from the database is not a
+capability this project should keep standing.
+
+Two things about that parse, both learned the hard way. Postgres's regex engine
+decides greediness per *branch* rather than per quantifier, so a non-greedy
+`(.*?)` sitting next to a greedy `(\d+)` is not non-greedy at all — the first
+attempt swallowed all six sections into one. And every section in the generated
+file announces its own size, which is what made it possible to prove the parse
+was right rather than assume it: a regex that quietly matched half a list would
+otherwise have loaded a dictionary missing twenty thousand words, and nothing
+would have looked wrong until somebody guessed one of them.
+
+There is a spent `seed-blackletter` edge function on the project, stubbed out to
+return 410 and behind JWT verification. It was an earlier attempt at the same
+load, made unnecessary by the `http` route; the management API has no delete, so
+it wants removing from the dashboard.
 
 ## Running it
 
