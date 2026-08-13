@@ -272,6 +272,13 @@ Token counts are columns on the session rather than something inferred
 afterwards. Protecting token usage is only a real property if somebody can see
 what was spent.
 
+That much is per-sitting, which is the right amount of machinery for one feature
+and the wrong amount for two. `docs/ai-architecture.md` specifies what replaces
+it: a metered call path, per-person allowances in the shape `app_grants` already
+uses, a spend ledger both the payer and the actor can read, and a platform admin
+who can turn a feature — or all of them — off without a deploy. None of it is
+built.
+
 ## Photographs
 
 There is no upload. A cigar's photo is a URL typed into the edit form, checked
