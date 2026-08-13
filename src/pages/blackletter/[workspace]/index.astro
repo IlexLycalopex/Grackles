@@ -1,0 +1,332 @@
+---
+import BlLayout from '../../../layouts/BlLayout.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import {
+  DEFAULT_LENGTH, LENGTHS, isPlayableLength, keyboardMarks, shareText,
+} from '../../../lib/blackletter';
+import type { BlackletterGame } from '../../../lib/database.types';
+
+export const prerender = false;
+
+/**
+ * Today's puzzle.
+ *
+ * The length is a query parameter rather than a path segment because the three
+ * are one page in three states, and `?n=7` keeps the workspace's front door at
+ * one address — which matters when the nav, the dashboard and every share link
+ * point at it.
+ *
+ * The whole board is rendered server-side from blackletter_state() before any
+ * script runs, so a game in progress is *there* on load rather than appearing
+ * after a fetch. The script takes over from that markup; it does not rebuild it.
+ */
+
+const { supabase, user } = Astro.locals;
+const { workspace: slug } = Astro.params;
+
+const workspace = await resolveWorkspace(supabase, 'blackletter', slug!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+// Playing writes a row against a person, so unlike the other four apps there is
+// nothing to show an anonymous visitor — not even a read-only version. They are
+// sent to sign in rather than shown an empty board they cannot use.
+if (!user) {
+  return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname + Astro.url.search)}`);
+}
+
+const asked = Number(Astro.url.searchParams.get('n'));
+const length = isPlayableLength(asked) ? asked : DEFAULT_LENGTH;
+
+const [{ data: state, error }, { data: stats }, { data: scoreboard }] = await Promise.all([
+  supabase.rpc('blackletter_state', { p_workspace: workspace.id, p_length: length }),
+  supabase.rpc('blackletter_stats', { p_workspace: workspace.id, p_length: length }),
+  supabase.rpc('blackletter_scoreboard', { p_workspace: workspace.id, p_length: length }),
+]);
+
+if (error) {
+  console.error('blackletter_state failed', error);
+}
+
+const game: BlackletterGame = state ?? {
+  date: '', length, attempts: 6, guesses: [], marks: [], status: 'playing', answer: null,
+};
+
+const finished = game.status !== 'playing';
+const keys = keyboardMarks(game);
+const base = `/blackletter/${workspace.slug}`;
+const rows = Array.from({ length: game.attempts }, (_, i) => i);
+const cols = Array.from({ length: game.length }, (_, i) => i);
+
+const KEYBOARD = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
+
+// Everyone who has finished today, and how it went for them. Marks only — the
+// function does not return guesses, so there is nothing here to spoil.
+const others = (scoreboard ?? []).filter(r => r.user_id !== user.id);
+---
+
+<BlLayout
+  title={`${game.length} letters · ${workspace.name}`}
+  description="One word a day, at five, six and seven letters."
+  workspace={workspace}
+>
+  <main class="container play">
+    <nav class="lengths">
+      {
+        LENGTHS.map(n => (
+          <a href={`${base}?n=${n}`} aria-current={n === game.length ? 'page' : undefined}>
+            {n}
+          </a>
+        ))
+      }
+    </nav>
+
+    <p class="notice" id="notice" role="status" aria-live="polite"></p>
+
+    <div class="board" id="board" style={`--cols: ${game.length}`}>
+      {
+        rows.map(r => (
+          <div class="board__row" data-row={r}>
+            {
+              cols.map(c => (
+                <div
+                  class="tile"
+                  style={`--i: ${c}`}
+                  data-col={c}
+                  data-filled={game.guesses[r]?.[c] ? '' : undefined}
+                  data-mark={game.marks[r]?.[c] ?? undefined}
+                >
+                  {game.guesses[r]?.[c] ?? ''}
+                </div>
+              ))
+            }
+          </div>
+        ))
+      }
+    </div>
+
+    <div class="keyboard" id="keyboard">
+      {
+        KEYBOARD.map((row, i) => (
+          <div class="keyboard__row">
+            {i === 2 && <button class="key key--wide" data-key="Enter">Enter</button>}
+            {
+              [...row].map(letter => (
+                <button class="key" data-key={letter} data-mark={keys[letter] ?? undefined}>
+                  {letter}
+                </button>
+              ))
+            }
+            {i === 2 && <button class="key key--wide" data-key="Backspace">Del</button>}
+          </div>
+        ))
+      }
+    </div>
+
+    <section class="result" id="result" hidden={!finished}>
+      <h2 id="resultHead">{game.status === 'won' ? 'Solved' : 'Not today'}</h2>
+      <p class="result__answer" id="resultAnswer">{game.answer ?? ''}</p>
+      <pre class="result__grid" id="resultGrid">{finished ? shareText(game) : ''}</pre>
+      <button class="copy" id="copyBtn">Copy result</button>
+
+      {
+        stats && (
+          <div class="stats">
+            <div><b>{stats.played}</b><span>played</span></div>
+            <div><b>{stats.played ? Math.round((stats.won / stats.played) * 100) : 0}%</b><span>won</span></div>
+            <div><b>{stats.streak}</b><span>streak</span></div>
+            <div><b>{stats.max_streak}</b><span>best</span></div>
+          </div>
+        )
+      }
+
+      {
+        others.length > 0 && (
+          <table class="scoreboard">
+            <thead>
+              <tr><th>Today</th><th>Guesses</th><th></th></tr>
+            </thead>
+            <tbody>
+              {
+                others.map(r => (
+                  <tr>
+                    <td>{r.display_name}</td>
+                    <td>{r.status === 'playing' ? '—' : r.status === 'won' ? r.attempts_used : 'X'}</td>
+                    <td>{r.status === 'playing' ? 'still going' : ''}</td>
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
+        )
+      }
+    </section>
+  </main>
+
+  {/* The game as the server drew it, for the script to pick up. A JSON block
+      rather than define:vars because define:vars requires an inline script,
+      and an inline script cannot import — which would mean a second copy of
+      the share grid living in this file. */}
+  <script type="application/json" id="blGame" set:html={JSON.stringify(game)} />
+  <script type="application/json" id="blConfig" set:html={JSON.stringify({
+    endpoint: `/api/blackletter/${workspace.slug}/guess`,
+  })} />
+
+  <script>
+    import { shareText, MARK_RANK } from '../../../lib/blackletter';
+    import type { BlackletterGame } from '../../../lib/database.types';
+
+    // The board is already on the page, drawn by the server from
+    // blackletter_state(). This script only ever appends to it — it never
+    // re-renders from state, because redrawing would throw away the markup a
+    // player is currently looking at.
+    const read = <T,>(id: string): T => JSON.parse(document.getElementById(id)!.textContent!);
+    const need = <T extends Element>(id: string): T => document.getElementById(id)! as unknown as T;
+
+    const initial = read<BlackletterGame>('blGame');
+    const { endpoint } = read<{ endpoint: string }>('blConfig');
+    const { length } = initial;
+
+    const board = need<HTMLElement>('board');
+    const notice = need<HTMLElement>('notice');
+    const result = need<HTMLElement>('result');
+
+    let row = initial.guesses.length;
+    let typed = '';
+    let busy = false;
+    let done = initial.status !== 'playing';
+
+    const rowEl = (r: number) => board.querySelector<HTMLElement>(`[data-row="${r}"]`)!;
+    const tiles = (r: number) => rowEl(r).children;
+
+    function say(message: string, isError = false) {
+      notice.textContent = message;
+      if (isError) notice.setAttribute('data-error', '');
+      else notice.removeAttribute('data-error');
+    }
+
+    function draw() {
+      const cells = tiles(row);
+      for (let i = 0; i < length; i++) {
+        const cell = cells[i] as HTMLElement;
+        cell.textContent = typed[i] ?? '';
+        if (typed[i]) cell.setAttribute('data-filled', '');
+        else cell.removeAttribute('data-filled');
+      }
+    }
+
+    function type(letter: string) {
+      if (done || busy || typed.length >= length) return;
+      typed += letter;
+      say('');
+      draw();
+    }
+
+    function back() {
+      if (done || busy || !typed) return;
+      typed = typed.slice(0, -1);
+      draw();
+    }
+
+    function reject(message: string) {
+      say(message, true);
+      const el = rowEl(row);
+      el.setAttribute('data-invalid', '');
+      setTimeout(() => el.removeAttribute('data-invalid'), 400);
+    }
+
+    async function submit() {
+      if (done || busy) return;
+      if (typed.length !== length) {
+        reject('Not enough letters.');
+        return;
+      }
+      busy = true;
+      const guess = typed;
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ length, guess }),
+        });
+        const data = await res.json();
+        if (!res.ok) reject(data.error ?? 'That did not work.');
+        else apply(data as BlackletterGame);
+      } catch {
+        // A guess that never reached the server has not been spent, so the word
+        // stays in the row for another go rather than being silently dropped.
+        reject('No connection. Try that again.');
+      } finally {
+        busy = false;
+      }
+    }
+
+    function apply(game: BlackletterGame) {
+      const marks = game.marks[game.marks.length - 1];
+      const cells = tiles(row);
+      for (let i = 0; i < length; i++) {
+        const cell = cells[i] as HTMLElement;
+        cell.setAttribute('data-mark', marks[i]);
+        cell.setAttribute('data-reveal', '');
+      }
+
+      // The keyboard only ever improves. A letter shown correct stays correct
+      // even when a later guess puts it somewhere it is not.
+      for (let i = 0; i < length; i++) {
+        const key = document.querySelector<HTMLElement>(`.key[data-key="${typed[i]}"]`);
+        if (!key) continue;
+        const had = key.getAttribute('data-mark');
+        if (!had || MARK_RANK[marks[i]] > MARK_RANK[had]) key.setAttribute('data-mark', marks[i]);
+      }
+
+      const played = row;
+      row += 1;
+      typed = '';
+
+      if (game.status === 'playing') return;
+
+      done = true;
+      const won = game.status === 'won';
+      if (won) rowEl(played).setAttribute('data-won', '');
+
+      // Held back until the flip has run, so the answer does not appear above a
+      // row that is still turning over.
+      setTimeout(() => {
+        need<HTMLElement>('resultHead').textContent = won ? 'Solved' : 'Not today';
+        need<HTMLElement>('resultAnswer').textContent = game.answer ?? '';
+        need<HTMLElement>('resultGrid').textContent = shareText(game);
+        result.hidden = false;
+        result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, length * 180 + 400);
+    }
+
+    need<HTMLElement>('keyboard').addEventListener('click', e => {
+      const key = (e.target as HTMLElement).closest<HTMLElement>('[data-key]');
+      if (!key) return;
+      const k = key.getAttribute('data-key')!;
+      if (k === 'Enter') submit();
+      else if (k === 'Backspace') back();
+      else type(k);
+    });
+
+    document.addEventListener('keydown', e => {
+      // Let the browser keep its own shortcuts.
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'Enter') submit();
+      else if (e.key === 'Backspace') back();
+      else if (/^[a-zA-Z]$/.test(e.key)) type(e.key.toLowerCase());
+    });
+
+    need<HTMLElement>('copyBtn').addEventListener('click', async () => {
+      const text = need<HTMLElement>('resultGrid').textContent ?? '';
+      try {
+        await navigator.clipboard.writeText(text);
+        say('Copied.');
+      } catch {
+        // Clipboard access is refused often enough — an insecure origin, a
+        // denied permission — that failing silently would look like a broken
+        // button rather than a blocked one.
+        say('Select the grid and copy it.', true);
+      }
+    });
+  </script>
+</BlLayout>

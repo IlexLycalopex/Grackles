@@ -1,0 +1,211 @@
+/* Blackletter — the word game.
+ *
+ * Standalone, like the other four: this file is the app's whole visual identity
+ * and there are no shared tokens underneath it to fight in the cascade.
+ *
+ * The name is the typeface of early printing, so the page is a printed page —
+ * warm paper, ink, a red used the way a rubricator used one. It is deliberately
+ * not Wordle's chrome-and-white. What *is* borrowed is the part that has to be:
+ * a grid of letter tiles, a keyboard under it, and three states meaning the same
+ * three things, because a player who has to learn what the colours mean has been
+ * given a puzzle before the puzzle.
+ *
+ * The three states never rely on hue alone. Correct is filled and dark, present
+ * is outlined, absent is sunk into the page — so the board still reads in
+ * greyscale, which is most of what a colourblind mode would have added. */
+
+:root {
+  --paper: #f4f0e6;
+  --paper-sunk: #e6e0d2;
+  --ink: #1c1a17;
+  --ink-soft: #4a453c;
+  --ink-faint: #8a8274;
+  --rule: #d6cfbe;
+
+  /* Correct, present, absent. The red is the rubricator's; the amber is a
+   * second ink rather than a highlighter. */
+  --correct: #7a2318;
+  --correct-ink: #f4f0e6;
+  --present: #b8873a;
+  --absent: #b5ada0;
+
+  --font-display: 'UnifrakturMaguntia', 'Luminari', serif;
+  --font-serif: 'EB Garamond', Georgia, 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14120f;
+    --paper-sunk: #1c1915;
+    --ink: #ece5d6;
+    --ink-soft: #b3aa98;
+    --ink-faint: #6f685c;
+    --rule: #2c2822;
+    --correct: #a8422c;
+    --correct-ink: #f4f0e6;
+    --present: #c99a4a;
+    --absent: #3a352d;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: 18px;
+  line-height: 1.5;
+  /* The board is sized against the viewport, so the page must not scroll while
+   * playing — a keyboard that moves under the thumb is unusable. */
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.container { width: min(100% - 2rem, 34rem); margin-inline: auto; }
+
+/* ── Masthead ──────────────────────────────────────────────────────── */
+.site-header { border-bottom: 1px solid var(--rule); flex: none; }
+.site-header__inner {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 1rem; padding: 0.75rem 0; flex-wrap: wrap;
+}
+.site-header__brand {
+  font-family: var(--font-display);
+  font-size: 1.6rem; color: var(--ink); text-decoration: none; letter-spacing: 0.01em;
+}
+.site-nav { display: flex; gap: 1rem; list-style: none; margin: 0; padding: 0; }
+.site-nav a {
+  font-family: var(--font-mono); font-size: 0.7rem; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--ink-faint); text-decoration: none;
+}
+.site-nav a:hover, .site-nav a[aria-current='page'] { color: var(--ink); }
+
+/* ── The length toggle ─────────────────────────────────────────────── */
+/* Three puzzles a day, not three modes of one. Rendered as links rather than a
+ * control, because each is its own page with its own game and its own streak,
+ * and a link is the honest affordance for that. */
+.lengths { display: flex; gap: 0.25rem; justify-content: center; margin: 1rem 0 0; }
+.lengths a {
+  font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.05em;
+  padding: 0.3rem 0.8rem; text-decoration: none; color: var(--ink-faint);
+  border: 1px solid var(--rule); border-radius: 2px;
+}
+.lengths a[aria-current='page'] {
+  color: var(--paper); background: var(--ink); border-color: var(--ink);
+}
+
+.play { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 1rem; padding: 1rem 0; }
+
+/* ── The board ─────────────────────────────────────────────────────── */
+.board { display: grid; gap: 5px; justify-content: center; }
+.board__row { display: grid; gap: 5px; grid-auto-flow: column; }
+
+.tile {
+  /* Sized off the viewport so seven letters still fit a narrow phone. The cap
+   * stops the board becoming absurd on a desktop. */
+  width: min(3.2rem, calc((100vw - 3rem) / var(--cols)));
+  aspect-ratio: 1;
+  display: grid; place-items: center;
+  font-family: var(--font-serif); font-weight: 600;
+  font-size: clamp(1.1rem, 5vw, 1.9rem);
+  text-transform: uppercase;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink);
+  user-select: none;
+}
+.tile[data-filled] { border-color: var(--ink-faint); }
+.tile[data-mark='c'] { background: var(--correct); border-color: var(--correct); color: var(--correct-ink); }
+.tile[data-mark='p'] { border-color: var(--present); border-width: 3px; color: var(--ink); }
+.tile[data-mark='a'] { background: var(--paper-sunk); border-color: var(--paper-sunk); color: var(--ink-faint); }
+
+/* Flip on reveal, staggered per column. Transform and opacity only, so it never
+ * blocks input — the next guess can be typed through the animation. */
+@keyframes flip { 0% { transform: rotateX(0); } 50% { transform: rotateX(90deg); } 100% { transform: rotateX(0); } }
+.tile[data-reveal] { animation: flip 480ms ease both; animation-delay: calc(var(--i) * 180ms); }
+
+@keyframes shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-5px); } 40%,80% { transform: translateX(5px); } }
+.board__row[data-invalid] { animation: shake 380ms ease; }
+
+@keyframes bounce { 0%,100% { transform: translateY(0); } 40% { transform: translateY(-14px); } }
+.board__row[data-won] .tile { animation: bounce 520ms ease both; animation-delay: calc(var(--i) * 90ms + 700ms); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tile[data-reveal], .board__row[data-invalid], .board__row[data-won] .tile { animation: none; }
+}
+
+/* ── Keyboard ──────────────────────────────────────────────────────── */
+.keyboard { display: grid; gap: 6px; justify-items: center; }
+.keyboard__row { display: flex; gap: 4px; }
+.key {
+  font-family: var(--font-mono); font-size: 0.8rem; text-transform: uppercase;
+  min-width: clamp(1.6rem, 8.4vw, 2.4rem); height: 3rem;
+  padding: 0 0.3rem;
+  border: 1px solid var(--rule); border-radius: 3px;
+  background: var(--paper-sunk); color: var(--ink);
+  cursor: pointer;
+  /* A held key on a touchscreen must not select the letter or fire twice. */
+  user-select: none; -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.key--wide { min-width: clamp(2.8rem, 13vw, 4rem); font-size: 0.65rem; }
+.key[data-mark='c'] { background: var(--correct); border-color: var(--correct); color: var(--correct-ink); }
+.key[data-mark='p'] { border-color: var(--present); border-width: 2px; }
+.key[data-mark='a'] { background: transparent; color: var(--ink-faint); border-color: var(--rule); opacity: 0.5; }
+.key:disabled { cursor: default; }
+
+/* ── The word said out loud ────────────────────────────────────────── */
+.notice {
+  min-height: 1.6rem; text-align: center;
+  font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+.notice[data-error] { color: var(--correct); }
+
+/* ── End of game ───────────────────────────────────────────────────── */
+.result { text-align: center; border-top: 1px solid var(--rule); padding-top: 1rem; }
+.result h2 { font-family: var(--font-display); font-weight: 400; font-size: 1.6rem; margin: 0 0 0.25rem; }
+.result__answer { font-family: var(--font-serif); font-size: 1.4rem; text-transform: uppercase; letter-spacing: 0.12em; }
+.result__grid { font-family: var(--font-mono); line-height: 1.15; font-size: 1rem; margin: 0.75rem 0; white-space: pre; }
+
+button.copy {
+  font-family: var(--font-mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 0.5rem 1.2rem; border: 1px solid var(--ink); border-radius: 2px;
+  background: var(--ink); color: var(--paper); cursor: pointer;
+}
+
+/* ── Stats and scoreboard ──────────────────────────────────────────── */
+.stats { display: flex; gap: 1.5rem; justify-content: center; margin: 1rem 0; }
+.stats div { text-align: center; }
+.stats b { display: block; font-size: 1.5rem; font-weight: 600; }
+.stats span { font-family: var(--font-mono); font-size: 0.6rem; text-transform: uppercase;
+              letter-spacing: 0.06em; color: var(--ink-faint); }
+
+.scoreboard { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.scoreboard th {
+  font-family: var(--font-mono); font-size: 0.6rem; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--ink-faint); text-align: left;
+  border-bottom: 1px solid var(--rule); padding: 0.4rem 0.5rem;
+}
+.scoreboard td { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--rule); }
+.scoreboard td:last-child { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; }
+
+.site-footer {
+  flex: none; border-top: 1px solid var(--rule); padding: 1rem 0;
+  font-family: var(--font-mono); font-size: 0.65rem; letter-spacing: 0.06em;
+  color: var(--ink-faint); text-align: center;
+}
+
+/* ── How to play ───────────────────────────────────────────────────── */
+dialog {
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+  max-width: min(100% - 2rem, 26rem); padding: 1.5rem; border-radius: 2px;
+}
+dialog::backdrop { background: rgb(0 0 0 / 0.5); }
+dialog h2 { font-family: var(--font-display); font-weight: 400; margin-top: 0; }
+dialog .example { display: flex; gap: 4px; margin: 0.5rem 0; }
+dialog .example .tile { width: 2.2rem; font-size: 1rem; }
