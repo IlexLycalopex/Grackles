@@ -1,0 +1,109 @@
+{
+  "generated": "2026-08-13T16:22:28+00:00",
+  "target_solutions": 2300,
+  "name_min_zipf": 3.5,
+  "sources": {
+    "enable": "https://raw.githubusercontent.com/dolph/dictionary/master/enable1.txt",
+    "ldnoobw": "https://raw.githubusercontent.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words/master/en",
+    "surnames": "https://raw.githubusercontent.com/smashew/NameDatabases/master/NamesDatabases/surnames/us.txt",
+    "first_names": "https://raw.githubusercontent.com/dominictarr/random-name/master/first-names.txt"
+  },
+  "lengths": {
+    "5": {
+      "guesses": 8640,
+      "solutions": 2023,
+      "zipf_floor": 2.7,
+      "rejected": {
+        "plural": 2504,
+        "blocked": 87,
+        "rare": 4026
+      },
+      "rarest_solutions": [
+        "anion",
+        "balmy",
+        "caked",
+        "cuppa",
+        "fatwa",
+        "glyph",
+        "gumbo",
+        "inane",
+        "saggy",
+        "sneer",
+        "splat",
+        "usurp",
+        "elegy",
+        "fiver",
+        "mauve",
+        "tepid",
+        "tripe",
+        "agora",
+        "dorky",
+        "hunky"
+      ]
+    },
+    "6": {
+      "guesses": 15236,
+      "solutions": 2310,
+      "zipf_floor": 3.04,
+      "rejected": {
+        "plural": 3915,
+        "blocked": 119,
+        "rare": 8892
+      },
+      "rarest_solutions": [
+        "brooch",
+        "escrow",
+        "horned",
+        "nutmeg",
+        "obtuse",
+        "ported",
+        "rammed",
+        "shoddy",
+        "sleazy",
+        "tarmac",
+        "unpack",
+        "vetoed",
+        "azalea",
+        "bistro",
+        "bribed",
+        "calmer",
+        "crayon",
+        "deluge",
+        "desist",
+        "doable"
+      ]
+    },
+    "7": {
+      "guesses": 23113,
+      "solutions": 2300,
+      "zipf_floor": 3.14,
+      "rejected": {
+        "plural": 6882,
+        "blocked": 149,
+        "rare": 13782
+      },
+      "rarest_solutions": [
+        "accrued",
+        "animate",
+        "bugging",
+        "bullish",
+        "ghostly",
+        "gliding",
+        "grating",
+        "gripped",
+        "hurling",
+        "hurried",
+        "jobless",
+        "linkage",
+        "parlour",
+        "pinched",
+        "plating",
+        "primate",
+        "proverb",
+        "ranting",
+        "recited",
+        "shocker"
+      ]
+    }
+  }
+}

@@ -24,6 +24,9 @@ The files in `migrations/` are the additions from 2026-08-05, in apply order:
 | `20260807140000_cigar_lookup_cap` | `app.cigar_lookups_today()`, and the insert policy rewritten to use it — the cap as first written could not run |
 | `20260807150000_cigar_reference_grants` | Withdraws the UPDATE/DELETE/TRUNCATE that Supabase's default privileges had already granted on the new table |
 | `20260809120000_smoke_carries_photo` | `smoke_from_humidor` copies `photo_path` and `reference_id` when it splits one off a stack, plus a backfill for the entries the old version wrote |
+| `20260813110000_blackletter_app_slug` | `blackletter` joins the `app_slug` enum — on its own, because `ALTER TYPE ... ADD VALUE` cannot be used in the transaction that uses it |
+| `20260813120000_blackletter_schema` | `bl_words`, `bl_puzzles`, `bl_games`; `app.mark_guess()` and `app.blackletter_puzzle()` |
+| `20260813120100_blackletter_rpcs` | The four functions that are the whole player-facing surface of the game |
 
 ### What changed conceptually
 
@@ -57,6 +60,9 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `GRK02` | Invite belongs to a different email address |
 | `GRK03` | No creation entitlement for this app, or quota exhausted |
 | `GRK04` | That app/slug pair is taken |
+| `GRK05` | Blackletter has used every solution of that length |
+| `GRK06` | Not a word in the guess list |
+| `GRK07` | That game is finished, or has no attempts left |
 | `42501` | Not signed in |
 
 ## Applied
@@ -155,6 +161,31 @@ resolved against the session path when the policy is created. Only function
 bodies are affected. `tests/baseline.sql` installs the extension into
 `extensions` specifically so this asymmetry is reproduced rather than hidden.
 
+### A table nobody may read
+
+Every other table in this schema is governed by a policy: RLS decides which rows
+you get. `bl_words` and `bl_puzzles` are governed by the absence of one. They
+have RLS enabled and no policy at all, and the DML grants are revoked from both
+`anon` and `authenticated`, so there are two independent refusals before a row
+could be reached.
+
+That is deliberate and it is not belt-and-braces for its own sake. `bl_puzzles`
+holds the answer to today's puzzle. A policy that is right today can be widened
+by a later migration written by somebody who has forgotten what the table is
+for; a missing grant fails at the privilege check, before any policy is
+consulted, and reads as obviously intentional to whoever reads it next.
+
+Everything a player may know comes back from the four `public.blackletter_*`
+functions, which are `SECURITY DEFINER` and do their own `app.can_read()` check
+because RLS is not going to do it for them. The pattern is
+`app.cigar_lookups_today()` again: stepping outside RLS is what lets a function
+answer a question about a table nobody may read.
+
+The consequence worth remembering when writing a test: a check running as
+`authenticated` **cannot** look up the answer to assert against. Hoist that read
+into a privileged connection outside the check, as `tests/blackletter.sh` does.
+A test that can fetch its own answer is testing the opposite of the property.
+
 ## Applying
 
 Ordering matters in one place: `20260805120000` backfills entitlements for
@@ -192,12 +223,20 @@ out of the humidor.
 createdb grackles
 psql -d grackles -f tests/baseline.sql
 for f in migrations/*.sql; do psql -d grackles -v ON_ERROR_STOP=1 --single-transaction -f "$f"; done
+psql -d grackles -f seed/blackletter-words.sql   # bl_words, for tests/blackletter.sh
 tests/test.sh
+tests/blackletter.sh
 ```
 
 The baseline seeds current production data (one profile, three workspaces, one
 pending invite) so the backfill is exercised against real shape. 41 assertions,
-all passing as of `20260809120000`.
+all passing as of `20260809120000`, plus 20 in `tests/blackletter.sh`.
+
+The two suites share a database and must not disturb each other. `test.sh`
+asserts Jamie holds a grant for exactly three apps, so `blackletter.sh` inserts
+its workspace directly rather than through `create_workspace()` — seeding a
+fourth grant to get an entitlement broke that assertion, which is the sort of
+coupling worth knowing about before adding a third suite.
 
 Two gaps in the baseline were closed to get there, and both had been hiding
 things rather than merely omitting them:

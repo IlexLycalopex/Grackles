@@ -1,0 +1,61 @@
+---
+import '../styles/blackletter.css';
+import type { ResolvedWorkspace } from '../lib/workspace';
+
+interface Props {
+  title: string;
+  description?: string;
+  workspace: ResolvedWorkspace;
+}
+
+const { title, description = '', workspace } = Astro.props;
+const base = `/blackletter/${workspace.slug}`;
+const pathname = Astro.url.pathname;
+const canonical = new URL(pathname, Astro.site ?? Astro.url.origin);
+const { user } = Astro.locals;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical.href} />
+    <link rel="icon" href="/grackles-logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    {/* The three faces blackletter.css names. A <link> rather than an @import
+        inside the CSS, for the reason WbprLayout spells out: an @import blocks
+        rendering until it resolves. */}
+    <link
+      href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=EB+Garamond:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    {workspace.visibility !== 'public' && <meta name="robots" content="noindex, nofollow" />}
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container site-header__inner">
+        <a href={base} class="site-header__brand">{workspace.name}</a>
+        <nav>
+          <ul class="site-nav">
+            <li>
+              <a href={base} aria-current={pathname === base ? 'page' : undefined}>Today</a>
+            </li>
+            {workspace.role && <li><a href={`/settings/blackletter/${workspace.slug}`}>{workspace.role}</a></li>}
+            <li>
+              <a href={user ? '/dashboard' : `/login?next=${encodeURIComponent(pathname)}`}>
+                {user ? 'Projects' : 'Sign in'}
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <slot />
+
+    <footer class="site-footer">Blackletter · one word a day, at three lengths</footer>
+  </body>
+</html>
