@@ -14,10 +14,14 @@ const pathname = Astro.url.pathname;
 const canonical = new URL(pathname, Astro.site ?? Astro.url.origin);
 const { user } = Astro.locals;
 
+// The reference desk is offered only to people who can use it: the endpoint
+// behind it is `canWrite`, so linking it for a viewer would be advertising a
+// page that answers 403.
 const links = [
   { href: base, label: 'Log' },
   { href: `${base}/humidor`, label: 'Humidor' },
   { href: `${base}/stats`, label: 'Stats' },
+  ...(workspace.canWrite ? [{ href: `${base}/lookup`, label: 'Look up' }] : []),
 ];
 ---
 
@@ -28,14 +32,16 @@ const links = [
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical.href} />
-    <link rel="icon" href="/grackles-logo.png" />
+    <link rel="icon" href="/cedarhouse.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    {/* The four faces cigar-lounge.css names in --display/--font/--mono/--numeral.
-        Without these the whole app silently fell back to system sans, which cost
-        the Oxblood Foil design every bit of its typographic character. */}
+    {/* The three faces cigar-lounge.css names in --display/--body/--mono.
+        Without these the whole app silently falls back to system sans, which
+        costs the design every bit of its typographic character. The Cormorant
+        italic is loaded because the log headline sets its closing phrase in
+        it. */}
     <link
-      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Jost:wght@300;400;500&family=Marcellus&family=Space+Mono:wght@400;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Karla:wght@300;400;500&family=Space+Mono&display=swap"
       rel="stylesheet"
     />
     {workspace.visibility !== 'public' && <meta name="robots" content="noindex, nofollow" />}
@@ -43,7 +49,10 @@ const links = [
   <body>
     <nav class="site-nav">
       <div class="container site-nav__inner">
-        <a href={base} class="site-nav__logo">{workspace.name}</a>
+        {/* The wordmark, not the lounge's name. Whose lounge it is already
+            stands in the page title and the role chip; the nav carries the
+            brand, the same on every workspace. */}
+        <a href={base} class="site-nav__logo">Cedarhouse</a>
         <div class="site-nav__links">
           {
             links.map(l => (

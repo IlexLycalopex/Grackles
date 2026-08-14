@@ -16,6 +16,8 @@ interface ImportMetaEnv {
   readonly PUBLIC_SUPABASE_URL: string;
   readonly PUBLIC_SUPABASE_PUBLISHABLE_KEY: string;
   readonly SITE_URL?: string;
+  /** Optional. Raises the Google Books quota used when a cover lookup falls back to it. */
+  readonly GOOGLE_BOOKS_API_KEY?: string;
 }
 
 interface ImportMeta {

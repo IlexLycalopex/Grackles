@@ -13,12 +13,39 @@ import { STRENGTHS } from '../../lib/records/cigar';
  */
 interface Props {
   cigar: Cigar | null;
-  /** For a new entry: which half of the app it was started from. */
-  defaults?: { status?: 'humidor' | 'smoked'; dateSmoked?: string };
+  /**
+   * For a new entry: which half of the app it was started from, plus anything
+   * a lookup has already answered.
+   *
+   * Only ever consulted when there is nothing stored and nothing submitted, so
+   * the edit page — which passes none of this — is unaffected, and a rejected
+   * save still comes back showing what was typed rather than the suggestion.
+   */
+  defaults?: {
+    status?: 'humidor' | 'smoked';
+    dateSmoked?: string;
+    name?: string;
+    brand?: string;
+    vitola?: string;
+    wrapper?: string;
+    country?: string;
+    strength?: string;
+    lengthText?: string;
+    ringGauge?: number | string;
+  };
   submitted?: FormData | null;
+  /**
+   * Field names to mark as filled from somewhere other than the person at the
+   * keyboard. The same class the lookup panel adds client-side, so a suggestion
+   * looks identical whether it arrived by button or by URL.
+   */
+  suggested?: string[];
 }
 
-const { cigar, defaults = {}, submitted = null } = Astro.props;
+const { cigar, defaults = {}, submitted = null, suggested = [] } = Astro.props;
+
+const hint = (name: string) =>
+  suggested.includes(name) ? 'cigar-form__input cigar-form__input--suggested' : 'cigar-form__input';
 
 const d = cigar?.data;
 const iso = (date?: Date) => (date ? date.toISOString().slice(0, 10) : undefined);
@@ -27,18 +54,19 @@ const v = (key: string, stored?: string | number | null, fallback: string | numb
   fieldValue(submitted, key, stored, fallback);
 
 const status = v('status', d?.status, defaults.status ?? 'smoked');
+const strengthDefault = defaults.strength ?? '';
 const rating = v('rating', d?.rating);
-const strength = v('strength', d?.strength);
+const strength = v('strength', d?.strength, strengthDefault);
 ---
 
 <div class="cigar-form__row">
   <label class="cigar-form__field">
     <span class="cigar-form__label">Name</span>
-    <input class="cigar-form__input" type="text" name="name" value={v('name', d?.name)} required />
+    <input class={hint('name')} type="text" name="name" value={v('name', d?.name, defaults.name ?? '')} required />
   </label>
   <label class="cigar-form__field">
     <span class="cigar-form__label">Brand</span>
-    <input class="cigar-form__input" type="text" name="brand" value={v('brand', d?.brand)} />
+    <input class={hint('brand')} type="text" name="brand" value={v('brand', d?.brand, defaults.brand ?? '')} />
   </label>
 </div>
 
@@ -60,31 +88,31 @@ const strength = v('strength', d?.strength);
 <div class="cigar-form__row">
   <label class="cigar-form__field">
     <span class="cigar-form__label">Vitola</span>
-    <input class="cigar-form__input" type="text" name="vitola" value={v('vitola', d?.vitola)} />
+    <input class={hint('vitola')} type="text" name="vitola" value={v('vitola', d?.vitola, defaults.vitola ?? '')} />
   </label>
   <label class="cigar-form__field">
     <span class="cigar-form__label">Wrapper</span>
-    <input class="cigar-form__input" type="text" name="wrapper" value={v('wrapper', d?.wrapper)} />
+    <input class={hint('wrapper')} type="text" name="wrapper" value={v('wrapper', d?.wrapper, defaults.wrapper ?? '')} />
   </label>
   <label class="cigar-form__field">
     <span class="cigar-form__label">Country</span>
-    <input class="cigar-form__input" type="text" name="country" value={v('country', d?.country)} />
+    <input class={hint('country')} type="text" name="country" value={v('country', d?.country, defaults.country ?? '')} />
   </label>
 </div>
 
 <div class="cigar-form__row">
   <label class="cigar-form__field">
     <span class="cigar-form__label">Length</span>
-    <input class="cigar-form__input" type="text" name="length_text" value={v('length_text', d?.length)} placeholder='4 7/8"' />
+    <input class={hint('length_text')} type="text" name="length_text" value={v('length_text', d?.length, defaults.lengthText ?? '')} placeholder='4 7/8"' />
     <span class="cigar-form__hint">As written on the box.</span>
   </label>
   <label class="cigar-form__field">
     <span class="cigar-form__label">Ring gauge</span>
-    <input class="cigar-form__input" type="number" name="ring_gauge" min="1" value={v('ring_gauge', d?.ringGauge)} />
+    <input class={hint('ring_gauge')} type="number" name="ring_gauge" min="1" value={v('ring_gauge', d?.ringGauge, defaults.ringGauge ?? '')} />
   </label>
   <label class="cigar-form__field">
     <span class="cigar-form__label">Strength</span>
-    <select class="cigar-form__input" name="strength">
+    <select class={hint('strength')} name="strength">
       <option value="" selected={!strength}>—</option>
       {
         STRENGTHS.map(s => (

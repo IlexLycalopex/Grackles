@@ -19,6 +19,7 @@ export const FEATURE_KEYS = [
   'wbpr.desk',
   'wbpr.writeup',
   'reading.enrich',
+  'cigars.lookup',
   'platform.golden',
 ] as const;
 
@@ -52,6 +53,12 @@ export const FEATURES: FeatureNote[] = [
     app: 'wbpr',
     class: 'batch',
     what: 'Replays the frozen cases against whatever the model is today. Billed to the platform, never to a project.',
+  },
+  {
+    key: 'cigars.lookup',
+    app: 'cigar-lounge',
+    class: 'single',
+    what: 'One bounded call asking what a cigar is. The answer is cached for everybody by what it turned out to be.',
   },
   {
     key: 'reading.enrich',

@@ -72,6 +72,15 @@ export interface TurnResult {
   validation: Validation | null;
   /** True when nothing was sent anywhere. Still a ledger row, still free. */
   cacheHit: boolean;
+  /**
+   * What actually answered, from the registry rather than from a constant.
+   *
+   * Here because a feature that stores what a model said usually wants to store
+   * which model said it, and the alternative is the caller importing a default
+   * and being wrong the day an admin repoints the feature at something else.
+   * `ai_calls` records this too; this is the same fact, handed back.
+   */
+  model: string;
 }
 
 export type Turn =
@@ -248,6 +257,7 @@ export function jobHandle(supabase: Client, jobId: string, feature: FeatureKey):
             usage: { prompt_tokens: 0, completion_tokens: 0 },
             costUsd: 0,
             cacheHit: true,
+            model: cfg.model,
             // Re-checked rather than remembered. A validator that has changed
             // since the answer was stored should get its say, and it is free.
             validation: request.validate ? request.validate(hit.content) : null,
@@ -307,6 +317,7 @@ export function jobHandle(supabase: Client, jobId: string, feature: FeatureKey):
         costUsd,
         validation,
         cacheHit: false,
+        model: cfg.model,
       };
     },
 

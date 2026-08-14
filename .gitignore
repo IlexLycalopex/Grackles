@@ -5,3 +5,5 @@ node_modules/
 .env
 .env.production
 .DS_Store
+supabase/seed/.cache/
+__pycache__/

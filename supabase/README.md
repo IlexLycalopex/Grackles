@@ -20,6 +20,13 @@ The files in `migrations/` are the additions from 2026-08-05, in apply order:
 | `20260805120400_create_workspace_rpc` | `create_workspace()` — entitlement check, slug handling, default seeding |
 | `20260805120500_tighten_anon_grants` | Withdraws unused write privileges from `anon` (independent of the above) |
 | `20260805120600_invite_lookup` | `invite_email_for_token()` — who an invitation is for, resolved before sign-in |
+| `20260807120000_cigar_reference` | `cl_cigar_reference` — the shared cigar lookup cache — plus `cl_cigars.reference_id` |
+| `20260807140000_cigar_lookup_cap` | `app.cigar_lookups_today()`, and the insert policy rewritten to use it — the cap as first written could not run |
+| `20260807150000_cigar_reference_grants` | Withdraws the UPDATE/DELETE/TRUNCATE that Supabase's default privileges had already granted on the new table |
+| `20260809120000_smoke_carries_photo` | `smoke_from_humidor` copies `photo_path` and `reference_id` when it splits one off a stack, plus a backfill for the entries the old version wrote |
+| `20260813110000_blackletter_app_slug` | `blackletter` joins the `app_slug` enum — on its own, because `ALTER TYPE ... ADD VALUE` cannot be used in the transaction that uses it |
+| `20260813120000_blackletter_schema` | `bl_words`, `bl_puzzles`, `bl_games`; `app.mark_guess()` and `app.blackletter_puzzle()` |
+| `20260813120100_blackletter_rpcs` | The four functions that are the whole player-facing surface of the game |
 
 ### What changed conceptually
 
@@ -53,6 +60,9 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `GRK02` | Invite belongs to a different email address |
 | `GRK03` | No creation entitlement for this app, or quota exhausted |
 | `GRK04` | That app/slug pair is taken |
+| `GRK05` | Blackletter has used every solution of that length |
+| `GRK06` | Not a word in the guess list |
+| `GRK07` | That game is finished, or has no attempts left |
 | `42501` | Not signed in |
 
 ### AI governance (2026-08-14)
@@ -132,8 +142,81 @@ That is a decision to take deliberately rather than a gap to close quietly.
 
 ## Applied
 
-All seven are live on `ophmsvqtzffrjmyjyzza` as of 2026-08-05. The filenames here keep their original
-`1200xx` ordering; the versions in the database are the times they actually ran.
+All seven of the 2026-08-05 migrations are live on `ophmsvqtzffrjmyjyzza` as of that date. The
+filenames here keep their original `1200xx` ordering; the versions in the database are the times they
+actually ran.
+
+The three 2026-08-07 migrations are live as of that date. They must go out together and in order:
+`20260807120000` shipped a policy that could not run, and the two after it are the corrections.
+
+`20260809120000` is live as of 2026-08-09. It is self-contained and depends only on
+`20260807120000` having added `cl_cigars.reference_id`.
+
+### A policy may not read its own table
+
+`20260807120000` put the daily lookup cap directly in the insert policy, as a correlated subquery
+counting `cl_cigar_reference` — the table the policy is *on*. Postgres answers that with `42P17`,
+infinite recursion: evaluating the `WITH CHECK` reads the table, reading the table invokes its
+policies, and round it goes.
+
+The failure mode is worth naming because it is not the one you would guess. It was not a cap that
+leaked; it was a table that **rejected every insert**, so no lookup could ever have been cached and
+the feature would have been dead on arrival. It had been asserted to work in three places before
+anybody ran it.
+
+`20260807140000` fixes it with `app.cigar_lookups_today()` — `SECURITY DEFINER`, `STABLE`,
+`search_path` pinned, exactly like `app.can_write()` and the seven other helpers. That is what steps
+outside RLS long enough to answer a question about the table being guarded, and it is the pattern
+this schema already had. The cap stops being a special case.
+
+`app` is not an exposed schema, so the new function is reachable from the policy and not as an RPC.
+
+### An insert that names its columns has to be kept in step
+
+`smoke_from_humidor` takes one cigar out of the humidor. It has two paths, and only one of
+them can have this fault.
+
+When the last one goes, the humidor row *becomes* the log entry: an `UPDATE` naming the
+columns a smoke changes, leaving everything else alone. When one comes off a stack of
+several, the log entry is a **new row** — an `INSERT` naming its columns explicitly — and the
+original is decremented. That insert named 23 columns of the 28 on `cl_cigars`. Three of the
+five omissions are right (`id`, `created_at`, `updated_at` have defaults that mean it). Two
+were not: `photo_path` and `reference_id`.
+
+A named-column insert takes the column default for anything it leaves out, and both of those
+default to empty. So a cigar smoked off a stack of two produced a log entry with no image and
+no link back to the reference it had been filled from, sitting next to a humidor entry for the
+same cigar that still had both.
+
+Two things kept it hidden. The failure is silent — an empty `photo_path` is a legal value, not
+an error — and it needs a stack to show up at all, so every single-cigar smoke, which is the
+path exercised first and most, was fine.
+
+The generalisation, because this will happen again: **nothing fails when this column list falls
+behind the table.** Adding a column to `cl_cigars` does not break the function, does not break
+a test, and does not warn. Before adding one, ask whether it describes the *cigar* or the
+*occasion*. `wrapper` and `photo_path` describe the cigar and must be copied; `rating` and
+`pairing` describe the occasion and must not be. Only the second kind may be left out.
+
+`20260809120000` also backfills, matching a photo-less smoked entry against a humidor entry
+for the same workspace, brand and name. It fills only entries that are empty, so nothing set
+by hand is overwritten, and `having count(distinct …) = 1` declines to guess where siblings
+disagree. It corrected one row in production.
+
+### Naming grants does not withhold the rest
+
+`20260807120000` also said `grant select, insert … to authenticated` and left it there, on the
+assumption that naming two privileges withheld the others. Supabase's default privileges on `public`
+had already granted `authenticated` the full set on the new table, so that GRANT was additive on top
+of DELETE, UPDATE, TRUNCATE and REFERENCES.
+
+Nothing was exposed — there is no update policy and no delete policy, so both resolve to false and a
+tampering UPDATE silently touched zero rows. But it made RLS the sole barrier, which is the same
+finding `20260805120500` was written about. `20260807150000` revokes them, and a tampering UPDATE now
+fails with `42501` at the grant level before RLS is consulted.
+
+The generalisation for anything added later: a new table in `public` starts with full DML granted to
+`authenticated`, so a `GRANT` narrows nothing. Withholding takes a `REVOKE`.
 
 ### `search_path` and citext
 
@@ -152,6 +235,31 @@ A policy expression that mentions citext gets away with it, because it is
 resolved against the session path when the policy is created. Only function
 bodies are affected. `tests/baseline.sql` installs the extension into
 `extensions` specifically so this asymmetry is reproduced rather than hidden.
+
+### A table nobody may read
+
+Every other table in this schema is governed by a policy: RLS decides which rows
+you get. `bl_words` and `bl_puzzles` are governed by the absence of one. They
+have RLS enabled and no policy at all, and the DML grants are revoked from both
+`anon` and `authenticated`, so there are two independent refusals before a row
+could be reached.
+
+That is deliberate and it is not belt-and-braces for its own sake. `bl_puzzles`
+holds the answer to today's puzzle. A policy that is right today can be widened
+by a later migration written by somebody who has forgotten what the table is
+for; a missing grant fails at the privilege check, before any policy is
+consulted, and reads as obviously intentional to whoever reads it next.
+
+Everything a player may know comes back from the four `public.blackletter_*`
+functions, which are `SECURITY DEFINER` and do their own `app.can_read()` check
+because RLS is not going to do it for them. The pattern is
+`app.cigar_lookups_today()` again: stepping outside RLS is what lets a function
+answer a question about a table nobody may read.
+
+The consequence worth remembering when writing a test: a check running as
+`authenticated` **cannot** look up the answer to assert against. Hoist that read
+into a privileged connection outside the check, as `tests/blackletter.sh` does.
+A test that can fetch its own answer is testing the opposite of the property.
 
 ## Applying
 
@@ -183,23 +291,26 @@ create policy workspaces_insert on public.workspaces for insert
 `tests/` contains a reconstruction of the pre-migration schema plus Supabase
 platform stubs (`auth.uid()`, `auth.jwt()`, the `anon`/`authenticated` roles),
 and a behavioural suite covering entitlements, invite issuing and acceptance,
-quota enforcement, privilege escalation and anonymous access.
+quota enforcement, privilege escalation, anonymous access, and taking a cigar
+out of the humidor.
 
 ```sh
 createdb grackles
 psql -d grackles -f tests/baseline.sql
 for f in migrations/*.sql; do psql -d grackles -v ON_ERROR_STOP=1 --single-transaction -f "$f"; done
+psql -d grackles -f seed/blackletter-words.sql   # bl_words, for tests/blackletter.sh
 tests/test.sh
+tests/blackletter.sh
 tests/ai.sh
 tests/admin.sh
 ```
 
-**Both suites want a fresh database, in that order.** `test.sh` writes rows
+**All four suites want a fresh database, in that order.** `test.sh` writes rows
 outside its rolled-back transactions — grants for Rob, a second lounge — so a
 second run against the same cluster fails on its own leftovers. That is not new;
 it simply had no neighbour before to make it visible.
 
-`tests/harness.sh` holds `check()` and the role preambles, sourced by both.
+`tests/harness.sh` holds `check()` and the role preambles, sourced by all four.
 
 `tests/baseline.sql` previously had no `touch_updated_at()`, which meant every
 migration from `20260806170000` onwards failed to apply against the harness —
@@ -208,8 +319,28 @@ backfill. The suite passed throughout, because it only ever ran the seven invite
 migrations. Anything added after them was untestable until this was noticed.
 
 The baseline seeds current production data (one profile, three workspaces, one
-pending invite) so the backfill is exercised against real shape. 37 assertions,
-all passing as of `20260805120600`.
+pending invite) so the backfill is exercised against real shape. 41 assertions,
+all passing as of `20260809120000`, plus 20 in `tests/blackletter.sh`.
+
+The suites share a database and must not disturb each other. `test.sh`
+asserts Jamie holds a grant for exactly three apps, so `blackletter.sh` inserts
+its workspace directly rather than through `create_workspace()` — seeding a
+fourth grant to get an entitlement broke that assertion, which is the sort of
+coupling worth knowing about before adding a third suite.
+
+Two gaps in the baseline were closed to get there, and both had been hiding
+things rather than merely omitting them:
+
+- **`cl_cigars` was abridged** to the handful of columns the invite and creation
+  migrations touched. `smoke_from_humidor` could not be reproduced against it at
+  all, which is precisely why a fault in that function's column list went
+  unnoticed. It now carries the production shape, and the pre-fix function, so
+  the four new checks fail against the old version and pass against the new.
+- **`touch_updated_at` was missing.** It predates every migration here, so
+  nothing in `migrations/` creates it — and the first migration that attaches an
+  `updated_at` trigger (`20260806170000_wbpr_schema`) therefore aborted. The
+  documented `for f in migrations/*.sql` run had been stopping there, leaving
+  everything from WBPR onward unexercised.
 
 ## Two security fixes worth noting
 

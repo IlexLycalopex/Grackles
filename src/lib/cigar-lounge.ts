@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
+import type { StoredReference } from './cigar-lookup';
 
 /**
  * Data access for the Cigar Lounge.
@@ -39,12 +40,29 @@ export interface Cigar {
   data: CigarData;
   /** Tasting notes, formerly the markdown body. */
   body: string;
+  /**
+   * The reference row this entry was filled from, when it was filled from one.
+   *
+   * Deliberately not on `data`: that shape is what a person recorded about a
+   * cigar, and what a model said is a different kind of thing kept in a
+   * different table. Carrying the id rather than the row keeps the join
+   * optional — the list pages never want it.
+   */
+  referenceId: string | null;
 }
 
 const COLUMNS = `
   id, slug, status, quantity, name, brand, vitola, wrapper, length_text,
   ring_gauge, country, strength, bought_at, smoked_at, date_acquired,
-  date_smoked, price_text, rating, pairing, note, photo_path, tasting_notes
+  date_smoked, price_text, rating, pairing, note, photo_path, tasting_notes,
+  reference_id
+`;
+
+/** Every column of a reference row. Short enough that narrowing it earns nothing. */
+const REFERENCE_COLUMNS = `
+  id, key, query, brand, line, name, vitola, length_inches, ring_gauge, wrapper,
+  binder, filler, country, factory, strength, flavour, confidence, alternates,
+  model, created_at
 `;
 
 /** Dates arrive as 'YYYY-MM-DD'; parse as UTC so they do not drift a day west. */
@@ -61,6 +79,7 @@ function toCigar(row: any): Cigar {
     id: row.slug,
     rowId: row.id,
     body: row.tasting_notes ?? '',
+    referenceId: row.reference_id ?? null,
     data: {
       status: row.status === 'humidor' ? 'humidor' : 'smoked',
       quantity: row.quantity ?? 1,
@@ -130,4 +149,26 @@ export async function loadCigar(
     .maybeSingle();
 
   return data ? toCigar(data) : null;
+}
+
+/**
+ * One reference row.
+ *
+ * Read through the caller's client like everything else, so RLS decides — which
+ * here means any signed-in reader sees it, because the cache is shared on
+ * purpose. A signed-out visitor to a public lounge gets null and the entry
+ * simply renders without the block, which is the right outcome: what a model
+ * said is working material, not part of the published record.
+ */
+export async function loadReference(
+  supabase: SupabaseClient<Database>,
+  id: string
+): Promise<StoredReference | null> {
+  const { data } = await supabase
+    .from('cl_cigar_reference')
+    .select(REFERENCE_COLUMNS)
+    .eq('id', id)
+    .maybeSingle();
+
+  return (data as StoredReference | null) ?? null;
 }

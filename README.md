@@ -1,7 +1,7 @@
 # Grackles
 
 The front door at [grackles.co.uk](https://grackles.co.uk), and — as of this
-branch — the app that the Listening Party, Reading List and Cigar Lounge are
+branch — the app that the Listening Party, Reading List and Cedarhouse are
 moving into.
 
 Those three used to be separate static Astro sites on GitHub Pages, each
@@ -22,11 +22,16 @@ several people can share a project.
 | ✅ | The launcher reads from the database; all eight sites exist as workspaces |
 | ✅ | WBPR migrated off GitHub Pages — nine sessions, five tables, editable in place |
 | ✅ | The WBPR broadcast agent (MiniMax M3) — running; the one-click write-up is the last untested path |
+| ✅ | Cigar Lounge search — a filter box on the log and the humidor, matching words, wrappers and sizes |
+| ✅ | Cigar lookup — schema applied, the reference desk, the panel on the add form, and an entry showing what a lookup said about it |
+| ✅ | Album covers looked up on save — the build step the migration dropped, moved to the write |
 | 🟡 | AI governance — built, tested, **not applied**. See `docs/ai-architecture.md` and `supabase/README.md` |
 | 🟡 | The platform console at `/admin` — built, tested, **not applied** (same migrations) |
 | ⬜ | WBPR's map and veil pages — left behind in the migration, see below |
 | ✅ | Custom SMTP — Supabase's own magic-link and confirmation emails go out through Resend, alongside the app's invitations |
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
+| ✅ | Cedarhouse — the cigar lounge off Oxblood Foil and onto the shared paper tokens, with an editorial log page, facet chips and specimen plates |
+| ✅ | Blackletter — the word game, at five, six and seven letters. Schema, dictionary and workspace are live on the project |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.
 Its nav is whatever the visitor is a member of: signed out it offers one thing,
@@ -83,13 +88,18 @@ every value of the enum — so this is the only thing stopping it being offered.
 /reading/:workspace/year/:year     year status and target
 /reading/:workspace/enrich         fill in missing details (editor+)
 
-/cigars/:workspace                 Cigar Lounge — the log
+/cigars/:workspace                 Cedarhouse — the log
 /cigars/:workspace/humidor         what is resting
 /cigars/:workspace/stats           ratings, brands, spend
 /cigars/:workspace/cigar/:slug     one entry
 /cigars/:workspace/new             add to the humidor or the log
 /cigars/:workspace/edit/:slug      edit an entry
 /cigars/:workspace/smoke/:slug     take one out of the humidor
+/cigars/:workspace/lookup          the reference desk — what is this cigar? (editors only)
+/api/cigars/:workspace/lookup      the same question as JSON (cache first, then the model)
+
+/blackletter/:workspace            Blackletter — today's puzzle (?n=5, 6 or 7)
+/api/blackletter/:workspace/guess  one guess, marked
 
 /wbpr/:workspace                   WBPR — the broadcast archive
 /wbpr/:workspace/phenomena         everything seen, folded by key
@@ -176,6 +186,135 @@ not defensive habit, it is required: a delete blocked by row-level security does
 not raise, it narrows the statement to zero rows and reports success. Without
 the check, a viewer whose role changed mid-session would be told the record was
 deleted while it sat there untouched.
+
+## Planning next year
+
+A reading year is `planning`, `active` or `complete`. The third state is the new
+one, and it exists because next year's list gets built while this year is still
+being read.
+
+Written as `active` it would be a *second* year in progress, and that breaks one
+thing in particular: years come back newest-first, so every page that wants "the
+year this list is on" would take the plan. Adding a book in November would file
+it under a year that has not started. `currentYear()` is that question asked
+once — the newest year still being read, skipping over anything being planned —
+and `book/new` is what asks it. **The year under way stays the default
+everywhere; a plan is only ever reached by asking for it by name.**
+
+A year created ahead of the calendar opens as a plan, and a book added to one
+opens with *coming up* ticked. Both are defaults on a form, not rules: the
+status is a field and the checkbox is a checkbox.
+
+The overview leaves plans out of its totals — books, pages, years, audio share.
+Those numbers are claims about what happened, and twenty books chosen for next
+year should not move any of them. They are counted separately, under *Planned*.
+The authors and publishers pages do include them, on the same footing as any
+book already marked *coming up*; those pages are a catalogue of the list rather
+than a tally of it.
+
+## Filling a book in
+
+Every cover on this list arrived with the migration. The old repo ran
+`scripts/fetch-metadata.js` on every deploy: it swept the YAML for
+`cover_url: ""`, asked Open Library and then Google Books, and committed what
+came back. Nothing replaced it when the list moved here, so every book imported
+has a cover and every book added since has a placeholder — which is how the gap
+was noticed.
+
+`lib/book-lookup.ts` is that script's knowledge moved to where a book is
+actually entered — the same move `lib/artwork.ts` makes for a week's pick, and
+for the same reason. `src/lib/book-lookup.test.mjs` pins it against fixture
+responses (`node --experimental-strip-types src/lib/book-lookup.test.mjs`),
+stubbing `fetch`; it never asks the real endpoints. **Fetch details** on the book form fills in whatever is still
+blank — cover, ISBN, publisher, pages, genre, year, Open Library link — from the
+title and author, or from an ISBN if there is one.
+
+The setting changed, so two things about it did. A deploy hook sweeping a year
+can afford half a second between calls and three retries; a person waiting on a
+button cannot, so this makes at most two requests and gives up after six
+seconds. And a sweep has to be right unattended, while this puts the values in
+front of somebody before anything is written — which is the honest arrangement,
+because these APIs index *works* and a work has many editions.
+
+What was worth carrying across, all of it learned the hard way by the script
+that ran first:
+
+- **Ask for five results and prefer one that has a cover.** The first hit for a
+  title is regularly a reprint or a study guide with no artwork.
+- **Drop the volume number.** "Chew Vol 9 Chicken Tenders" is indexed as "Chew
+  Chicken Tenders", and this list has a lot of graphic novels.
+- **Use the first author only.** A joint credit — "A & B", "A and B", "A; B" —
+  matches nothing as written.
+- **Build the cover from the cover id, never from the ISBN.** The ISBN route
+  answers with a *blank image* rather than a 404 unless told otherwise, which
+  lands in the column as a cover that is not there. A cover id only exists when
+  the picture does.
+- **Fall back to Google Books, and only for a cover.** It is the one thing it is
+  reliably better at, and it is why a few covers on this list are served by
+  Google. `GOOGLE_BOOKS_API_KEY` is optional: the old script needed it because it
+  swept every book on every deploy from a shared CI runner, and this asks once
+  per button press.
+- **Upgrade Google's thumbnail to https.** It still hands them out as `http://`,
+  which a browser blocks as mixed content — a cover that silently fails to load.
+
+Two rules hold the button together. **It only fills blanks**, so it is safe to
+press twice and safe on a book that already exists — it tops up what is missing
+rather than replacing the record with a stranger's idea of it. And **nothing is
+written to the database**: a lookup edits the submitted `FormData` and
+re-renders, arriving through the same door a rejected save does, and Save is
+still a separate press.
+
+Nobody has to press it, though, and a book saved without pressing it would land
+with a placeholder and no way to notice — the original complaint, back again. So
+`fillCover()` runs the same lookup on the save itself, exactly as `fillArtwork()`
+does for a week's pick. That path carries two more rules, both borrowed from
+there: **a lookup never fails a save**, and **a wrong cover is worse than none**
+— nobody is reviewing that one, so the title that comes back has to look like the
+title that was asked for. The button skips that check on purpose, because there a
+person is looking at the result. Clearing a cover field is how a bad match gets
+asked again.
+
+The matcher those checks run on is `lib/title-match.ts`, shared with the artwork
+lookup rather than copied into both — same reason as `json.ts`.
+
+`description` is deliberately not fetched. The column exists and holds what the
+old script put there, but nothing in this app renders it — filling it would add
+another field that feeds nothing, which is the problem the target had.
+
+## The target
+
+`rl_years.total_books` was collected by the form and read by nothing. It now
+draws a bar in two places — the year's own page and its card on the overview —
+and what it is measured against depends on what the year is:
+
+| | |
+|---|---|
+| planning | books chosen against books wanted, and how many are still to choose |
+| active | books read against the target, **and against the calendar** — the target spread evenly across the year, read at today's date, so the year is so many ahead of or behind pace |
+| complete | met, beaten, or short by so many |
+
+Two things decide what counts, and they differ on purpose. A year under way
+counts only books that are not `coming_up`: counting intentions would let a
+target be met by writing a list, which is the one thing a target exists to rule
+out. A year being planned counts every book in it, because choosing them is the
+whole activity and they are all `coming_up` by definition.
+
+The pace is linear, and that is a choice rather than a simplification worth
+fixing. Reading is not evenly paced — a fortnight off does more for the count
+than a fortnight of work — but a target is a flat number, and the only pace that
+can be checked against a flat number is a flat one. Anything cleverer would be a
+model of a reading year, and it would be wrong about this one.
+
+**A target of zero is refused by the form.** Blank means "not counting", which is
+a different thing: zero is a target the year meets before it starts, and every
+reading of it downstream is nonsense.
+
+One thing to know about the imported data: on the years that came across from
+the static site, `total_books` holds the number of books that year *ended up*
+with, not a number set in advance. Every finished year therefore reads as
+exactly met. That is what the column contained; setting real targets on them
+retroactively is the only thing that would change it, and only 2026 onward has
+a target that was a target.
 
 ## WBPR
 
@@ -368,6 +507,37 @@ looked up stays looked up — each item is committed as it lands. When something
 genuinely unattended needs running, a cron drain calls the same endpoint for the
 same jobs with the same worker.
 
+## Album covers
+
+A pick's cover is `lp_selections.artwork_url`, and nothing about it changed in
+the migration — which is exactly how it broke. In the old repo a build step ran
+on every commit and filled the field in for any entry naming an album and an
+artist without one: iTunes first, the album's Wikipedia article when iTunes had
+nothing. That is where all 32 imported covers came from. The field came across,
+the form's *"left blank, this is filled in automatically"* came across, and the
+step did not, so the first week added here was completed with an empty field and
+stayed that way. It was never the deploy that made it work; it was a build
+running on every commit, and there are no commits any more.
+
+`lib/artwork.ts` moves the lookup to the write. Both pick routes call
+`fillArtwork()` on the parsed values, so a week gets a cover on whichever save
+first gives it an album and an artist — usually the one that marks it completed.
+Two properties are the whole design:
+
+- **A lookup never fails a save.** Every path returns `''` — a timeout, a 500, a
+  refused host, no convincing match — and the row is written either way. Clearing
+  the field is still the retry, exactly as it was in the YAML.
+- **A wrong cover is worse than none.** iTunes answers every query with
+  *something*, so a result is only taken when the artist and the album both look
+  like what was asked for, after edition suffixes and accents are normalised
+  away. Wikipedia is only consulted through the link already on the pick —
+  searching it by title would find an article for anything, and the wrong
+  article has a picture too.
+
+`src/lib/artwork.test.mjs` pins that matcher against fixture responses
+(`node --experimental-strip-types src/lib/artwork.test.mjs`). It stubs `fetch`;
+it is not a check that Apple still answers.
+
 ## Photographs
 
 There is no upload. A cigar's photo is a URL typed into the edit form, checked
@@ -384,6 +554,133 @@ Adding real uploads later does not undo any of this — a Supabase storage publi
 URL is absolute, so it satisfies the same constraint and lands in the same
 column.
 
+## Searching a lounge, and looking a cigar up
+
+The Cigar Lounge had no search of any kind, and adding a cigar meant typing
+eleven fields. Both are the same question asked from two ends — *which cigar is
+this* — so there is one matcher, one cache and one endpoint behind them.
+
+A query goes through three stages and stops at the first that answers:
+
+1. **The workspace's own entries.** Free. Both list pages already load every row
+   in order to render at all, so `CigarFilter.astro` filters what is on the page
+   rather than asking the server for a narrower set.
+2. **The shared reference cache**, `cl_cigar_reference` — one select, holding
+   every cigar anybody has ever looked up.
+3. **One call to M3**, reached only on a genuine miss.
+
+**Stages 1 and 2 run as you type; stage 3 is a button.** That is the whole cost
+design and it is worth stating plainly, because the obvious implementation — a
+debounced type-ahead against the endpoint — spends money answering queries
+somebody is still halfway through writing.
+
+The matcher lives in `lib/cigar-search.ts` and is imported by the browser script
+and by the endpoint both. One definition means a query that finds a cigar in
+your humidor finds the same cigar in the cache, which is what makes "answer for
+free before answering for money" true rather than aspirational. Words are ANDed;
+accents are folded, because nobody reaches for the compose key to find a Padrón
+they already own; and `5x50` or `rg50` is matched against the measurements
+rather than the text, since `4 7/8"` in one column and `50` in another contain
+that string nowhere.
+
+**The cache is global, not per workspace.** A Serie D No. 4's dimensions are a
+fact about the world, so scoping them per lounge would mean paying for the same
+answer once per member. Shared, the second person to look one up pays nothing.
+`workspace_id` and `looked_up_by` record who asked and who paid — attribution,
+not scope. The table is insert-only at the policy level: one member cannot
+rewrite what another's lookup found, only add alongside it.
+
+**The call is one system message and one user message.** No history — a lookup
+is stateless, and unlike a night at the desk there is nothing to carry. The
+schema and rules are in the system prompt, byte-identical every time, so they
+cost the same tokens as putting them in the user turn and give a provider-side
+prefix cache something to hold; the user turn is the query alone, under twenty
+tokens. `max_tokens` 400, temperature 0.2 — recall rather than invention, which
+also makes two people asking about one cigar likelier to mint one canonical key
+instead of two rows.
+
+`response_format` is not used, because M3 does not usefully support it on the
+OpenAI-compatible path: the parameter documented for MiniMax-Text-01 is accepted
+and ignored rather than rejected, which is the worst of the three possible
+behaviours. The shape is asked for in the prompt and read back by
+`parseJsonObject` in `lib/json.ts`, lifted out of the WBPR write-up so there is
+one copy.
+
+### What it is not asked for
+
+**No rating, no score, no price, and nothing attributed to a publication.** An
+earlier draft of this carried a Cigar Aficionado score and it was cut before any
+of it was built. A CA rating is a specific integer attributed to a real magazine
+for a specific vitola in a specific issue, and a model asked for one returns a
+*plausible* number with no signal that it invented it — the die-roll problem
+from the WBPR desk, printed under somebody else's masthead. The prompt forbids
+it in those terms, and says why, because "never give a score" alone invites a
+model to comply with the letter of it.
+
+What is left is what M3 is actually good for and is most of what makes filling a
+form from a lookup worth doing: brand, line, vitola, dimensions, wrapper, binder,
+filler, country, factory, strength and a flavour profile. Every field may come
+back null, and the prompt says null is the right answer whenever it does not
+specifically know — a field it omits is one you fill in, a field it guesses is a
+wrong record you will not know to correct.
+
+Range bounds do the rest, for free: no cigar is fourteen inches long or has a
+ring gauge of 200, so a reply carrying one is wrong in a way that can be caught
+without asking anybody. They are checked in `readLookup` and again as CHECK
+constraints, the first as a courtesy and the second as the guarantee.
+
+### Where a lookup shows up
+
+Three places, and the separation between them is the point.
+
+**The add form** carries the panel. It fills blank fields only, marks what it
+filled until you touch it, and does not touch tasting notes — a profile "as
+commonly described" is not your note, so copying it across is a separate press.
+
+**The reference desk**, `/cigars/:workspace/lookup`, is the same endpoint with
+nothing to fill: for checking a cigar you are not adding. A result becomes a
+URL — `?reference=<id>` — so it can be kept or passed on, and starting an entry
+from one carries only that id. The add page then reads the row and prefills
+server-side, so what lands in the form is what the database holds rather than
+whatever survived a query string.
+
+**An entry** shows the row it was filled from, in a block that is deliberately
+unlike the entry above it: bordered, left-aligned and mono-labelled, against a
+centred serif masthead, so nobody reads the two as one document. It names the
+model, the date and the words that were typed to get it.
+
+That block is also where the two records are held against each other. Where the
+entry and the lookup disagree on a field they both have an opinion about, both
+are shown, yours first, and neither is changed — you had the cigar in front of
+you and the model did not, so a difference is as likely to mean the lookup is
+wrong. Fields blank on either side are absences rather than disagreements and
+are not listed, or the two or three real ones would drown.
+
+### The gate
+
+`canWrite`, not owner-only — a departure from the WBPR desk and a deliberate
+one. A night at the desk is an open-ended spend and the owner's bill; this is
+one bounded call, and an editor who cannot use quick-add has been given a
+feature that does not work for them.
+
+The daily cap of 50 lookups per lounge is what makes the looser gate defensible,
+and it is in the insert policy as well as in the route. The route's copy exists
+to produce a sentence; the policy is what holds. Cache hits do not count against
+it, because they do not insert.
+
+The cap did not work as first written. It was a `count(*)` subquery inside the
+policy over the very table the policy guards, which Postgres answers with
+`42P17` — and not by leaking, but by refusing every insert, so nothing could
+ever have been cached. It reads correctly, and it was asserted to work in three
+places before anyone ran it. The fix is `app.cigar_lookups_today()`, a
+`SECURITY DEFINER` helper alongside `app.can_write()` and the rest, because
+stepping outside RLS is what lets a policy ask a question about its own table.
+See `supabase/README.md` for that and for the second half of the same lesson,
+which is that `GRANT select, insert` withholds nothing.
+
+Token counts are columns on the row, as they are on `wbpr_agent_sessions`, and
+for the same reason.
+
 ## One write that is not a statement
 
 Taking a cigar out of the humidor is the one write that is not a single
@@ -391,6 +688,115 @@ statement: smoking one of three has to add a log entry *and* leave two behind.
 It is a database function (`smoke_from_humidor`) so the two cannot come apart,
 `SECURITY INVOKER` so RLS still decides, and it converts the last one in place
 rather than replacing it — the entry keeps its id and its URL.
+
+Those two paths are not symmetric, and that asymmetry cost a photograph. The
+in-place conversion is an `UPDATE` that names only the columns a smoke changes,
+so everything describing the *cigar* — its picture, its dimensions, the
+reference it was filled from — survives without anyone deciding it should.
+Splitting one off a stack is an `INSERT` into a new row, and there every one of
+those columns has to be named or it silently takes the column default.
+`photo_path` and `reference_id` were not named, so a cigar smoked off a stack
+of two produced a log entry with no image while the one left in the humidor
+kept its own. `20260809120000_smoke_carries_photo` names them, and backfills the
+entries the old version wrote.
+
+The general shape is worth keeping in mind before adding a column to
+`cl_cigars`: nothing fails when this list falls behind the table. Ask whether
+the new column describes the cigar or the occasion. If it describes the cigar,
+it belongs in the insert.
+
+## Blackletter
+
+The fifth app, and the first that is not a record-keeping app. There are no
+forms, nothing to create or edit, and none of `lib/forms.ts`, `lib/records/` or
+`ConfirmDelete` is involved. What there is instead is a secret, and that turns
+out to change nearly every decision.
+
+**The answer never leaves the database.** `bl_puzzles` holds it and carries no
+grant to `anon` or `authenticated` — RLS enabled with no policy, and the DML
+privileges revoked, so there are two independent refusals before a row could be
+reached. `bl_words` is the same. Everything a player may know comes back from
+four `SECURITY DEFINER` functions that do their own `app.can_read()` check,
+which is `app.cigar_lookups_today()` again: stepping outside RLS is what lets a
+function answer a question about a table nobody may read.
+
+The spec this was built from assumed a static site — word lists in the bundle,
+the answer derived in the browser from a day-index, `localStorage` for state.
+That is the right design for a static host and the wrong one here, for a reason
+that has nothing to do with security theatre: **the workspace is the point.**
+The reason to put a word game on Grackles rather than on GitHub Pages is that
+the people you compare grids with are already a project, and a scoreboard is
+only worth looking at if the answer was actually hidden.
+
+**Guessing is a function, not an insert.** Six attempts, one puzzle a day, a
+real word, nothing after you have won — a client asked to enforce those on
+itself is a client that can decline to. `blackletter_guess()` is the only way a
+row reaches `bl_games`. The API route under `/api/blackletter/` adds one thing
+only: a SQLSTATE turned into a sentence, the same division `lib/records/save.ts`
+draws.
+
+**A member may not read another member's game.** This is the first table here
+where that is true — everywhere else membership *is* readability. A finished
+game's `guesses` contain the answer, so the policy is own-rows-only and the
+scoreboard is a function returning marks and never guesses. A row of squares
+says how well a guess went without saying what it was, which is the same
+asymmetry that makes a shared grid spoiler-free.
+
+**Three lengths, not three apps.** Five, six and seven are one page in three
+states at `?n=`, one row per length per day in `bl_puzzles`, and separate
+streaks — folding them together would mean missing one day of sevens breaking
+your five-letter run. `attempts` is a column on the puzzle rather than a
+constant, so tuning it later cannot retroactively rewrite how hard a finished
+game was.
+
+**The schedule is a table, not arithmetic.** The spec derived the answer as
+`dayIndex % solutions.length`, which needs the list order frozen for all time or
+every player's history breaks. A row is written once on first demand and is then
+true regardless, so the word list can be reordered, extended, or have a word
+withdrawn without moving anyone's history. It also fixes something the modulo
+gets wrong on its own: consecutive days over a sorted list hand out words
+sharing a prefix.
+
+Two things about the word lists are worth knowing before touching them. They are
+generated by `supabase/seed/build-blackletter-words.py` and the output is
+committed, because the spot-check for obscure and offensive entries is a code
+review and a list nobody can diff is a list nobody has read. And ENABLE is an
+American list while this is a British site, which is two different faults:
+SOMBER as an *answer* reads as a misspelling, and SOMBRE as a *guess* was not in
+the list at all. Both spellings are guessable; only the British one can be the
+answer.
+
+### What is live
+
+All three migrations are applied to `ophmsvqtzffrjmyjyzza`, `bl_words` holds all
+46,989 words, and the workspace exists at `/blackletter/words`, private, owned by
+Jamie. Today's puzzles are minted at all three lengths.
+
+The enum migration went out on its own, and has to: `ALTER TYPE ... ADD VALUE`
+cannot be used in the transaction that uses the value.
+
+Loading the dictionary was the awkward part and is worth writing down in case it
+is ever done again. There is no direct Postgres route into the project from the
+environment the migrations were run from, and 47,000 words is too much to push
+through a management API by hand. What worked was to install `http` into the
+`extensions` schema, have Postgres itself fetch the generated seed from a
+**pinned commit SHA** of this repo, parse the word literals out of it in SQL, and
+then drop the extension again. Outbound HTTP from the database is not a
+capability this project should keep standing.
+
+Two things about that parse, both learned the hard way. Postgres's regex engine
+decides greediness per *branch* rather than per quantifier, so a non-greedy
+`(.*?)` sitting next to a greedy `(\d+)` is not non-greedy at all — the first
+attempt swallowed all six sections into one. And every section in the generated
+file announces its own size, which is what made it possible to prove the parse
+was right rather than assume it: a regex that quietly matched half a list would
+otherwise have loaded a dictionary missing twenty thousand words, and nothing
+would have looked wrong until somebody guessed one of them.
+
+There is a spent `seed-blackletter` edge function on the project, stubbed out to
+return 410 and behind JWT verification. It was an earlier attempt at the same
+load, made unnecessary by the `http` route; the management API has no delete, so
+it wants removing from the dashboard.
 
 ## Running it
 
@@ -465,7 +871,7 @@ src/
 │   ├── settings/            per-workspace members, roles, visibility
 │   ├── lp/                  Listening Party
 │   ├── reading/             Reading List
-│   └── cigars/              Cigar Lounge
+│   └── cigars/              Cedarhouse (the cigar lounge)
 └── styles/
     ├── tokens.css           shared palette and type
     ├── launcher.css         the front door, scoped to body.launcher

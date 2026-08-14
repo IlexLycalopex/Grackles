@@ -3,7 +3,7 @@ import RlLayout from '../../../../layouts/RlLayout.astro';
 import YearFields from '../../../../components/rl/YearFields.astro';
 import { requireWrite } from '../../../../lib/workspace';
 import { loadYears } from '../../../../lib/reading-list';
-import { readYear } from '../../../../lib/records/year';
+import { defaultStatusFor, readYear } from '../../../../lib/records/year';
 import { describeWriteError } from '../../../../lib/records/save';
 
 export const prerender = false;
@@ -27,6 +27,10 @@ const years = await loadYears(supabase, workspace.id);
 // The year after the newest one on the list, which is almost always the one
 // being started. Falls back to the calendar year for an empty list.
 const defaultYear = years.length > 0 ? Math.max(...years.map(y => y.year)) + 1 : new Date().getFullYear();
+
+// Which is usually next year, so the form opens on "in planning" — see
+// YearFields, which takes the same view of the year it is given.
+const planningAhead = defaultStatusFor(defaultYear) === 'planning';
 
 let error: string | null = null;
 let submitted: FormData | null = null;
@@ -55,7 +59,13 @@ if (Astro.request.method === 'POST') {
   <div class="container">
     <div class="page-header">
       <h1>Add a year</h1>
-      <p class="subtitle">A shelf for the books read in it.</p>
+      <p class="subtitle">
+        {
+          planningAhead
+            ? 'A shelf for a year that has not started. Fill it now; it stays out of the totals until you mark it in progress.'
+            : 'A shelf for the books read in it.'
+        }
+      </p>
     </div>
 
     {error && <p class="form-error" role="alert">{error}</p>}

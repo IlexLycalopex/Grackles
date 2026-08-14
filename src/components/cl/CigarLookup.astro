@@ -1,0 +1,390 @@
+---
+import type { Cigar } from '../../lib/cigar-lounge';
+import { haystackFor, sizeOf } from '../../lib/cigar-search';
+
+/**
+ * The lookup panel on the add form.
+ *
+ * Three stages, cheapest first, and the ordering is visible in the UI rather
+ * than merely true underneath. Typing searches the lounge's own entries, which
+ * is free and is the right answer whenever you already own the cigar. Pressing
+ * the button spends a call. Nothing fires on a keystroke.
+ *
+ * It sits outside the `<form>` on purpose. Inside it, Enter in this field would
+ * submit a half-filled entry and the button would need `type="button"` to stop
+ * doing the same — two footguns for no benefit, since the one value that has to
+ * reach the server is a hidden input the script can create.
+ */
+interface Props {
+  /** POST target — `/api/cigars/:workspace/lookup`. */
+  endpoint: string;
+  /** URL prefix for this workspace, for linking a local match. */
+  base: string;
+  /** The lounge's own entries. Stage zero, and the only free one. */
+  cigars: Cigar[];
+  /**
+   * `form` sits above the add form and fills it in place. `standalone` is the
+   * reference page, where there is nothing to fill — a result offers to start
+   * an entry instead, carrying only the reference id, so the prefilling happens
+   * server-side on the page that has the form.
+   */
+  mode?: 'form' | 'standalone';
+}
+
+const { endpoint, base, cigars, mode = 'form' } = Astro.props;
+
+const local = cigars.map(cigar => ({
+  id: cigar.id,
+  name: cigar.data.name,
+  detail: [cigar.data.brand, cigar.data.vitola, cigar.data.status === 'humidor' ? 'in the humidor' : 'smoked']
+    .filter(Boolean)
+    .join(' · '),
+  haystack: haystackFor(cigar.data, cigar.body),
+  size: sizeOf(cigar.data),
+}));
+---
+
+<section
+  class="cigar-lookup"
+  data-cigar-lookup
+  data-endpoint={endpoint}
+  data-mode={mode}
+  hidden
+>
+  <p class="cigar-lookup__label">Look it up</p>
+
+  <div class="cigar-lookup__row">
+    <input
+      class="cigar-lookup__input"
+      type="search"
+      autocomplete="off"
+      placeholder="Partagás Serie D No. 4"
+      aria-label="Cigar to look up"
+      data-lookup-input
+    />
+    <button class="cigar-lookup__go" type="button" data-lookup-go>Look this up</button>
+  </div>
+
+  <p class="cigar-lookup__hint">
+    Anything already in this lounge appears as you type, for nothing. The button
+    asks the model, and what it finds is kept so nobody pays for the same cigar
+    twice.
+  </p>
+
+  <div class="cigar-lookup__status" role="status" aria-live="polite" data-lookup-status></div>
+
+  {
+    local.length > 0 && (
+      <div class="cigar-lookup__local" data-lookup-local hidden>
+        <p class="cigar-lookup__local-label">Already here</p>
+        <ul class="cigar-lookup__list">
+          {local.map(entry => (
+            <li
+              class="cigar-lookup__hit"
+              data-search={entry.haystack}
+              data-length={entry.size.lengthInches ?? ''}
+              data-ring={entry.size.ringGauge ?? ''}
+              hidden
+            >
+              <a href={`${base}/cigar/${entry.id}`}>{entry.name}</a>
+              {entry.detail && <span class="cigar-lookup__detail">{entry.detail}</span>}
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
+  <div class="cigar-lookup__result" data-lookup-result hidden></div>
+</section>
+
+<script>
+  import { matches, parseQuery } from '../../lib/cigar-search';
+
+  /** How many of your own entries to show at once. Beyond this, keep typing. */
+  const LOCAL_SHOWN = 5;
+
+  interface Match {
+    id?: string | null;
+    brand?: string;
+    line?: string;
+    name?: string;
+    vitola?: string;
+    length_inches?: number | null;
+    ring_gauge?: number | null;
+    wrapper?: string;
+    binder?: string;
+    filler?: string;
+    country?: string;
+    factory?: string;
+    strength?: string | null;
+    flavour?: string;
+    confidence?: string;
+    alternates?: string[];
+  }
+
+  for (const panel of document.querySelectorAll<HTMLElement>('[data-cigar-lookup]')) {
+    const endpoint = panel.dataset.endpoint;
+    const input = panel.querySelector<HTMLInputElement>('[data-lookup-input]');
+    const go = panel.querySelector<HTMLButtonElement>('[data-lookup-go]');
+    const status = panel.querySelector<HTMLElement>('[data-lookup-status]');
+    const results = panel.querySelector<HTMLElement>('[data-lookup-result]');
+    const standalone = panel.dataset.mode === 'standalone';
+
+    // Absent on the reference page, and that is the whole difference between
+    // the two modes — so it is optional here rather than a reason to bail.
+    const form = document.querySelector<HTMLFormElement>('.cigar-form');
+    if (!endpoint || !input || !go || !status || !results) continue;
+    if (!standalone && !form) continue;
+
+    panel.hidden = false;
+
+    // ── Stage zero: the lounge's own entries ────────────────────────
+    const localBox = panel.querySelector<HTMLElement>('[data-lookup-local]');
+    const hits = Array.from(panel.querySelectorAll<HTMLElement>('[data-search]')).map(node => ({
+      node,
+      haystack: node.dataset.search ?? '',
+      size: {
+        lengthInches: node.dataset.length ? Number(node.dataset.length) : null,
+        ringGauge: node.dataset.ring ? Number(node.dataset.ring) : null,
+      },
+    }));
+
+    const showLocal = () => {
+      if (!localBox) return;
+      const query = parseQuery(input.value);
+
+      // An empty box means "no query", not "everything" — the matcher says
+      // every record matches nothing asked, which is right for a filter over a
+      // grid and wrong for a suggestion list that would then list the lounge.
+      let shown = 0;
+      for (const hit of hits) {
+        const on = !query.empty && shown < LOCAL_SHOWN && matches(hit.haystack, hit.size, query);
+        hit.node.hidden = !on;
+        if (on) shown++;
+      }
+      localBox.hidden = shown === 0;
+    };
+
+    // ── Rendering a result ──────────────────────────────────────────
+    // Every value below arrives from a model and is stored in a table other
+    // people read, so it goes in as `textContent`. There is no innerHTML in
+    // this function and there must not be one: a flavour note is somebody
+    // else's text arriving on your page.
+    const el = (tag: string, className: string, text?: string) => {
+      const node = document.createElement(tag);
+      node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+
+    const size = (match: Match) => {
+      const parts: string[] = [];
+      if (match.length_inches) parts.push(`${match.length_inches}″`);
+      if (match.ring_gauge) parts.push(`ring ${match.ring_gauge}`);
+      return parts.join(' × ');
+    };
+
+    const show = (match: Match, notes: string[], source: string, warning?: string) => {
+      results.replaceChildren();
+      results.hidden = false;
+
+      const title = [match.brand, match.name].filter(Boolean).join(' ');
+      results.append(el('p', 'cigar-lookup__found', title || 'Unnamed'));
+
+      const facts: [string, string][] = [
+        ['Vitola', match.vitola ?? ''],
+        ['Size', size(match)],
+        ['Wrapper', match.wrapper ?? ''],
+        ['Binder', match.binder ?? ''],
+        ['Filler', match.filler ?? ''],
+        ['Country', match.country ?? ''],
+        ['Factory', match.factory ?? ''],
+        ['Strength', match.strength ?? ''],
+      ];
+
+      const list = el('dl', 'cigar-lookup__facts');
+      for (const [label, value] of facts) {
+        if (!value) continue;
+        list.append(el('dt', 'cigar-lookup__term', label), el('dd', 'cigar-lookup__value', value));
+      }
+      if (list.childElementCount) results.append(list);
+
+      if (match.flavour) results.append(el('p', 'cigar-lookup__flavour', match.flavour));
+
+      // The provenance line, always. What is on screen is a claim somebody's
+      // lookup produced, and it says so until a human has accepted it.
+      const from = source === 'cache' ? 'from an earlier lookup' : 'from the model, just now';
+      const sure =
+        match.confidence === 'high' ? 'it says it knows this one'
+        : match.confidence === 'medium' ? 'it is less sure about this size'
+        : 'it is reasoning from the brand, so check it';
+      results.append(el('p', 'cigar-lookup__provenance', `Suggested — ${from}; ${sure}.`));
+
+      for (const note of notes) results.append(el('p', 'cigar-lookup__note', note));
+      if (warning) results.append(el('p', 'cigar-lookup__note', warning));
+
+      const actions = el('div', 'cigar-lookup__actions');
+
+      // Standalone only reaches here for a match with no id — a lookup that
+      // could not be cached — which is exactly the case that cannot be
+      // permalinked. Anything with an id has already navigated. There is
+      // nothing to offer: no form to fill, and no row to start an entry from.
+      if (!standalone && form) {
+        const use = el('button', 'cigar-lookup__use', 'Fill the blanks below') as HTMLButtonElement;
+        use.type = 'button';
+        use.addEventListener('click', () => fill(match));
+        actions.append(use);
+
+        if (match.flavour) {
+          const copy = el('button', 'cigar-lookup__copy', 'Copy the profile into tasting notes') as HTMLButtonElement;
+          copy.type = 'button';
+          copy.addEventListener('click', () => {
+            const notes = form.querySelector<HTMLTextAreaElement>('[name="tasting_notes"]');
+            if (!notes || notes.value.trim()) return;
+            notes.value = match.flavour ?? '';
+            mark(notes);
+          });
+          actions.append(copy);
+        }
+      }
+
+      if (actions.childElementCount) results.append(actions);
+
+      // Alternates are names only, so following one is another lookup — which
+      // usually lands in the cache rather than on the model.
+      const others = (match.alternates ?? []).filter(Boolean);
+      if (others.length) {
+        const row = el('p', 'cigar-lookup__alternates');
+        row.append(document.createTextNode('Or did you mean: '));
+        others.forEach((name, i) => {
+          if (i) row.append(document.createTextNode(', '));
+          const again = el('button', 'cigar-lookup__alternate', name) as HTMLButtonElement;
+          again.type = 'button';
+          again.addEventListener('click', () => {
+            input.value = name;
+            showLocal();
+            lookup();
+          });
+          row.append(again);
+        });
+        results.append(row);
+      }
+    };
+
+    // ── Filling the form ────────────────────────────────────────────
+    // Blanks only. A suggestion never overwrites something you typed, because
+    // you are the one who has the cigar in front of you.
+    const mark = (field: HTMLElement) => {
+      field.classList.add('cigar-form__input--suggested');
+      field.addEventListener('input', () => field.classList.remove('cigar-form__input--suggested'), {
+        once: true,
+      });
+    };
+
+    const set = (name: string, value: string | null | undefined) => {
+      if (!value || !form) return 0;
+      const field = form.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`);
+      if (!field || field.value.trim()) return 0;
+      field.value = value;
+      // A select handed a value it has no option for keeps its old one, and
+      // marking that as suggested would be a lie about what is in the box.
+      if (field.value !== value) return 0;
+      mark(field);
+      return 1;
+    };
+
+    const fill = (match: Match) => {
+      if (!form) return;
+      let filled = 0;
+      filled += set('name', match.name);
+      filled += set('brand', match.brand);
+      filled += set('vitola', match.vitola);
+      filled += set('wrapper', match.wrapper);
+      filled += set('country', match.country);
+      filled += set('strength', match.strength);
+      filled += set('ring_gauge', match.ring_gauge ? String(match.ring_gauge) : '');
+      // Decimal inches rather than the box's own fraction, because a decimal is
+      // what came back and inventing `4 7/8"` from 4.9 would be writing
+      // something nobody said.
+      filled += set('length_text', match.length_inches ? `${match.length_inches}″` : '');
+
+      // Which reference row this entry was filled from. Created rather than
+      // rendered, because the panel lives outside the form.
+      if (match.id) {
+        let hidden = form.querySelector<HTMLInputElement>('[name="reference_id"]');
+        if (!hidden) {
+          hidden = document.createElement('input');
+          hidden.type = 'hidden';
+          hidden.name = 'reference_id';
+          form.append(hidden);
+        }
+        hidden.value = match.id;
+      }
+
+      status.textContent = filled
+        ? `Filled ${filled} empty field${filled === 1 ? '' : 's'}. Anything you had already typed was left alone.`
+        : 'Nothing to fill — every field it knew about already had something in it.';
+    };
+
+    // ── Stage two: the call ─────────────────────────────────────────
+    let running = false;
+
+    const lookup = async () => {
+      const asked = input.value.trim();
+      if (!asked || running) return;
+
+      running = true;
+      go.disabled = true;
+      status.textContent = 'Asking…';
+      results.hidden = true;
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: asked }),
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          status.textContent = data.error ?? `That did not work (${response.status}).`;
+          return;
+        }
+
+        if (!data.match) {
+          status.textContent = 'Nothing came back for that one. Fill the form in by hand.';
+          return;
+        }
+
+        // On the reference desk a result becomes a page rather than a panel:
+        // the full block renders server-side with its provenance and its vitola
+        // check, and the URL is one somebody can keep or pass on. The panel's
+        // own summary would be a second, thinner rendering of the same row.
+        if (standalone && data.match.id) {
+          window.location.href = `${window.location.pathname}?reference=${encodeURIComponent(data.match.id)}`;
+          return;
+        }
+
+        status.textContent = data.source === 'cache' ? 'Found, at no cost.' : 'Found.';
+        show(data.match, data.notes ?? [], data.source, data.warning);
+      } catch {
+        status.textContent = 'Could not reach the lookup.';
+      } finally {
+        running = false;
+        go.disabled = false;
+      }
+    };
+
+    go.addEventListener('click', lookup);
+    input.addEventListener('input', showLocal);
+    input.addEventListener('keydown', event => {
+      // Outside the form, so Enter does nothing by default — which makes it
+      // free to mean the obvious thing.
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        lookup();
+      }
+    });
+  }
+</script>

@@ -96,6 +96,9 @@ begin
       when 'cigar-lounge'    then (select count(*) from public.cl_cigars c where c.workspace_id = w.id)
       when 'listening-party' then (select count(*) from public.lp_selections s where s.workspace_id = w.id)
       when 'wbpr'            then (select count(*) from public.wbpr_broadcasts b where b.workspace_id = w.id)
+      when 'blackletter'     then (select count(*) from public.bl_games g where g.workspace_id = w.id)
+      -- The four still on GitHub Pages hold nothing here, and an `external_url`
+      -- with no rows behind it is the honest answer rather than a missing case.
       else 0::bigint
     end,
     (select coalesce(sum(c.cost_usd), 0) from public.ai_calls c

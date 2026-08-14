@@ -1,0 +1,75 @@
+---
+import type { YearProgress } from '../../lib/reading-list';
+import type { YearStatus } from '../../lib/records/year';
+
+/**
+ * A year's target, and where the year stands against it.
+ *
+ * The target used to be a number the form collected and nothing read. It is
+ * shown in two sizes: `compact` on the overview's year cards, where it is one
+ * line under the count, and full on the year's own page, where there is room to
+ * say what the number means.
+ */
+interface Props {
+  progress: YearProgress;
+  status: YearStatus;
+  compact?: boolean;
+}
+
+const { progress, status, compact = false } = Astro.props;
+const { target, counted, remaining, percent, over, pace } = progress;
+
+const noun = status === 'planning' ? 'chosen' : 'read';
+
+// One sentence, and which one depends on what the year is for. A plan is
+// counting up to a full list; a year under way is measured against the
+// calendar; a finished year has an answer rather than a projection.
+const caption = (() => {
+  if (status === 'planning') {
+    return remaining > 0
+      ? `${remaining} still to choose`
+      : over
+        ? `${counted - target} more than planned`
+        : 'The year is full';
+  }
+
+  if (status === 'complete') {
+    if (over) return `Target beaten by ${counted - target}`;
+    if (remaining === 0) return 'Target met';
+    return `${remaining} short`;
+  }
+
+  if (pace) {
+    if (pace.delta > 0) return `${pace.delta} ahead of pace`;
+    if (pace.delta < 0) return `${-pace.delta} behind pace`;
+    return 'On pace';
+  }
+
+  return remaining > 0 ? `${remaining} to go` : over ? `${counted - target} over` : 'Target met';
+})();
+
+const label = `${counted} of ${target} books ${noun} — ${caption}`;
+---
+
+<div
+  class:list={['year-progress', `year-progress--${status}`, compact && 'year-progress--compact']}
+>
+  <div class="year-progress__track" role="img" aria-label={label}>
+    <span class="year-progress__fill" style={`width: ${percent}%`}></span>
+  </div>
+
+  {
+    compact ? (
+      <span class="year-progress__line">
+        {counted}/{target} · {caption}
+      </span>
+    ) : (
+      <div class="year-progress__line">
+        <span class="year-progress__count">
+          <strong>{counted}</strong> of {target} {noun}
+        </span>
+        <span class="year-progress__caption">{caption}</span>
+      </div>
+    )
+  }
+</div>

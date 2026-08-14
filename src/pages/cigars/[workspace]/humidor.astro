@@ -1,6 +1,8 @@
 ---
 import ClLayout from '../../../layouts/ClLayout.astro';
 import CigarCard from '../../../components/cl/CigarCard.astro';
+import CigarFilter from '../../../components/cl/CigarFilter.astro';
+import FilterBar from '../../../components/cl/FilterBar.astro';
 import { resolveWorkspace } from '../../../lib/workspace';
 import { humidorFrom, loadCigars } from '../../../lib/cigar-lounge';
 import { totalCigars } from '../../../lib/cigar-helpers';
@@ -15,18 +17,32 @@ if (!workspace) return new Response('Not found', { status: 404 });
 
 const base = `/cigars/${workspace.slug}`;
 const humidor = humidorFrom(await loadCigars(supabase, workspace.id));
+
+// Read off the box rather than listed, so a facet only appears once something
+// resting carries it.
+const countries = [...new Set(humidor.map(c => c.data.country).filter(Boolean))].sort() as string[];
+const STRENGTHS = ['mild', 'medium', 'full'] as const;
+const strengths = STRENGTHS.filter(s => humidor.some(c => c.data.strength === s));
+
+// The humidor is rendered longest-resting first, so that is the sort it
+// returns to; the other two are the ways you might want to break it up.
+const sorts = [
+  { key: 'oldest', label: 'Longest rested' },
+  { key: 'recent', label: 'Newest in' },
+  { key: 'name', label: 'A–Z' },
+];
 ---
 
 <ClLayout title={`Humidor · ${workspace.name}`} workspace={workspace}>
   <div class="container">
-    <div class="page-header">
-      <p class="eyebrow">Resting</p>
-      <h1>Humidor</h1>
+    <header class="page-header">
+      <p class="label">Resting · {totalCigars(humidor)} cigars</p>
+      <h1>The <em>humidor.</em></h1>
       <p class="subtitle">
         {totalCigars(humidor)} cigars across {humidor.length} entr{humidor.length === 1 ? 'y' : 'ies'},
         longest-resting first.
       </p>
-    </div>
+    </header>
 
     {
       workspace.canWrite && (
@@ -45,16 +61,29 @@ const humidor = humidorFrom(await loadCigars(supabase, workspace.id));
       humidor.length === 0 ? (
         <p class="empty-state">The humidor is empty.</p>
       ) : (
-        <div class="cigar-grid">
-          {humidor.map(cigar => (
-            <CigarCard
-              cigar={cigar}
-              base={base}
-              editHref={workspace.canWrite ? `${base}/edit/${cigar.id}` : undefined}
-              smokeHref={workspace.canWrite ? `${base}/smoke/${cigar.id}` : undefined}
-            />
-          ))}
-        </div>
+        <>
+          <div class="log-divider">
+            <span class="label">Everything resting</span>
+            <span class="log-divider__count" data-count-for="humidor-grid" data-count-noun="entries">
+              {humidor.length} entr{humidor.length === 1 ? 'y' : 'ies'}
+            </span>
+          </div>
+
+          <FilterBar grid="humidor-grid" countries={countries} strengths={strengths} sorts={sorts} />
+          <CigarFilter grid="humidor-grid" noun="resting" />
+
+          <div class="cigar-grid" id="humidor-grid">
+            {humidor.map((cigar, i) => (
+              <CigarCard
+                cigar={cigar}
+                base={base}
+                index={i}
+                editHref={workspace.canWrite ? `${base}/edit/${cigar.id}` : undefined}
+                smokeHref={workspace.canWrite ? `${base}/smoke/${cigar.id}` : undefined}
+              />
+            ))}
+          </div>
+        </>
       )
     }
   </div>

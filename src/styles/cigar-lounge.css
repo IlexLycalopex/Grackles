@@ -1,58 +1,51 @@
-/* ── Oxblood Foil ───────────────────────────────────────────────────
-   Ported from the "Oxblood Foil App" design. Deep oxblood grounds,
-   gold foil for anything that carries value (headings, ratings, stats),
-   and Space Mono micro-labels doing the structural signposting.
+/* ── Cedarhouse ─────────────────────────────────────────────────────
+   Replaces the Oxblood Foil identity. The grounds, the ink and the paper
+   grain are the shared Grackles tokens, so the lounge reads as part of the
+   same site as the reading log and the launcher; the only thing it holds
+   privately is a terracotta accent and a third face for micro-labels.
 
-   This deliberately breaks the shared look with Listening Party and the
-   reading log — those still use the burnt-sienna token set. */
+   The rules of the set, in short:
+     · separation is hairlines, never shadow;
+     · corners are 2px, never round;
+     · anything carrying a value — a score, an index, an active state — is
+       terracotta, and a score is always the display serif. */
+
 :root {
   /* Grounds */
-  --bg:            #3c1216;  /* the screen */
-  --bg-deep:       #180a0c;  /* outermost, behind everything */
-  --bg-sunk:       #2a0d10;  /* nav and footer bands */
-  --bg-card:       rgba(214, 162, 78, 0.05);
-  --bg-hover:      rgba(214, 162, 78, 0.10);
-
-  /* Edges */
-  --border:        #5a2226;
-  --border-soft:   #4a1a1e;
-  --border-gold:   #b8863c;
-
-  /* Foil */
-  --foil-light:    #f6e6c2;
-  --foil:          #d6a24e;
-  --foil-deep:     #c8933f;
-  --gold-label:    #c79a58;
-  --gold-muted:    #8f6b45;
-  --gold-dim:      #7c5a38;
+  --paper:        #eae7e0;  /* the page */
+  --paper-raised: #f4f2ec;  /* cards, plates, inputs */
+  --paper-sunk:   #e2ddd0;  /* photo wells and placeholders */
 
   /* Ink */
-  --text:          #f2dfc4;
-  --text-2:        #e4d3b6;
-  --text-muted:    #d8b98a;
-  --text-faint:    #8f6b45;
+  --ink:          #1e1d2e;  /* primary text, dark fills */
+  --ink-soft:     #5f5b52;  /* body copy, specification lines */
+  --ink-muted:    #8a8578;  /* labels, eyebrows, secondary text */
 
-  /* The two gradients the whole system leans on */
-  --foil-sheen:    linear-gradient(180deg, #f6e6c2, #d6a24e);
-  --foil-press:    linear-gradient(160deg, #f6e6c2, #c8933f);
-  --top-glow:      radial-gradient(circle at 50% -8%, rgba(214, 162, 78, 0.16), transparent 55%);
+  /* Edges */
+  --rule:         #c8c3b6;  /* hairlines and borders */
+  --rule-soft:    #d5d0c3;  /* dividers inside a card */
 
-  --display:       'Marcellus', 'Times New Roman', serif;
-  --font:          'Jost', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --mono:          'Space Mono', 'SF Mono', 'Fira Code', monospace;
-  --numeral:       'Bebas Neue', Impact, sans-serif;
+  --accent:       #a8503a;  /* terracotta: scores, active nav, plate index */
+  --danger:       #9b3b2f;
 
-  --radius:        12px;
-  --radius-lg:     14px;
-  --transition:    0.18s ease;
+  --display: 'Cormorant Garamond', Georgia, serif;
+  --body:    'Karla', system-ui, sans-serif;
+  --mono:    'Space Mono', ui-monospace, monospace;
+
+  --radius:     2px;
+  --transition: 0.2s ease;
+
+  /* The page gutter. Every full-bleed band uses it so the nav rule, the log
+     divider and the plate grid all start on the same vertical line. */
+  --gutter: 34px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html {
-  background: var(--bg-deep);
-  color: var(--text);
-  font-family: var(--font);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
   font-weight: 300;
   scroll-behavior: smooth;
 }
@@ -61,18 +54,27 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--top-glow), var(--bg);
-  background-attachment: fixed;
+  background: var(--paper);
+}
+
+/* The paper grain from the shared token sheet. Fixed and pointer-events:none
+   so it sits over everything without catching clicks. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
 }
 
 a { color: inherit; text-decoration: none; }
 
-::selection { background: var(--foil); color: var(--bg-sunk); }
+::selection { background: var(--accent); color: var(--paper); }
 
 :focus-visible {
-  outline: 2px solid var(--foil);
+  outline: 2px solid var(--ink);
   outline-offset: 3px;
-  border-radius: 3px;
 }
 
 img { display: block; max-width: 100%; }
@@ -81,43 +83,43 @@ h1, h2, h3 {
   font-family: var(--display);
   font-weight: 400;
   line-height: 1.05;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
 }
 
-/* Foil-stamped headline. Falls back to solid gold where background-clip
-   isn't supported. */
-.foil {
-  color: var(--foil-light);
-  background: var(--foil-sheen);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-}
-
-/* The recurring Space Mono signpost: tiny, wide-tracked, gold. */
+/* ── The three registers ────────────────────────────────────────────
+   Everything on the page is one of: display serif (names and scores),
+   tracked-out sans label (eyebrows), or mono micro-text (dates, indices,
+   counts). `.eyebrow` is the older name for `.label`, kept because the
+   humidor, stats and lookup pages already use it. */
+.label,
 .eyebrow {
-  font-family: var(--mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.28em;
+  font-family: var(--body);
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: var(--gold-label);
+  color: var(--ink-muted);
 }
 
-/* Skip to content */
+.micro {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
 .skip-to-content {
   position: absolute;
   left: -9999px;
   top: 0;
   z-index: 9999;
   padding: 8px 20px;
-  background: var(--foil-press);
-  color: var(--bg);
-  font-weight: 600;
-  font-size: 0.875rem;
-  letter-spacing: 0.1em;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  border-radius: 0 0 var(--radius) var(--radius);
 }
 .skip-to-content:focus { left: 24px; }
 
@@ -125,625 +127,874 @@ h1, h2, h3 {
 .container {
   max-width: 1160px;
   margin: 0 auto;
-  padding: 0 26px;
+  padding: 0 var(--gutter);
   width: 100%;
 }
 
 main { flex: 1; }
+
+@media (max-width: 560px) {
+  :root { --gutter: 20px; }
+}
 
 /* ── Site nav ───────────────────────────────────────────────────── */
 .site-nav {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(42, 13, 16, 0.82);
-  -webkit-backdrop-filter: blur(22px);
-  backdrop-filter: blur(22px);
-  border-bottom: 1px solid var(--border);
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
 }
+
 .site-nav__inner {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 58px;
-  gap: 12px;
-}
-.site-nav__logo {
-  display: flex;
   align-items: baseline;
-  gap: 9px;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 20px;
+  padding-bottom: 15px;
+}
+
+/* The wordmark. Set in the display serif at a wide track, which is the whole
+   of the brand — there is no mark beside it. */
+.site-nav__logo {
+  font-family: var(--display);
+  font-size: 1.25rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink);
   white-space: nowrap;
   flex-shrink: 0;
-}
-.site-nav__mark {
-  font-size: 0.8rem;
-  color: var(--foil);
-  line-height: 1;
-}
-.site-nav__logo span:not(.site-nav__mark) {
-  font-family: var(--display);
-  font-size: 1.05rem;
-  letter-spacing: 0.02em;
-  color: var(--text);
   transition: color var(--transition);
 }
-.site-nav__logo:hover span:not(.site-nav__mark) { color: var(--foil); }
+
+.site-nav__logo:hover { color: var(--accent); }
 
 .site-nav__links {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
+  align-items: baseline;
+  gap: 22px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .site-nav__pill {
-  padding: 7px 14px;
-  border: 1px solid transparent;
-  border-radius: 22px;
-  font-family: var(--mono);
-  font-size: 0.66rem;
-  letter-spacing: 0.18em;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--gold-dim);
-  transition: color var(--transition), border-color var(--transition), background var(--transition);
+  color: var(--ink-muted);
   white-space: nowrap;
+  transition: color var(--transition);
 }
-.site-nav__pill:hover { color: var(--gold-label); }
-.site-nav__pill.active {
-  color: var(--foil);
-  border-color: var(--border-gold);
-  background: var(--bg-card);
+
+.site-nav__pill:hover { color: var(--ink); }
+.site-nav__pill.active { color: var(--accent); }
+
+/* Not a link — the viewer's own standing in this lounge. */
+.site-nav__role {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: var(--ink-muted);
+  cursor: default;
 }
 
 @media (max-width: 640px) {
-  .site-nav__pill { padding: 8px 11px; font-size: 0.62rem; letter-spacing: 0.14em; }
-  .site-nav__inner { gap: 8px; }
-}
-
-@media (max-width: 380px) {
-  .site-nav__logo span:not(.site-nav__mark) { display: none; }
-}
-
-/* ── Footer ─────────────────────────────────────────────────────── */
-.site-footer {
-  border-top: 1px solid var(--border);
-  background: linear-gradient(0deg, var(--bg-sunk) 60%, transparent);
-  padding: 34px 0;
-  margin-top: 4.5rem;
-  font-family: var(--mono);
-  font-size: 0.66rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--gold-dim);
+  .site-nav__inner { gap: 10px; }
+  .site-nav__links { gap: 14px; }
+  .site-nav__pill { font-size: 0.62rem; letter-spacing: 0.14em; }
+  .site-nav__logo { font-size: 1.05rem; letter-spacing: 0.16em; }
 }
 
 /* ── Page headers ───────────────────────────────────────────────── */
 .page-header {
-  padding: 3.5rem 0 2rem;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 1.5rem;
+  padding: 30px 0 4px;
 }
 
 .page-header h1 {
-  font-size: clamp(2.75rem, 7vw, 4.75rem);
-  margin: 0.5rem 0 0.65rem;
+  margin: 12px 0 0;
+  font-size: clamp(2.4rem, 5vw, 2.9rem);
+  font-weight: 400;
+}
+
+/* The closing phrase of a headline, set in italic terracotta. */
+.page-header h1 em {
+  font-style: italic;
+  color: var(--accent);
 }
 
 .page-header .subtitle {
-  color: var(--text-muted);
-  font-size: 1.05rem;
-  font-weight: 300;
-  line-height: 1.65;
-  max-width: 44ch;
+  margin-top: 14px;
+  max-width: 46ch;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--ink-soft);
 }
 
 /* ── Stats strip ────────────────────────────────────────────────── */
 .stats-strip {
   display: flex;
-  gap: 2.25rem;
+  gap: 46px;
   flex-wrap: wrap;
-  padding: 1.75rem 0;
-  border-bottom: 1px solid var(--border);
+  margin-top: 26px;
+  padding: 20px 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
 }
 
-.stat { display: flex; flex-direction: column; gap: 0.3rem; }
+.stat { display: flex; flex-direction: column; gap: 6px; }
 
 .stat__value {
-  font-family: var(--numeral);
-  font-size: 2.6rem;
-  line-height: 0.85;
-  color: var(--foil-light);
-  letter-spacing: 0.01em;
+  font-family: var(--display);
+  font-size: 2.2rem;
+  line-height: 0.95;
+  color: var(--accent);
 }
 
 .stat__label {
-  font-family: var(--mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.2em;
+  font-size: 0.66rem;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--gold-label);
+  color: var(--ink-muted);
 }
 
-/* ── Cigar grid ─────────────────────────────────────────────────── */
-.cigar-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  /* Photos are optional, so cards in a row differ in height. Sizing each to
-     its own content leaves a ragged edge; stretching leaves dead space inside
-     the photoless cards, which looks worse. */
-  align-items: start;
-  gap: 1.5rem;
-  padding: 2rem 0;
-}
+.stat--link .stat__value { transition: opacity var(--transition); }
+.stat--link:hover .stat__value { opacity: 0.65; }
 
-/* ── Score badge ────────────────────────────────────────────────── */
-.score {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: var(--score-size, 42px);
-  height: var(--score-size, 42px);
-  border: 1px solid var(--border-gold);
-  border-radius: 50%;
-  color: var(--foil);
-  font-family: var(--numeral);
-  line-height: 0.8;
-}
-
-.score--lg {
-  --score-size: 88px;
-  border-color: var(--foil);
-  box-shadow: 0 0 0 6px rgba(214, 162, 78, 0.06);
-}
-
-.score__value { font-size: calc(var(--score-size, 42px) * 0.46); }
-.score--lg .score__value { font-size: 2.75rem; }
-
-.score__label {
-  font-family: var(--mono);
-  font-size: 0.44rem;
-  letter-spacing: 0.2em;
-  margin-top: 0.2rem;
-}
-
-/* A rule that fades out from the centrepiece, as on the detail screen. */
-.flanked {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-.flanked::before, .flanked::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-}
-.flanked::before { background: linear-gradient(90deg, transparent, var(--border-gold)); }
-.flanked::after { background: linear-gradient(270deg, transparent, var(--border-gold)); }
-
-/* ── Strength chip ──────────────────────────────────────────────── */
-.strength {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-family: var(--mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--gold-label);
-}
-
-.strength__pips { display: flex; gap: 2px; }
-
-.strength__pip {
-  width: 5px;
-  height: 10px;
-  border-radius: 1px;
-  background: var(--border-soft);
-}
-
-.strength__pip--on { background: var(--foil); }
-
-/* ── Panels ─────────────────────────────────────────────────────── */
-.panel-grid {
+/* ── The editorial lead-in ──────────────────────────────────────────
+   Featured (latest smoke) and Top rated (all time), side by side above the
+   log proper. One column when there is only one entry to show. */
+.lead {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
-  padding: 2rem 0;
+  gap: 32px;
+  padding: 22px 0 26px;
 }
+
+.lead--single { grid-template-columns: minmax(0, 34rem); }
 
 @media (max-width: 760px) {
-  .panel-grid { grid-template-columns: 1fr; }
+  .lead { grid-template-columns: 1fr; gap: 30px; }
 }
 
-.panel {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  min-width: 0;
-}
+.lead-card { min-width: 0; }
 
-/* The design highlights one card per group with a gold edge and a wash. */
-.panel--featured {
-  border-color: var(--border-gold);
-  background: var(--bg-card);
-}
-
-.panel h2 {
-  font-family: var(--mono);
-  font-size: 0.64rem;
-  font-weight: 400;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--gold-label);
-  margin-bottom: 1.1rem;
-}
-
-.panel__note {
-  font-size: 0.82rem;
-  font-weight: 300;
-  color: var(--text-faint);
-  margin-top: 0.9rem;
-  line-height: 1.6;
-}
-
-.panel--full { grid-column: 1 / -1; }
-
-/* ── Tables ─────────────────────────────────────────────────────── */
-.table-scroll { overflow-x: auto; }
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-
-.data-table th {
-  text-align: left;
-  font-family: var(--mono);
-  font-size: 0.56rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--gold-label);
-  font-weight: 400;
-  padding: 0 0.6rem 0.65rem 0;
-  white-space: nowrap;
-}
-
-.data-table td {
-  padding: 0.7rem 0.6rem 0.7rem 0;
-  border-top: 1px solid var(--border-soft);
-  vertical-align: middle;
-}
-
-.data-table th:last-child, .data-table td:last-child { padding-right: 0; }
-
-/* Alignment applies to the whole column; the numeral treatment must not leak
-   into the header, which has its own smaller Space Mono styling. */
-.data-table .num { text-align: right; }
-
-.data-table td.num {
-  font-family: var(--mono);
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.data-table tbody tr:hover { background: var(--bg-card); }
-
-.data-table__brand {
-  font-family: var(--display);
-  font-size: 1.05rem;
-  color: var(--text);
-}
-
-/* ── Distribution bars ──────────────────────────────────────────── */
-.bar-chart { display: flex; flex-direction: column; gap: 0.7rem; }
-
-.bar-row {
-  display: grid;
-  grid-template-columns: 3.4rem 1fr 1.75rem;
-  align-items: center;
-  gap: 0.85rem;
-}
-
-.bar-row__label {
-  font-family: var(--mono);
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
-  color: var(--text-2);
-  text-align: right;
-}
-
-.bar-row__track {
-  display: block;
-  background: var(--border-soft);
-  border-radius: 4px;
-  height: 7px;
+.lead-card__plate {
+  position: relative;
+  height: 196px;
+  border: 1px solid var(--rule);
   overflow: hidden;
 }
 
-.bar-row__fill {
-  display: block;
+.lead-card__plate img {
+  width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, var(--border-gold), var(--foil-light));
-  border-radius: 4px;
+  object-fit: cover;
+}
+
+/* The overlay tag that names which of the two this is. */
+.lead-card__tag {
+  position: absolute;
+  top: 10px;
+  left: 11px;
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.lead-card__brand { margin-top: 17px; }
+
+.lead-card__name {
+  margin-top: 9px;
+  font-size: 1.9rem;
+  line-height: 1.03;
+}
+
+.lead-card__spec {
+  margin-top: 9px;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.lead-card__note {
+  margin-top: 13px;
+  max-width: 36ch;
+  font-size: 0.8rem;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+.lead-card__score {
+  display: flex;
+  align-items: baseline;
+  gap: 11px;
+  margin-top: 16px;
+}
+
+.lead-card__score .score__value { font-size: 2.6rem; }
+.lead-card__score .score__label { font-size: 10px; }
+
+/* ── The photo well ─────────────────────────────────────────────────
+   Every plate without a picture gets the same hatched fill and the same
+   centred label, so an entry with no photo still reads as a specimen plate
+   rather than a hole. */
+.plate-fill {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  background:
+    repeating-linear-gradient(45deg, rgba(30, 29, 46, 0.06) 0 9px, transparent 9px 18px),
+    var(--paper-sunk);
+}
+
+.plate-fill::after {
+  content: 'cigar shot';
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #a39c88;
+}
+
+/* ── Divider above the log ──────────────────────────────────────── */
+.log-divider {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 22px;
+  border-top: 1px solid var(--rule);
+}
+
+.log-divider__count {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+/* ── The specimen-plate grid ────────────────────────────────────────
+   The outer edges live on the grid and the inner ones on each cell, so
+   neighbouring plates share a single hairline instead of drawing two. */
+.cigar-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--rule);
+  border-left: 1px solid var(--rule);
+  margin: 14px 0 36px;
+}
+
+.cigar-grid > * {
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
   min-width: 0;
 }
 
-.bar-row__count {
-  font-family: var(--mono);
-  font-size: 0.68rem;
-  color: var(--gold-muted);
-  text-align: right;
+@media (max-width: 760px) { .cigar-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 460px) { .cigar-grid { grid-template-columns: 1fr; } }
+
+/* Filtered out by the chips or the search box. `display: none` rather than the
+   `hidden` attribute's default, so a rejected cell leaves the grid instead of
+   holding a column open with its borders.
+
+   `!important` because the cell is a component that lays itself out. Astro
+   scopes a component's own styles by appending an attribute — `.cigar-card`
+   becomes `.cigar-card[data-astro-cid-…]` — which ties this selector's
+   specificity exactly, and it emits those scoped rules after this sheet, so
+   the tie goes to the card's `display: flex` and the plate stays on screen.
+   The counts still moved, which is what made this look like a search that
+   knew the answer and would not act on it. A state that overrules layout has
+   to say so rather than hope it is read last. */
+.cigar-grid > [data-out-facet],
+.cigar-grid > [data-out-search] { display: none !important; }
+
+/* Shown when nothing on the page survives the filters. Spans the grid rather
+   than sitting in one column, and carries no cell borders. */
+.cigar-grid__none {
+  grid-column: 1 / -1;
+  border-right: 0;
+  padding: 3rem 0;
 }
 
-/* ── Empty states ───────────────────────────────────────────────── */
-.empty-state {
-  padding: 3.5rem 0;
-  color: var(--text-muted);
-  font-weight: 300;
-  text-align: center;
-  line-height: 1.7;
+/* ── Scores ─────────────────────────────────────────────────────────
+   Always the display serif, always terracotta, everywhere they appear. */
+.score {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 9px;
 }
 
-.empty-state code {
-  font-family: var(--mono);
-  font-size: 0.85rem;
-  color: var(--foil);
+.score__value {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--accent);
 }
 
-.empty-state a { color: var(--foil); text-decoration: underline; }
-
-/* ── Added for the Supabase app: editing UI ──────────────────────── */
-
-.site-nav__role {
+.score__label {
+  font-size: 0.66rem;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  opacity: 0.6;
-  cursor: default;
+  color: var(--ink-muted);
 }
 
-.cigar-card { position: relative; }
+.score--lg { flex-direction: column; align-items: center; gap: 7px; }
+.score--lg .score__value { font-size: 3.4rem; }
 
-/* Sits above the card-wide link so it stays clickable. */
-.cigar-card__edit {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  opacity: 0;
-  transition: opacity 0.18s ease;
-}
+.score--none .score__value { color: var(--ink-muted); }
 
-.cigar-card:hover .cigar-card__edit,
-.cigar-card__edit:focus-visible { opacity: 1; }
-
-.section-heading {
-  margin: 2.5rem 0 1rem;
-  font-size: 0.78rem;
+/* ── Strength ───────────────────────────────────────────────────────
+   Three dots: mild one, medium two, full three. */
+.strength {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.66rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  opacity: 0.6;
+  color: var(--ink-muted);
 }
 
-.dist { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+.strength__pips { display: flex; gap: 4px; }
+
+.strength__pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rule);
+}
+
+.strength__pip--on { background: var(--accent); }
+
+/* ── Distribution rows (stats) ──────────────────────────────────── */
+.section-heading {
+  margin: 40px 0 16px;
+  font-family: var(--body);
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.dist { list-style: none; display: flex; flex-direction: column; gap: 10px; }
 
 .dist__row {
   display: grid;
   grid-template-columns: minmax(6rem, 10rem) 1fr auto;
   align-items: center;
-  gap: 0.85rem;
+  gap: 14px;
   font-size: 0.85rem;
+  color: var(--ink-soft);
 }
 
 .dist__bar {
   height: 6px;
-  border-radius: 999px;
-  background: rgba(128, 128, 128, 0.18);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
   overflow: hidden;
 }
 
-.dist__fill { display: block; height: 100%; background: currentColor; opacity: 0.55; }
-.dist__count { font-variant-numeric: tabular-nums; opacity: 0.7; }
+.dist__fill { display: block; height: 100%; background: var(--accent); opacity: 0.75; }
 
-.form-error {
-  max-width: 720px;
-  margin: 1.25rem 0 0;
-  padding: 0.75rem 1rem;
-  border-left: 3px solid currentColor;
-  font-size: 0.9rem;
+.dist__count {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
 }
 
-.cigar-form {
-  max-width: 720px;
-  margin: 1.75rem 0 6rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
+/* ── Empty states ───────────────────────────────────────────────── */
+.empty-state {
+  padding: 3rem 0;
+  text-align: center;
+  font-size: 0.88rem;
+  line-height: 1.75;
+  color: var(--ink-muted);
 }
 
-.cigar-form__row { display: flex; flex-wrap: wrap; gap: 1rem; }
-.cigar-form__row .cigar-form__field { flex: 1 1 11rem; }
-.cigar-form__field { display: flex; flex-direction: column; gap: 0.4rem; }
-
-.cigar-form__label {
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  opacity: 0.65;
+.empty-state code {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--ink-soft);
 }
 
-.cigar-form__hint { font-size: 0.75rem; opacity: 0.5; line-height: 1.45; }
+.empty-state a { color: var(--accent); text-decoration: underline; }
 
-.cigar-form__input {
-  width: 100%;
-  padding: 0.6rem 0.75rem;
-  font: inherit;
-  font-size: 0.95rem;
-  color: inherit;
-  background: rgba(128, 128, 128, 0.08);
-  border: 1px solid rgba(128, 128, 128, 0.25);
-  border-radius: 6px;
-}
-
-.cigar-form__input:focus { outline: none; border-color: currentColor; }
-textarea.cigar-form__input { resize: vertical; line-height: 1.55; }
-
-.cigar-form__actions { display: flex; align-items: center; gap: 1.25rem; }
-
-.cigar-form__submit {
-  padding: 0.7rem 1.6rem;
-  font: inherit;
-  font-size: 0.82rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: inherit;
-  background: transparent;
-  border: 1px solid currentColor;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: opacity 0.18s ease;
-}
-
-.cigar-form__submit:hover { opacity: 0.7; }
-.cigar-form__cancel { font-size: 0.85rem; opacity: 0.6; }
-
-/* ── Creating records ─────────────────────────────────────────────
-   Same element names as the listening party and reading list, in this
-   app's quieter register. See the note in listening-party.css. */
-
+/* ── Record actions ─────────────────────────────────────────────── */
 .record-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem;
-  margin: 1.5rem 0;
+  gap: 10px;
+  margin: 22px 0 0;
 }
 
 .record-actions__btn {
-  padding: 0.55rem 1.2rem;
-  font-size: 0.78rem;
-  letter-spacing: 0.1em;
+  padding: 7px 15px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: inherit;
-  border: 1px solid rgba(128, 128, 128, 0.35);
-  border-radius: 6px;
-  opacity: 0.7;
-  transition: opacity 0.18s ease, border-color 0.18s ease;
+  color: var(--ink-muted);
+  transition: color var(--transition), border-color var(--transition), background var(--transition);
 }
 
-.record-actions__btn:hover {
-  opacity: 1;
-  border-color: currentColor;
-}
+.record-actions__btn:hover { color: var(--ink); border-color: var(--ink); }
 
 .record-actions__btn--primary {
-  border-color: currentColor;
-  opacity: 1;
+  color: var(--paper);
+  background: var(--ink);
+  border-color: var(--ink);
 }
 
-.record-actions__btn--primary:hover { opacity: 0.7; }
+.record-actions__btn--primary:hover { color: var(--paper); background: #2c2a41; border-color: #2c2a41; }
 
-/* The shortcut out of the humidor. It takes the same dark chip as the pencil
-   rather than the page's own colours: both can land on top of a photo, where a
-   translucent grey is unreadable.
+/* ── Forms ──────────────────────────────────────────────────────── */
+.form-error {
+  max-width: 720px;
+  margin: 20px 0 0;
+  padding: 12px 16px;
+  border-left: 3px solid var(--danger);
+  background: rgba(155, 59, 47, 0.06);
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
 
-   It sits immediately left of the pencil rather than in the opposite corner.
-   The card's first line is the brand kicker, and on an entry with no photo
-   there is no image for these controls to overlay — a left-hand chip lands
-   squarely on the brand and hides it, permanently so on touch, where the chip
-   never fades out. Clustering both actions on the right keeps them clear of
-   text that is always left-aligned. */
-.cigar-card__smoke {
-  position: absolute;
-  top: 10px;
-  /* 10px pencil offset + its 28px width + an 8px gap. */
-  right: 46px;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 0.6rem;
-  font-size: 0.65rem;
-  letter-spacing: 0.12em;
+.cigar-form {
+  max-width: 720px;
+  margin: 28px 0 6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.cigar-form__row { display: flex; flex-wrap: wrap; gap: 16px; }
+.cigar-form__row .cigar-form__field { flex: 1 1 11rem; }
+.cigar-form__field { display: flex; flex-direction: column; gap: 7px; }
+
+.cigar-form__label {
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.55);
-  border-radius: 4px;
-  opacity: 0;
-  transition: opacity 0.18s ease;
+  color: var(--ink-muted);
 }
 
-.cigar-card:hover .cigar-card__smoke,
-.cigar-card__smoke:focus-visible { opacity: 1; }
+.cigar-form__hint { font-size: 0.75rem; line-height: 1.5; color: var(--ink-muted); }
 
-/* Touch has no hover, so the shortcuts have to be visible to be usable. Both
-   are listed: they are rendered together and now sit together, so revealing
-   only one leaves a gap where the other should be — and left the pencil with
-   no way at all to be reached on a phone. */
-@media (hover: none) {
-  .cigar-card__smoke,
-  .cigar-card__edit { opacity: 1; }
+.cigar-form__input {
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  transition: border-color var(--transition);
 }
 
-/* ── Deleting records ─────────────────────────────────────────────
-   Everything in this app is gold on burgundy, so a destructive control
-   has to break the palette to read as one. A muted brick red is the
-   only non-gold thing on the page, which is the point. */
+.cigar-form__input::placeholder { color: var(--ink-muted); }
+.cigar-form__input:focus { outline: none; border-color: var(--ink); }
+textarea.cigar-form__input { resize: vertical; line-height: 1.6; }
 
-:root { --danger: #e8776a; }
+.cigar-form__actions { display: flex; align-items: center; gap: 20px; }
 
+.cigar-form__submit {
+  padding: 11px 26px;
+  font: inherit;
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--paper);
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.cigar-form__submit:hover { opacity: 0.82; }
+
+.cigar-form__cancel {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  transition: color var(--transition);
+}
+
+.cigar-form__cancel:hover { color: var(--ink); }
+
+/* Destructive controls are the one place terracotta gives way to brick: on
+   paper the accent is warm enough to be mistaken for decoration. */
 .cigar-form__delete {
   margin-left: auto;
-  font-size: 0.85rem;
-  opacity: 0.45;
+  font-size: 0.8rem;
   color: var(--danger);
-  transition: opacity 0.18s ease;
+  opacity: 0.75;
+  transition: opacity var(--transition);
 }
 
 .cigar-form__delete:hover { opacity: 1; }
 
 .cigar-form__submit--danger {
-  color: var(--danger);
+  color: var(--paper);
+  background: var(--danger);
   border-color: var(--danger);
 }
 
-.cigar-form__submit--danger:hover {
-  color: var(--bg-deep);
-  background: var(--danger);
-  opacity: 1;
-}
-
 .confirm-delete {
-  padding: 1.1rem 1.25rem;
+  padding: 18px 20px;
   border: 1px solid var(--danger);
   border-left-width: 3px;
-  border-radius: 6px;
-  background: rgba(232, 119, 106, 0.06);
+  border-radius: var(--radius);
+  background: rgba(155, 59, 47, 0.05);
 }
 
 .confirm-delete__title {
-  margin: 0.35rem 0 0.15rem;
+  margin: 6px 0 3px;
   font-family: var(--display);
-  font-size: 1.25rem;
-  color: var(--text);
+  font-size: 1.3rem;
+  color: var(--ink);
 }
 
 .confirm-delete__consequences {
-  margin: 0.75rem 0 0.25rem;
-  padding-left: 1.1rem;
+  margin: 12px 0 4px;
+  padding-left: 18px;
   list-style: disc;
   font-size: 0.85rem;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+/* ── The facet bar ──────────────────────────────────────────────────
+   Chips over the log: country and strength, plus the sort control. Written
+   here rather than in the component because the search box below it shares
+   the same measurements. */
+.facet-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 0;
+}
+
+.facet-bar[hidden] { display: none; }
+
+.facet {
+  padding: 6px 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: transparent;
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition), background var(--transition);
+}
+
+.facet:hover { color: var(--ink); border-color: var(--ink); }
+
+.facet[aria-pressed='true'] {
+  color: var(--paper);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.facet-bar__sort {
+  margin-left: auto;
+  padding: 6px 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.facet-bar__sort:hover { opacity: 0.7; }
+
+@media (max-width: 560px) {
+  .facet-bar__sort { margin-left: 0; }
+}
+
+/* ── The search box ─────────────────────────────────────────────────
+   Sits under the chips and narrows what they left. Rendered hidden and
+   revealed by its script, so a browser without JavaScript is not offered a
+   search field that cannot search. */
+.cigar-filter {
+  max-width: 34rem;
+  margin: 14px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.cigar-filter[hidden] { display: none; }
+
+.cigar-filter__label {
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.cigar-filter__input {
+  width: 100%;
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 0.92rem;
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  transition: border-color var(--transition);
+}
+
+.cigar-filter__input::placeholder { color: var(--ink-muted); }
+.cigar-filter__input:focus { outline: none; border-color: var(--ink); }
+
+.cigar-filter__hint {
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.cigar-filter__hint code {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+}
+
+.cigar-filter__count {
+  min-height: 1.2em;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+/* ── The lookup panel ───────────────────────────────────────────────
+   The reference desk above the add form. Also rendered hidden and revealed
+   by its script. */
+.cigar-lookup {
+  max-width: 720px;
+  margin: 28px 0 0;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+}
+
+.cigar-lookup[hidden] { display: none; }
+
+.cigar-lookup__label {
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.cigar-lookup__row { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.cigar-lookup__input {
+  flex: 1 1 16rem;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  transition: border-color var(--transition);
+}
+
+.cigar-lookup__input::placeholder { color: var(--ink-muted); }
+.cigar-lookup__input:focus { outline: none; border-color: var(--ink); }
+
+.cigar-lookup__go {
+  padding: 10px 18px;
+  font: inherit;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--paper);
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.cigar-lookup__go:hover { opacity: 0.82; }
+.cigar-lookup__go:disabled { opacity: 0.4; cursor: default; }
+
+.cigar-lookup__hint,
+.cigar-lookup__status {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.cigar-lookup__status:empty { display: none; }
+
+.cigar-lookup__local,
+.cigar-lookup__result {
+  padding-top: 10px;
+  border-top: 1px solid var(--rule-soft);
+}
+
+.cigar-lookup__local[hidden], .cigar-lookup__result[hidden] { display: none; }
+
+.cigar-lookup__local-label {
+  margin-bottom: 7px;
+  font-size: 0.64rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.cigar-lookup__list { margin: 0; padding: 0; list-style: none; }
+
+.cigar-lookup__hit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 0;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+
+.cigar-lookup__hit[hidden] { display: none; }
+.cigar-lookup__hit a { color: var(--accent); text-decoration: underline; }
+.cigar-lookup__detail { font-size: 0.75rem; color: var(--ink-muted); }
+
+.cigar-lookup__found {
+  margin-bottom: 8px;
+  font-family: var(--display);
+  font-size: 1.3rem;
+  color: var(--ink);
+}
+
+.cigar-lookup__facts {
+  margin-bottom: 10px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  font-size: 0.85rem;
+}
+
+.cigar-lookup__term {
+  font-size: 0.64rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  align-self: center;
+}
+
+.cigar-lookup__value { color: var(--ink-soft); }
+
+.cigar-lookup__flavour {
+  margin-bottom: 10px;
+  font-size: 0.88rem;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+/* Provenance, always shown. What is above it is a claim, not a record. */
+.cigar-lookup__provenance {
+  margin-bottom: 8px;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+
+/* Where the vitola table disagrees with the dimensions beside it. */
+.cigar-lookup__note {
+  margin-bottom: 8px;
+  padding-left: 11px;
+  border-left: 2px solid var(--danger);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.cigar-lookup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  margin-top: 3px;
+}
+
+.cigar-lookup__use,
+.cigar-lookup__copy,
+.cigar-lookup__alternate {
+  padding: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--accent);
+  background: none;
+  border: none;
+  border-bottom: 1px solid currentColor;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.cigar-lookup__use:hover,
+.cigar-lookup__copy:hover,
+.cigar-lookup__alternate:hover { opacity: 0.7; }
+
+.cigar-lookup__copy { color: var(--ink-muted); }
+
+.cigar-lookup__alternates {
+  margin-top: 12px;
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+/* A field the panel filled, until you touch it. */
+.cigar-form__input--suggested {
+  border-color: var(--accent);
+  background: rgba(168, 80, 58, 0.06);
+}
+
+/* The line above the add form when it was opened from a lookup. */
+.cigar-form__prefilled {
+  max-width: 720px;
+  margin: 20px 0 0;
+  padding: 11px 15px;
+  border-left: 3px solid var(--accent);
+  background: rgba(168, 80, 58, 0.05);
+  font-size: 0.82rem;
   line-height: 1.6;
-  color: var(--text-muted);
+  color: var(--ink-soft);
+}
+
+.cigar-form__prefilled strong { color: var(--ink); font-weight: 400; }
+
+.reference-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
 }

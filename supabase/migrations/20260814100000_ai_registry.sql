@@ -118,14 +118,31 @@ create table public.ai_models (
   primary key (provider, model, effective_from)
 );
 
--- PLACEHOLDER PRICES. These are the shape, not the figures: check them against
--- MiniMax's current price list before phase 1 turns budgets on, because every
--- refusal downstream is computed from them. A wrong price here does not fail
--- loudly — it quietly makes every limit the wrong size.
+-- Checked against MiniMax's published rates before this was applied, because
+-- every refusal downstream is computed from them and a wrong price here does
+-- not fail loudly — it quietly makes every limit the wrong size.
+--
+-- Two things about these figures are worth writing down rather than rediscovering:
+--
+--   * They are the *standard* tier, which applies to requests of no more than
+--     512K input tokens. Above that the rate doubles. There is one row here
+--     rather than two because the largest prompt allowance on the site is
+--     12,000 tokens — the desk's, and it is the outlier — so nothing this app
+--     can construct reaches the second tier. If that ever stops being true, the
+--     answer is a second price row and a bigger `ai_worst_case`, not a bigger
+--     number here.
+--
+--   * MiniMax presents them as a permanent 50% discount on a $0.60/$2.40 list.
+--     A permanent discount is a marketing decision, not a contract, so the
+--     failure to plan for is the day it ends and every budget on the site is
+--     silently half the size it reads as. `effective_from` is what that day
+--     needs: insert the new rates with the date they start, and August's calls
+--     stay valued at August's prices.
 insert into public.ai_models
   (provider, model, prompt_usd_per_mtok, completion_usd_per_mtok, notes)
 values
-  ('minimax', 'minimax-m3', 0.3000, 1.2000, 'placeholder — verify before enforcement');
+  ('minimax', 'minimax-m3', 0.3000, 1.2000,
+   'standard tier, <=512K input. Verified 2026-08-14 against MiniMax''s published rates; presented as a permanent 50% off $0.60/$2.40.');
 
 -- ── Prompt versions ─────────────────────────────────────────────────────────
 

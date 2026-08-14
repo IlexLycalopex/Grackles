@@ -1,9 +1,12 @@
 ---
 import ClLayout from '../../../layouts/ClLayout.astro';
 import CigarCard from '../../../components/cl/CigarCard.astro';
+import CigarFilter from '../../../components/cl/CigarFilter.astro';
+import FilterBar from '../../../components/cl/FilterBar.astro';
+import StarRating from '../../../components/cl/StarRating.astro';
 import { resolveWorkspace } from '../../../lib/workspace';
-import { humidorFrom, loadCigars, smokedFrom } from '../../../lib/cigar-lounge';
-import { mean, rated, totalCigars } from '../../../lib/cigar-helpers';
+import { loadCigars, smokedFrom } from '../../../lib/cigar-lounge';
+import { formatDate, photoUrl, rated } from '../../../lib/cigar-helpers';
 
 export const prerender = false;
 
@@ -16,44 +19,95 @@ if (!workspace) return new Response('Not found', { status: 404 });
 const base = `/cigars/${workspace.slug}`;
 const cigars = await loadCigars(supabase, workspace.id);
 const smoked = smokedFrom(cigars);
-const humidor = humidorFrom(cigars);
 
-const ratings = rated(smoked).map(c => c.data.rating!);
-const avg = ratings.length ? mean(ratings) : null;
+// The lead-in. Featured is the latest smoke — `smokedFrom` already sorts by
+// date descending — and top rated is the best of the log, ties going to the
+// most recent for the same reason.
+const featured = smoked[0] ?? null;
+const byRating = rated(smoked).sort((a, b) => b.data.rating! - a.data.rating!);
+// Never the same entry twice: on a young log the newest smoke is often also
+// the best one, and two identical plates side by side read as a bug.
+const topRated = byRating.find(c => c.id !== featured?.id) ?? null;
+
+/** The opening of the tasting note, short enough to sit under a plate. */
+function excerpt(body: string, limit = 190): string {
+  const first = body.trim().split(/\n{2,}/)[0]?.replace(/\s+/g, ' ') ?? '';
+  if (first.length <= limit) return first;
+  const cut = first.slice(0, limit);
+  return `${cut.slice(0, cut.lastIndexOf(' ')) || cut}…`;
+}
+
+const leadCards = [
+  featured && { cigar: featured, tag: 'Featured · latest smoke' },
+  topRated && { cigar: topRated, tag: 'Top rated · all time' },
+].filter(Boolean) as { cigar: NonNullable<typeof featured>; tag: string }[];
+
+// A facet is only offered once something in the log carries it, which is why
+// these are read off the entries rather than listed.
+const countries = [...new Set(smoked.map(c => c.data.country).filter(Boolean))].sort() as string[];
+const STRENGTHS = ['mild', 'medium', 'full'] as const;
+const strengths = STRENGTHS.filter(s => smoked.some(c => c.data.strength === s));
 ---
 
 <ClLayout
-  title={`${workspace.name} · Grackles`}
+  title={`${workspace.name} · Cedarhouse`}
   description={`${smoked.length} cigars smoked`}
   workspace={workspace}
 >
   <div class="container">
-    <div class="page-header">
-      <p class="eyebrow">The log</p>
-      <h1>{workspace.name}</h1>
-      <p class="subtitle">Every cigar smoked, newest first.</p>
-    </div>
+    <header class="page-header">
+      <p class="label">The Log · {smoked.length} smoked</p>
+      <h1>Slow smoke, <em>kept well.</em></h1>
+    </header>
 
-    <div class="stats-strip">
-      <div class="stat">
-        <span class="stat__value">{smoked.length}</span>
-        <span class="stat__label">Smoked</span>
-      </div>
-      <a class="stat stat--link" href={`${base}/humidor`}>
-        <span class="stat__value">{totalCigars(humidor)}</span>
-        <span class="stat__label">In humidor</span>
-      </a>
-      <div class="stat">
-        <span class="stat__value">{avg === null ? '—' : avg.toFixed(1)}</span>
-        <span class="stat__label">Avg rating</span>
-      </div>
-    </div>
+    {
+      leadCards.length > 0 && (
+        <section class:list={['lead', leadCards.length === 1 && 'lead--single']}>
+          {leadCards.map(({ cigar, tag }) => {
+            const d = cigar.data;
+            const spec = [
+              d.vitola,
+              d.country,
+              d.strength,
+              d.dateSmoked && formatDate(d.dateSmoked),
+            ]
+              .filter(Boolean)
+              .join(' · ');
+
+            return (
+              <article class="lead-card">
+                <a href={`${base}/cigar/${cigar.id}`}>
+                  <div class="lead-card__plate">
+                    {d.photo
+                      ? <img src={photoUrl(d.photo)} alt="" width="640" height="196" />
+                      : <span class="plate-fill" aria-hidden="true" />}
+                    <span class="lead-card__tag">{tag}</span>
+                  </div>
+
+                  <p class="label lead-card__brand">{d.brand}</p>
+                  <h2 class="lead-card__name">{d.name}</h2>
+                  {spec && <p class="lead-card__spec">{spec}</p>}
+                </a>
+
+                {cigar.body && <p class="lead-card__note">{excerpt(cigar.body)}</p>}
+
+                {d.rating !== undefined && (
+                  <p class="lead-card__score">
+                    <StarRating rating={d.rating} showValue />
+                  </p>
+                )}
+              </article>
+            );
+          })}
+        </section>
+      )
+    }
 
     {
       workspace.canWrite && (
         <div class="record-actions">
           <a class="record-actions__btn record-actions__btn--primary" href={`${base}/new?status=smoked`}>
-            + Log a smoke
+            Log a smoke
           </a>
           <a class="record-actions__btn" href={`${base}/new?status=humidor`}>
             Add to humidor
@@ -69,15 +123,28 @@ const avg = ratings.length ? mean(ratings) : null;
           {workspace.canWrite ? ' Add an entry to start the log.' : ''}
         </p>
       ) : (
-        <div class="cigar-grid">
-          {smoked.map(cigar => (
-            <CigarCard
-              cigar={cigar}
-              base={base}
-              editHref={workspace.canWrite ? `${base}/edit/${cigar.id}` : undefined}
-            />
-          ))}
-        </div>
+        <>
+          <div class="log-divider">
+            <span class="label">The full log</span>
+            <span class="log-divider__count" data-count-for="log-grid" data-count-noun="entries">
+              {smoked.length} entr{smoked.length === 1 ? 'y' : 'ies'}
+            </span>
+          </div>
+
+          <FilterBar grid="log-grid" countries={countries} strengths={strengths} />
+          <CigarFilter grid="log-grid" noun="smoked" />
+
+          <div class="cigar-grid" id="log-grid">
+            {smoked.map((cigar, i) => (
+              <CigarCard
+                cigar={cigar}
+                base={base}
+                index={i}
+                editHref={workspace.canWrite ? `${base}/edit/${cigar.id}` : undefined}
+              />
+            ))}
+          </div>
+        </>
       )
     }
   </div>

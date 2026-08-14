@@ -4,6 +4,7 @@ import SelectionFields from '../../../../components/lp/SelectionFields.astro';
 import { requireWrite } from '../../../../lib/workspace';
 import { loadContributors, loadSeason, loadSeasons } from '../../../../lib/listening-party';
 import { readSelection } from '../../../../lib/records/selection';
+import { fillArtwork } from '../../../../lib/artwork';
 import { describeWriteError } from '../../../../lib/records/save';
 
 export const prerender = false;
@@ -67,9 +68,11 @@ if (Astro.request.method === 'POST') {
   if (!parsed.ok) {
     error = parsed.error;
   } else {
+    const values = await fillArtwork(parsed.values);
+
     const { error: writeError } = await supabase
       .from('lp_selections')
-      .insert({ workspace_id: workspace.id, ...parsed.values });
+      .insert({ workspace_id: workspace.id, ...values });
 
     if (writeError) {
       error = describeWriteError(writeError, 'lp_selections insert');

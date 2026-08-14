@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { resolveWorkspace } from '../../../../lib/workspace';
 import { closeJob, withJob, type Turn } from '../../../../lib/ai/job';
 import { validateWriteup } from '../../../../lib/ai/validators/wbpr';
+import { oneOf, parseJsonObject } from '../../../../lib/json';
 import { buildMessages, LOG_INSTRUCTION, SYSTEM, type AgentState } from '../../../../lib/wbpr-agent';
 import { broadcastSlug, PHENOMENON_STATUSES, CONFIDENCES, VEIL_STATUSES } from '../../../../lib/wbpr';
 
@@ -40,24 +41,12 @@ interface LogPayload {
 }
 
 /**
- * The model was told to answer with JSON and nothing else. It will sometimes
- * wrap it in a fence anyway, so the first `{` to the last `}` is taken rather
- * than trusting the whole string — cheaper and more reliable than another call
- * asking it to try again.
+ * The model was told to answer with JSON and nothing else, and `parseJsonObject`
+ * is tolerant of it having said a sentence first. Both it and `oneOf` now live
+ * in `lib/json.ts` — the cigar lookup asks a model for JSON against a stated
+ * shape in the same way, and one copy is one place to fix.
  */
-function parseLog(text: string): LogPayload | null {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end <= start) return null;
-  try {
-    return JSON.parse(text.slice(start, end + 1)) as LogPayload;
-  } catch {
-    return null;
-  }
-}
-
-const oneOf = <T extends string>(value: unknown, allowed: readonly T[], fallback: T): T =>
-  allowed.includes(value as T) ? (value as T) : fallback;
+const parseLog = (text: string) => parseJsonObject<LogPayload>(text);
 
 const keyFor = (name: string) =>
   name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');

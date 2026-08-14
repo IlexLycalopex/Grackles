@@ -1,0 +1,120 @@
+---
+/**
+ * The filter box over a grid of cigars.
+ *
+ * It filters what is already on the page rather than asking the server for a
+ * narrower set. Both list pages load every entry in the workspace to render at
+ * all, so the rows are here — a round trip to re-fetch a subset of data the
+ * browser is holding would be slower and would cost a query.
+ *
+ * That has a ceiling. Somewhere past a few thousand entries the right answer
+ * becomes an `ilike` on the server and a paged grid, and the matcher this uses
+ * is deliberately in a module both sides can import so that day is a change of
+ * caller rather than a rewrite.
+ *
+ * Rendered hidden and revealed by the script. A search box that does nothing is
+ * worse than no search box, and without JavaScript this one does nothing.
+ */
+interface Props {
+  /** id of the grid element whose children are filtered. */
+  grid: string;
+  /** What the entries are, for the count line: "12 of 40 smoked". */
+  noun: string;
+}
+
+const { grid, noun } = Astro.props;
+const inputId = `filter-${grid}`;
+---
+
+<div class="cigar-filter" data-cigar-filter data-grid={grid} data-noun={noun} hidden>
+  <label class="cigar-filter__label" for={inputId}>Search</label>
+  <input
+    class="cigar-filter__input"
+    id={inputId}
+    type="search"
+    autocomplete="off"
+    placeholder="Brand, name, wrapper, 5x50…"
+    data-filter-input
+  />
+  <p class="cigar-filter__hint">
+    Words all have to match. A size like <code>5x50</code> or <code>rg50</code>
+    matches the measurements rather than the text.
+  </p>
+  <p class="cigar-filter__count" role="status" aria-live="polite" data-filter-count></p>
+</div>
+
+<script>
+  import { REFRESHED, refresh, setOut, type RefreshDetail } from '../../lib/cigar-grid';
+  import { matches, parseQuery } from '../../lib/cigar-search';
+
+  for (const box of document.querySelectorAll<HTMLElement>('[data-cigar-filter]')) {
+    const grid = document.getElementById(box.dataset.grid ?? '');
+    const input = box.querySelector<HTMLInputElement>('[data-filter-input]');
+    const count = box.querySelector<HTMLElement>('[data-filter-count]');
+    if (!grid || !input || !count) continue;
+
+    // The box is only worth showing once there is something to sift.
+    const cards = Array.from(grid.querySelectorAll<HTMLElement>('[data-search]'));
+    if (cards.length < 2) continue;
+    box.hidden = false;
+
+    const noun = box.dataset.noun ?? 'entries';
+
+    // Read once, not per keystroke. Parsing eighteen fractions out of
+    // `4 7/8"` for every card on every letter typed is work with a known
+    // answer.
+    const entries = cards.map(card => ({
+      card,
+      haystack: card.dataset.search ?? '',
+      size: {
+        lengthInches: card.dataset.length ? Number(card.dataset.length) : null,
+        ringGauge: card.dataset.ring ? Number(card.dataset.ring) : null,
+      },
+    }));
+
+    // The chips above this box are hiding plates too, so what is left on screen
+    // is not this box's verdict alone — hence a count of what survived both
+    // rather than of what matched here. Which means it is also out of date the
+    // moment a chip moves, so the count is rendered from the grid's own
+    // announcement rather than from the keystroke that happened to cause it.
+    let searching = false;
+
+    grid.addEventListener(REFRESHED, event => {
+      const { shown, total } = (event as CustomEvent<RefreshDetail>).detail;
+      count.textContent = searching ? `${shown} of ${total} ${noun}` : '';
+    });
+
+    const apply = () => {
+      const raw = input.value;
+      const query = parseQuery(raw);
+      searching = !query.empty;
+
+      for (const entry of entries) {
+        setOut(entry.card, 'search', !matches(entry.haystack, entry.size, query));
+      }
+
+      // The note left in an emptied grid names the search only when there is a
+      // search to name.
+      refresh(
+        grid,
+        query.empty ? 'Nothing here matches those filters.' : `Nothing here matches “${raw.trim()}”.`
+      );
+    };
+
+    input.addEventListener('input', apply);
+
+    // Escape clears, which is what the native clear button does and what
+    // anyone who has used a search field expects.
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && input.value) {
+        event.preventDefault();
+        input.value = '';
+        apply();
+      }
+    });
+
+    // A value restored by the browser on a back navigation would otherwise sit
+    // in the box describing a grid that is showing everything.
+    if (input.value) apply();
+  }
+</script>
