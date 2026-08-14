@@ -70,6 +70,7 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `20260814100800_ai_cache` | `ai_cache`, `ai_calls.cache_hit`, and the take/put/sweep functions |
 | `20260814100900_reading_enrich` | `ai_features.prompt_allowance_tokens`, and the `reading.enrich` feature |
 | `20260814101000_ai_notices` | `ai_notices`, `ai_check_budgets()`, `ai_housekeeping()` and its admin-callable twin |
+| `20260814101100_ai_golden` | `ai_golden_cases`, `ai_golden_runs`, `ai_golden_status()`, and the `platform.golden` feature |
 
 **Not yet applied.** Two things to do first:
 

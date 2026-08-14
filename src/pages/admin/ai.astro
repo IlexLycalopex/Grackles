@@ -2,6 +2,7 @@
 import AppShell from '../../layouts/AppShell.astro';
 import { loadEntitlements } from '../../lib/grants';
 import { money } from '../../lib/ai/usage';
+import { runGolden, type Expectations, type GoldenCase, type GoldenInput } from '../../lib/ai/golden';
 
 export const prerender = false;
 
@@ -81,6 +82,49 @@ if (Astro.request.method === 'POST') {
     }
   }
 
+  if (action === 'golden') {
+    const { data: cases } = await supabase
+      .from('ai_golden_cases')
+      .select('id, feature, name, input, expectations');
+
+    // Billed to the platform admin's own first workspace, because a job needs
+    // one and the evaluation is not any project's. Whoever runs the platform
+    // pays for checking it, which is the correct person.
+    const { data: home } = await supabase
+      .from('workspaces')
+      .select('id')
+      .eq('owner_id', user.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (!home) {
+      error = 'Golden runs need a project to bill to, and you own none.';
+    } else if (!cases?.length) {
+      error = 'There are no golden cases to run.';
+    } else {
+      const outcome = await runGolden(
+        supabase,
+        home.id,
+        cases.map(c => ({
+          id: c.id,
+          feature: c.feature,
+          name: c.name,
+          input: c.input as unknown as GoldenInput,
+          expectations: c.expectations as unknown as Expectations,
+        })) as GoldenCase[]
+      );
+
+      if (!outcome.ok) {
+        error = outcome.error;
+      } else {
+        const failed = outcome.outcomes.filter(o => !o.passed).length;
+        notice = failed === 0
+          ? `All ${outcome.outcomes.length} cases held.`
+          : `${failed} of ${outcome.outcomes.length} cases failed. See below before shipping anything.`;
+      }
+    }
+  }
+
   if (action === 'budget') {
     const { error: e } = await supabase.rpc('ai_set_budget', {
       p_user: str('user_id'),
@@ -100,6 +144,8 @@ const [{ data: platform }, { data: features }, { data: models }, { data: spend }
     supabase.rpc('ai_admin_spend', { p_period: null }),
     supabase.rpc('ai_admin_queue'),
   ]);
+
+const { data: golden } = await supabase.rpc('ai_golden_status');
 
 const { data: notices } = await supabase
   .from('ai_notices')
@@ -326,6 +372,61 @@ const when = (iso: string) =>
       ))}
     </tbody>
   </table>
+
+  <p class="section-label">Golden runs</p>
+  <p class="page-intro">
+    Frozen inputs, replayed against whatever the model is today. The expectation
+    is that the rules hold, not that the prose matches — identical prose would be
+    the bug. This is also the only thing here that would notice
+    <code>minimax-m3</code> being revised behind its own name.
+  </p>
+  <form method="POST" class="inline-form">
+    <input type="hidden" name="action" value="golden" />
+    <button class="button" type="submit" disabled={(golden ?? []).length === 0}>
+      Run {(golden ?? []).length} case{(golden ?? []).length === 1 ? '' : 's'}
+    </button>
+  </form>
+
+  {(golden ?? []).length === 0 && (
+    <p class="page-intro">
+      No cases yet. They are curated from real calls rather than written from
+      scratch — a handful is the right number, and every one of them is a frozen
+      copy of somebody's data, so they are kept deliberately and not by default.
+    </p>
+  )}
+
+  {(golden ?? []).length > 0 && (
+    <table class="ai-table">
+      <thead>
+        <tr><th>Feature</th><th>Case</th><th>Last run</th><th>Result</th><th>What failed</th></tr>
+      </thead>
+      <tbody>
+        {(golden ?? []).map(g => (
+          <tr>
+            <td>{g.feature}</td>
+            <td>{g.name}</td>
+            <td>{g.ran_at ? when(g.ran_at) : <span class="ai-muted">never</span>}</td>
+            <td>
+              {g.passed === null && <span class="ai-muted">—</span>}
+              {g.passed === true && 'held'}
+              {g.passed === false && <span class="ai-bad">failed</span>}
+              {/* The difference from last time is the whole point of a golden
+                  run: a case that has always failed is a case to fix, and one
+                  that started failing today is a release to stop. */}
+              {g.passed === false && g.previously === true && (
+                <span class="ai-bad"> — newly</span>
+              )}
+            </td>
+            <td class="ai-muted">
+              {Array.isArray(g.findings)
+                ? g.findings.map((f: any) => f?.detail).filter(Boolean).join('; ')
+                : ''}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )}
 
   <p class="section-label">Housekeeping</p>
   <p class="page-intro">

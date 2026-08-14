@@ -1036,6 +1036,53 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      ai_golden_cases: {
+        Row: {
+          id: string;
+          feature: string;
+          name: string;
+          input: Json;
+          expectations: Json;
+          curated_from: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          feature: string;
+          name: string;
+          input: Json;
+          expectations: Json;
+          curated_from?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['ai_golden_cases']['Insert']>;
+        Relationships: [];
+      };
+      ai_golden_runs: {
+        Row: {
+          id: string;
+          case_id: string;
+          job_id: string | null;
+          call_id: string | null;
+          passed: boolean;
+          findings: Json;
+          model: string;
+          prompt_version: number | null;
+          created_at: string;
+        };
+        Insert: {
+          case_id: string;
+          job_id?: string | null;
+          call_id?: string | null;
+          passed: boolean;
+          findings?: Json;
+          model?: string;
+          prompt_version?: number | null;
+        };
+        Update: never;
+        Relationships: [];
+      };
       ai_notices: {
         Row: {
           id: string;
@@ -1208,6 +1255,20 @@ export type Database = {
        * platform admin. The cron-facing twin is service_role's, because cron
        * has no session and app.is_platform_admin() is false without one.
        */
+      /** The latest run per case, and whether the one before it passed. */
+      ai_golden_status: {
+        Args: Record<string, never>;
+        Returns: {
+          case_id: string;
+          feature: string;
+          name: string;
+          passed: boolean | null;
+          findings: Json | null;
+          model: string | null;
+          ran_at: string | null;
+          previously: boolean | null;
+        }[];
+      };
       ai_housekeeping_now: {
         Args: Record<string, never>;
         Returns: {

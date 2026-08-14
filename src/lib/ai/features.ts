@@ -19,6 +19,7 @@ export const FEATURE_KEYS = [
   'wbpr.desk',
   'wbpr.writeup',
   'reading.enrich',
+  'platform.golden',
 ] as const;
 
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
@@ -45,6 +46,12 @@ export const FEATURES: FeatureNote[] = [
     app: 'wbpr',
     class: 'single',
     what: 'The one call that turns a finished sitting into a broadcast.',
+  },
+  {
+    key: 'platform.golden',
+    app: 'wbpr',
+    class: 'batch',
+    what: 'Replays the frozen cases against whatever the model is today. Billed to the platform, never to a project.',
   },
   {
     key: 'reading.enrich',

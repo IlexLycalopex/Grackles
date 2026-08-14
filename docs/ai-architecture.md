@@ -2,7 +2,7 @@
 
 The layer that has to exist before a second feature starts spending money.
 
-**Status.** Phases 0–4 are built and unapplied, apart from golden cases: `supabase/migrations/20260814*`,
+**Status.** Phases 0–4 are built and unapplied: `supabase/migrations/20260814*`,
 `src/lib/ai/`, `/settings/ai`, `/admin/ai`, and the AI panel on a project's
 settings page. WBPR runs through it. The migrations have not been applied to the
 live project — they want a hand on them, and the prices in `ai_models` are
@@ -1333,10 +1333,10 @@ not a refinement:
   schema and nothing can produce one: a scheduled job has no `auth.uid()`, and
   giving the cron drain a way to say who it is without handing it service_role
   is phase 5's first problem, not an afterthought.
-- **Golden cases.** The table is specified and not built. Nothing currently
-  replays a frozen input before a prompt or model change ships, which means the
-  one defence against `minimax-m3` being revised behind a stable name is still
-  missing.
+- **Golden cases have no cases.** The tables, the runner, the expectation
+  checking and the admin page are built and tested; what does not exist is a way
+  to curate a case from a real call with two clicks, so the suite is empty and
+  an empty suite passes.
 - **Idempotency outside a batch.** `ai_job_items`' primary key covers the batch
   case completely. A double-submitted form on a `single` job is still two jobs,
   and needs a client-supplied key at admission.

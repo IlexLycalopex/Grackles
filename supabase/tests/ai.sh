@@ -592,6 +592,31 @@ check "a notice is only readable by the person it is for" ok \
 check "housekeeping is refused to a non-admin" 42501 \
   "select * from public.ai_housekeeping_now();" "$as_rob"
 
+echo "── golden cases"
+$PSQL -c "insert into public.ai_golden_cases (feature,name,input,expectations)
+          values ('wbpr.desk','a block opening',
+                  '{\"messages\":[]}'::jsonb,
+                  '{\"validator\":\"pass\"}'::jsonb) on conflict do nothing;" >/dev/null
+check "an admin can read the status of every case" ok \
+  "do \$\$ begin
+     if (select count(*) from public.ai_golden_status()) < 1 then
+       raise exception 'no cases came back'; end if;
+   end \$\$;" "$as_jamie"
+# A golden case is a frozen copy of somebody's data and the prompt sent with
+# it. Neither belongs in a table any signed-in user can read.
+check "a case is not readable by an ordinary user" ok \
+  "do \$\$ begin if exists (select 1 from public.ai_golden_cases)
+     then raise exception 'a case leaked'; end if; end \$\$;" "$as_rob"
+check "the status function is refused to a non-admin" 42501 \
+  "select * from public.ai_golden_status();" "$as_rob"
+# Billed to the platform, never to the feature under test: nobody asked for the
+# evaluation.
+check "golden runs are their own feature with their own ceiling" ok \
+  "do \$\$ begin
+     if not exists (select 1 from public.ai_features where key = 'platform.golden')
+       then raise exception 'no platform.golden feature'; end if;
+   end \$\$;" "$as_jamie"
+
 echo "── who may see what"
 $PSQL -c "
   select public.ai_begin_job('wbpr.desk','$WBPR','interactive');
