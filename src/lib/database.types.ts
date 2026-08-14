@@ -837,6 +837,8 @@ export type Database = {
           anon_rate_per_hour: number;
           max_job_share: number;
           prompt_allowance_tokens: number;
+          /** Off by default: a preview deployment that can spend is a pull request that can spend. */
+          preview_enabled: boolean;
           updated_at: string;
         };
         Insert: { id?: boolean };
@@ -958,6 +960,8 @@ export type Database = {
           heartbeat_at: string | null;
           cancel_requested: boolean;
           error: string | null;
+          environment: string;
+          idempotency_key: string | null;
           created_at: string;
           started_at: string | null;
           finished_at: string | null;
@@ -996,6 +1000,8 @@ export type Database = {
           cost_usd: number | null;
           validator_status: string | null;
           validator_findings: Json | null;
+          /** Answered from ai_cache: free, and recorded anyway. */
+          cache_hit: boolean;
           error: string | null;
           created_at: string;
           settled_at: string | null;
@@ -1166,8 +1172,26 @@ export type Database = {
           p_parent?: string | null;
           p_fingerprint?: string | null;
           p_items_total?: number | null;
+          p_environment?: string;
+          p_idempotency_key?: string | null;
         };
         Returns: string;
+      };
+      /**
+       * An answer from the cache, or null. A hit is free, is recorded as a
+       * call, and still counts against the job's call ceiling — the budget
+       * cannot stop a loop that costs nothing.
+       */
+      ai_cache_take: { Args: { p_job: string; p_key: string }; Returns: string | null };
+      ai_cache_put: {
+        Args: {
+          p_job: string;
+          p_key: string;
+          p_content: string;
+          p_prompt_version?: number | null;
+          p_ttl?: string;
+        };
+        Returns: void;
       };
       /** One call within an admitted job. GRK19 when a ceiling is reached. */
       ai_begin_call: {

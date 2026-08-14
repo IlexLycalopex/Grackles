@@ -347,6 +347,111 @@ check "a job whose worker stopped ticking gives its envelope back" ok \
      if res <> 0 then raise exception 'envelope still held: %', res; end if;
    end \$\$;" "$as_jamie"
 
+echo "── environment and idempotency"
+# Every pull request gets a preview deployment, it shares this Supabase project,
+# and the person who opened it is not the person who pays.
+check "a preview deployment may not spend" GRK1D \
+  "select public.ai_begin_job('wbpr.desk','$WBPR','interactive',null,null,null,null,null,'preview');" "$as_jamie"
+check "a preview deployment may spend once the platform allows it" ok \
+  "update public.ai_platform_settings set preview_enabled = true;
+   select public.ai_begin_job('wbpr.desk','$WBPR','interactive',null,null,null,null,null,'preview');" "$as_jamie"
+check "local development is not gated" ok \
+  "select public.ai_begin_job('wbpr.desk','$WBPR','interactive',null,null,null,null,null,'development');" "$as_jamie"
+
+check "the same idempotency key returns the same job" ok \
+  "do \$\$ declare a uuid; b uuid; n bigint; begin
+     a := public.ai_begin_job('wbpr.desk','$WBPR','single',null,null,null,null,null,'production','form-7');
+     b := public.ai_begin_job('wbpr.desk','$WBPR','single',null,null,null,null,null,'production','form-7');
+     if a <> b then raise exception 'a double submission made two jobs'; end if;
+     select count(*) into n from public.ai_jobs where idempotency_key = 'form-7';
+     if n <> 1 then raise exception 'expected one job, found %', n; end if;
+   end \$\$;" "$as_jamie"
+check "a different key is a different job" ok \
+  "do \$\$ declare a uuid; b uuid; begin
+     a := public.ai_begin_job('wbpr.desk','$WBPR','single',null,null,null,null,null,'production','form-7');
+     b := public.ai_begin_job('wbpr.desk','$WBPR','single',null,null,null,null,null,'production','form-8');
+     if a = b then raise exception 'two keys collapsed into one job'; end if;
+   end \$\$;" "$as_jamie"
+# The refusal has to be free, or a retry storm against a spent allowance costs
+# a rate-limit slot each time it is told no.
+check "a repeated key does not spend a rate-limit slot" ok \
+  "do \$\$ declare j uuid; n bigint; begin
+     for i in 1..40 loop
+       j := public.ai_begin_job('wbpr.desk','$WBPR','single',null,null,null,null,null,'production','same');
+     end loop;
+     select count(*) into n from public.ai_jobs where idempotency_key = 'same';
+     if n <> 1 then raise exception 'expected one job, found %', n; end if;
+   end \$\$;" "$as_jamie"
+
+echo "── the cache"
+check "a miss returns nothing and records nothing" ok \
+  "do \$\$ declare j uuid; c text; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive');
+     c := public.ai_cache_take(j, 'nothing-here');
+     if c is not null then raise exception 'a miss returned %', c; end if;
+     if (select calls_made from public.ai_jobs where id=j) <> 0 then
+       raise exception 'a miss counted as a call'; end if;
+   end \$\$;" "$as_jamie"
+
+# A hit is free and is still a ledger row. Without the row, hit rate is
+# invisible and a cheap month looks like a quiet one.
+check "a hit costs nothing and is recorded anyway" ok \
+  "do \$\$ declare j uuid; c text; n bigint; cost numeric; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive');
+     perform public.ai_cache_put(j, 'k1', 'the answer');
+     c := public.ai_cache_take(j, 'k1');
+     if c <> 'the answer' then raise exception 'got %', c; end if;
+     select count(*), coalesce(sum(cost_usd),0) into n, cost
+       from public.ai_calls where job_id = j and cache_hit;
+     if n <> 1 then raise exception 'expected one cache-hit row, found %', n; end if;
+     if cost <> 0 then raise exception 'a cache hit cost %', cost; end if;
+   end \$\$;" "$as_jamie"
+
+# A loop serving itself from cache is still a loop, and max_calls is what stops
+# it — the budget cannot, because nothing is being spent.
+check "cache hits count against the job's call ceiling" GRK19 \
+  "do \$\$ declare j uuid; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive',0.5,1);
+     perform public.ai_cache_put(j, 'k1', 'the answer');
+     perform public.ai_cache_take(j, 'k1');
+     perform public.ai_cache_take(j, 'k1');
+   end \$\$;" "$as_jamie"
+
+# Serving an answer from a superseded model would hide the change that was
+# made on purpose.
+check "changing the model invalidates what it produced" ok \
+  "do \$\$ declare j uuid; c text; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive');
+     perform public.ai_cache_put(j, 'k1', 'the old answer');
+     $SU
+     update public.ai_features set model = 'minimax-m4' where key = 'wbpr.desk';
+     $DOWN
+     c := public.ai_cache_take(j, 'k1');
+     if c is not null then raise exception 'served a stale model answer'; end if;
+   end \$\$;" "$as_jamie"
+
+check "an expired entry is not served, and sweeps away" ok \
+  "do \$\$ declare j uuid; c text; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive');
+     perform public.ai_cache_put(j, 'k1', 'stale', null, interval '-1 day');
+     c := public.ai_cache_take(j, 'k1');
+     if c is not null then raise exception 'served an expired entry'; end if;
+     $SU
+     if public.ai_cache_sweep() < 1 then raise exception 'nothing swept'; end if;
+   end \$\$;" "$as_jamie"
+
+# Scoped to a workspace by construction, so a private project's answer can
+# never be served to somebody who merely asked the same question.
+check "the cache does not cross projects" ok \
+  "do \$\$ declare mine uuid; theirs uuid; c text; begin
+     mine := public.ai_begin_job('wbpr.desk','$WBPR','interactive');
+     perform public.ai_cache_put(mine, 'shared-key', 'my private answer');
+     $SU
+     if exists (select 1 from public.ai_cache
+                 where key = 'shared-key' and workspace_id <> '$WBPR') then
+       raise exception 'the entry escaped its workspace'; end if;
+   end \$\$;" "$as_jamie"
+
 echo "── the quality floor"
 # The control that was a column and a wish until something read it.
 check "a feature whose answers keep failing switches itself off" ok \

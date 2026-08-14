@@ -75,6 +75,12 @@ const when = (iso: string) =>
       <span class="ai-stat__value">{totalCalls}</span>
       <span class="ai-stat__label">calls</span>
     </div>
+    <div class="ai-stat">
+      <span class="ai-stat__value">{calls.length ? `${Math.round((calls.filter(c => c.cache_hit).length / calls.length) * 100)}%` : '—'}</span>
+      {/* The one number that goes up when the bill goes down. Without it a
+          cheap month and a quiet month look identical. */}
+      <span class="ai-stat__label">of recent calls came from cache</span>
+    </div>
   </div>
 
   <div class="ai-meter" role="img" aria-label={`${pct}% of this month's allowance used`}>
@@ -183,7 +189,10 @@ const when = (iso: string) =>
           {calls.map(call => (
             <tr>
               <td>{when(call.created_at)}</td>
-              <td>{call.feature}</td>
+              <td>
+                {call.feature}
+                {call.cache_hit && <span class="ai-muted"> · cached</span>}
+              </td>
               <td>
                 <span class={`ai-status ai-status--${call.status}`}>{call.status}</span>
                 {call.error && <span class="ai-muted" title={call.error}> ?</span>}

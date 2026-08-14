@@ -20,6 +20,20 @@ import type { ChatMessage, Usage } from './provider';
 
 type Client = SupabaseClient<Database>;
 
+/**
+ * Where this is running.
+ *
+ * Read here rather than passed by every caller, because the one that forgets is
+ * the one that matters: a preview deployment that calls itself production
+ * spends the production allowance and lands in the production quality metrics.
+ * process.env over import.meta.env because on Vercel this is a runtime fact,
+ * not a build-time one.
+ */
+function environment(): 'production' | 'preview' | 'development' {
+  const env = process.env.VERCEL_ENV ?? import.meta.env.VERCEL_ENV;
+  return env === 'production' || env === 'preview' ? env : 'development';
+}
+
 export interface JobContext {
   supabase: Client;
   feature: FeatureKey;
@@ -33,6 +47,12 @@ export interface JobContext {
   /** A salted hash of the address for an anonymous caller. Never the address. */
   fingerprint?: string | null;
   itemsTotal?: number | null;
+  /**
+   * For work that must not happen twice. The same key within an hour returns
+   * the job that already exists rather than opening a second — which is the
+   * whole of the defence against a double-submitted form.
+   */
+  idempotencyKey?: string | null;
 }
 
 export type Opened =
@@ -45,11 +65,13 @@ export interface Validation {
 }
 
 export interface TurnResult {
-  callId: string;
+  callId: string | null;
   content: string;
   usage: Usage;
   costUsd: number;
   validation: Validation | null;
+  /** True when nothing was sent anywhere. Still a ledger row, still free. */
+  cacheHit: boolean;
 }
 
 export type Turn =
@@ -72,6 +94,16 @@ export interface TurnRequest {
    * held. Asking for less is always allowed and always cheaper.
    */
   maxTokens?: number;
+  /**
+   * Set for a turn whose answer depends only on its input.
+   *
+   * The cheapest call is the one that does not happen, and this is the only
+   * control in the system that reduces a bill rather than bounding it. Leave it
+   * unset for anything whose whole point is to differ each time — a night at
+   * the desk, a write-up — where a cache would not save money so much as ruin
+   * the feature.
+   */
+  cacheKey?: string;
   /**
    * Checked before the caller sees the answer, and recorded whichever way it
    * goes. A rule that is only verified when somebody is looking is not a rule.
@@ -105,6 +137,8 @@ export async function openJob(ctx: JobContext): Promise<Opened> {
     p_parent: ctx.parentJobId ?? null,
     p_fingerprint: ctx.fingerprint ?? null,
     p_items_total: ctx.itemsTotal ?? null,
+    p_environment: environment(),
+    p_idempotency_key: ctx.idempotencyKey ?? null,
   });
 
   if (error || !data) {
@@ -187,6 +221,34 @@ export function jobHandle(supabase: Client, jobId: string, feature: FeatureKey):
 
       const version = request.systemPrompt ? await versionFor(request.systemPrompt) : null;
 
+      // Before admission, because a hit should not need a reservation it will
+      // never use. The function still counts it against the job's call ceiling:
+      // a loop serving itself from cache is free but it is still a loop, and
+      // the budget cannot stop what costs nothing.
+      if (request.cacheKey) {
+        const { data: cached, error: cacheError } = await supabase.rpc('ai_cache_take', {
+          p_job: jobId,
+          p_key: request.cacheKey,
+        });
+
+        if (cacheError) {
+          return { ok: false, code: codeOf(cacheError), error: describeAiError(cacheError) };
+        }
+        if (typeof cached === 'string') {
+          return {
+            ok: true,
+            callId: null,
+            content: cached,
+            usage: { prompt_tokens: 0, completion_tokens: 0 },
+            costUsd: 0,
+            cacheHit: true,
+            // Re-checked rather than remembered. A validator that has changed
+            // since the answer was stored should get its say, and it is free.
+            validation: request.validate ? request.validate(cached) : null,
+          };
+        }
+      }
+
       const { data: callId, error: beginError } = await supabase.rpc('ai_begin_call', {
         p_job: jobId,
         p_prompt_version: version,
@@ -219,6 +281,18 @@ export function jobHandle(supabase: Client, jobId: string, feature: FeatureKey):
       const validation = request.validate ? request.validate(result.content) : null;
       const costUsd = await settle(supabase, callId as string, result.usage, validation, null);
 
+      // Only an answer that passed. Caching a failure would serve it back for
+      // thirty days, which turns one bad reply into a persistent one.
+      if (request.cacheKey && validation?.status !== 'fail') {
+        const { error: putError } = await supabase.rpc('ai_cache_put', {
+          p_job: jobId,
+          p_key: request.cacheKey,
+          p_content: result.content,
+          p_prompt_version: version,
+        });
+        if (putError) console.error('ai: could not cache', { jobId, putError });
+      }
+
       return {
         ok: true,
         callId: callId as string,
@@ -226,6 +300,7 @@ export function jobHandle(supabase: Client, jobId: string, feature: FeatureKey):
         usage: result.usage,
         costUsd,
         validation,
+        cacheHit: false,
       };
     },
 

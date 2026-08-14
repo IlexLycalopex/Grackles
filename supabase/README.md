@@ -66,6 +66,8 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `20260814100400_wbpr_metered` | `wbpr_agent_sessions.ai_job_id`, and the desk switched on for every WBPR project |
 | `20260814100500_ai_admin` | `ai_admin_spend()`, `ai_admin_queue()`, `ai_set_budget()` |
 | `20260814100600_ai_quality_floor` | `ai_enforce_quality_floors()`, and the reaper that calls it |
+| `20260814100700_ai_environment` | `ai_jobs.environment` and `idempotency_key`; `ai_begin_job` rebuilt around both |
+| `20260814100800_ai_cache` | `ai_cache`, `ai_calls.cache_hit`, and the take/put/sweep functions |
 
 **Not yet applied.** Two things to do first:
 
@@ -96,6 +98,7 @@ New SQLSTATEs, continuing the GRK series:
 | `GRK1A` | Too many prompt versions for one feature |
 | `GRK1B` | Admissions are paused |
 | `GRK1C` | No allowed price for that model |
+| `GRK1D` | A preview deployment tried to spend |
 
 ## Applied
 

@@ -142,6 +142,7 @@ export interface CallRow {
   completion_tokens: number | null;
   validator_status: string | null;
   prompt_version: number | null;
+  cache_hit: boolean;
   error: string | null;
   created_at: string;
 }
@@ -153,7 +154,7 @@ export async function loadCalls(
   let query = supabase
     .from('ai_calls')
     .select(
-      'id, feature, status, cost_usd, prompt_tokens, completion_tokens, validator_status, prompt_version, error, created_at'
+      'id, feature, status, cost_usd, prompt_tokens, completion_tokens, validator_status, prompt_version, cache_hit, error, created_at'
     )
     .order('created_at', { ascending: false })
     .limit(options.limit ?? 50);
