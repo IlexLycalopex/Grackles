@@ -955,7 +955,8 @@ export type Database = {
           feature: string;
           workspace_id: string;
           class: string;
-          payer_id: string;
+          /** Null only where the account has since been deleted. */
+          payer_id: string | null;
           actor_id: string | null;
           actor_kind: string;
           actor_fingerprint: string | null;
@@ -1000,7 +1001,8 @@ export type Database = {
           job_id: string;
           feature: string;
           workspace_id: string | null;
-          payer_id: string;
+          /** Null only where the account has since been deleted. */
+          payer_id: string | null;
           actor_id: string | null;
           provider: string;
           model: string;

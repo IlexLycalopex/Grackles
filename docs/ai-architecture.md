@@ -1323,7 +1323,7 @@ that always agreed with its implementation would be one nobody checked.
 
 ## What reading it back found
 
-Three bugs, all the same shape: a rule stated in a comment and not quite
+Four bugs. Three are the same shape: a rule stated in a comment and not quite
 delivered by the code beneath it — which is the failure this whole layer exists
 to catch one level up, so they are recorded rather than quietly fixed.
 
@@ -1341,6 +1341,17 @@ to catch one level up, so they are recorded rather than quietly fixed.
   ticked" as "no preference expressed" and wrote the lot. An unchecked checkbox
   submits nothing; that is the whole of the ambiguity, and the form always
   renders them.
+
+The fourth is a different and worse shape, because nothing in the design said
+anything about it at all:
+
+- **Using a feature made an account undeletable.** Seven foreign keys to
+  `profiles` were left at the default `NO ACTION`. A workspace owner was already
+  undeletable and always has been — but an editor who owns nothing and ran one
+  enrichment became undeletable the moment `ai_jobs` recorded them as an actor.
+  A right somebody has, removed silently by a governance layer, which is close
+  to the worst way for a governance layer to be wrong. Found by asking what the
+  new foreign keys did on delete, not by anything failing.
 
 ## Still outstanding
 
@@ -1375,8 +1386,8 @@ not a refinement:
 - **Reconciliation.** The ledger is self-attested until it is compared against
   the provider's own usage figures. And the payer is in the UK while the bill is
   in USD, so a period needs an FX snapshot or every report drifts.
-- **Deletion.** Consent, retention and injection isolation are built; what a
-  deleted user's transcripts and proposals should do is not decided, and
-  provider-side retention is not ours to delete whatever we decide.
+- **Provider-side retention.** A deleted account's rows here lose their name,
+  but whatever the provider kept of those prompts is not ours to delete, and
+  saying otherwise on a privacy page would be a lie.
 - **A moderation queue,** for the first feature whose output is published
   rather than proposed. None exists yet, and none should until it does.

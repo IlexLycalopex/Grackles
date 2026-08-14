@@ -821,6 +821,53 @@ check "golden runs are their own feature with their own ceiling" ok \
        then raise exception 'no platform.golden feature'; end if;
    end \$\$;" "$as_jamie"
 
+echo "── leaving"
+# An editor who owns nothing and merely used a feature once became undeletable
+# the moment ai_jobs recorded them as an actor. A right somebody has, quietly
+# removed by a governance layer.
+$PSQL -c "insert into public.ai_features (key,app,name,max_tokens,min_role,default_max_usd,default_max_calls)
+          values ('wbpr.leaving','wbpr','Leaving test',400,'editor',0.05,4) on conflict do nothing;" >/dev/null
+check "somebody who only used a feature can still be deleted" ok \
+  "do \$\$ declare j uuid; c uuid; begin
+     $SU
+     insert into auth.users (id,email) values ('7a000000-0000-4000-8000-000000000001','ed@example.com');
+     insert into public.profiles (id,email,display_name)
+       values ('7a000000-0000-4000-8000-000000000001','ed@example.com','Ed');
+     insert into public.workspace_members (workspace_id,user_id,role)
+       values ('$WBPR','7a000000-0000-4000-8000-000000000001','editor');
+     perform set_config('request.jwt.claims','{\"sub\":\"7a000000-0000-4000-8000-000000000001\"}',true);
+     $DOWN
+     j := public.ai_begin_job('wbpr.leaving','$WBPR','single');
+     c := public.ai_begin_call(j);
+     perform public.ai_end_call(c, 100, 50);
+     $SU
+     delete from public.profiles where id = '7a000000-0000-4000-8000-000000000001';
+   end \$\$;" "$as_jamie"
+
+# The ledger is a financial record. The row stays and loses the name — the same
+# reasoning that denormalises payer_id off the workspace so a project changing
+# hands does not rewrite a past invoice.
+check "their spending stays in the ledger without their name on it" ok \
+  "do \$\$ declare j uuid; c uuid; n bigint; begin
+     $SU
+     insert into auth.users (id,email) values ('7a000000-0000-4000-8000-000000000002','gone@example.com');
+     insert into public.profiles (id,email,display_name)
+       values ('7a000000-0000-4000-8000-000000000002','gone@example.com','Gone');
+     insert into public.workspace_members (workspace_id,user_id,role)
+       values ('$WBPR','7a000000-0000-4000-8000-000000000002','editor');
+     perform set_config('request.jwt.claims','{\"sub\":\"7a000000-0000-4000-8000-000000000002\"}',true);
+     $DOWN
+     j := public.ai_begin_job('wbpr.leaving','$WBPR','single');
+     c := public.ai_begin_call(j);
+     perform public.ai_end_call(c, 100, 50);
+     $SU
+     delete from public.profiles where id = '7a000000-0000-4000-8000-000000000002';
+     select count(*) into n from public.ai_calls where id = c;
+     if n <> 1 then raise exception 'the call was deleted with them'; end if;
+     if (select actor_id from public.ai_calls where id = c) is not null then
+       raise exception 'their name is still on it'; end if;
+   end \$\$;" "$as_jamie"
+
 echo "── who may see what"
 $PSQL -c "
   select public.ai_begin_job('wbpr.desk','$WBPR','interactive');
