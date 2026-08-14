@@ -720,6 +720,8 @@ export type Database = {
           prompt_tokens: number;
           completion_tokens: number;
           calls: number;
+          /** The sitting's job. Null on the nine that predate metering. */
+          ai_job_id: string | null;
           created_by: string;
           created_at: string;
           updated_at: string;
@@ -731,6 +733,7 @@ export type Database = {
           status?: string;
           block?: number;
           state?: Json;
+          ai_job_id?: string | null;
           prompt_tokens?: number;
           completion_tokens?: number;
           calls?: number;
@@ -778,6 +781,282 @@ export type Database = {
             referencedColumns: ['id'];
           },
         ];
+      };
+      /**
+       * AI governance. See docs/ai-architecture.md — the short version is that
+       * the unit of control is a job rather than a call, every call belongs to
+       * one, and none of these tables is written directly: the money moves
+       * through ai_begin_job / ai_begin_call / ai_end_call / ai_end_job or it
+       * does not move. Only `ai_jobs.cancel_requested` and the proposal
+       * outcomes are writable by a client, which is why the Insert types below
+       * are mostly unreachable in practice.
+       */
+      ai_features: {
+        Row: {
+          key: string;
+          app: Database['public']['Enums']['app_slug'];
+          name: string;
+          enabled: boolean;
+          max_tokens: number;
+          min_role: string;
+          provider: string;
+          model: string;
+          default_max_usd: number;
+          default_max_calls: number;
+          max_depth: number;
+          quality_floor: number | null;
+          auto_disabled_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          key: string;
+          app: Database['public']['Enums']['app_slug'];
+          name: string;
+          enabled?: boolean;
+          max_tokens: number;
+          min_role?: string;
+          provider?: string;
+          model?: string;
+          default_max_usd?: number;
+          default_max_calls?: number;
+          max_depth?: number;
+          quality_floor?: number | null;
+          auto_disabled_at?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['ai_features']['Insert']>;
+        Relationships: [];
+      };
+      ai_platform_settings: {
+        Row: {
+          id: boolean;
+          enabled: boolean;
+          admissions_open: boolean;
+          default_monthly_usd: number;
+          actor_rate_per_minute: number;
+          anon_rate_per_hour: number;
+          max_job_share: number;
+          prompt_allowance_tokens: number;
+          updated_at: string;
+        };
+        Insert: { id?: boolean };
+        Update: Partial<Database['public']['Tables']['ai_platform_settings']['Row']>;
+        Relationships: [];
+      };
+      ai_models: {
+        Row: {
+          provider: string;
+          model: string;
+          prompt_usd_per_mtok: number;
+          completion_usd_per_mtok: number;
+          effective_from: string;
+          allowed: boolean;
+          notes: string;
+        };
+        Insert: {
+          provider: string;
+          model: string;
+          prompt_usd_per_mtok: number;
+          completion_usd_per_mtok: number;
+          effective_from?: string;
+          allowed?: boolean;
+          notes?: string;
+        };
+        Update: Partial<Database['public']['Tables']['ai_models']['Insert']>;
+        Relationships: [];
+      };
+      ai_prompt_versions: {
+        Row: {
+          id: number;
+          feature: string;
+          version: number;
+          hash: string;
+          /** Admin-readable only; the app holds the body in code. */
+          body: string;
+          active: boolean;
+          notes: string;
+          created_at: string;
+        };
+        Insert: never;
+        Update: { active?: boolean; notes?: string };
+        Relationships: [];
+      };
+      ai_budgets: {
+        Row: {
+          user_id: string;
+          /** Null means the platform default applies; zero means none. */
+          monthly_usd: number | null;
+          enabled: boolean;
+          granted_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          monthly_usd?: number | null;
+          enabled?: boolean;
+          granted_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['ai_budgets']['Insert']>;
+        Relationships: [];
+      };
+      ai_periods: {
+        Row: {
+          payer_id: string;
+          period: string;
+          reserved_usd: number;
+          committed_usd: number;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      ai_workspace_features: {
+        Row: {
+          workspace_id: string;
+          feature: string;
+          enabled: boolean;
+          daily_usd: number | null;
+          allow_anon: boolean;
+          allow_scheduled: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          workspace_id: string;
+          feature: string;
+          enabled?: boolean;
+          daily_usd?: number | null;
+          allow_anon?: boolean;
+          allow_scheduled?: boolean;
+        };
+        Update: Partial<Database['public']['Tables']['ai_workspace_features']['Insert']>;
+        Relationships: [];
+      };
+      ai_jobs: {
+        Row: {
+          id: string;
+          feature: string;
+          workspace_id: string;
+          class: string;
+          payer_id: string;
+          actor_id: string | null;
+          actor_kind: string;
+          actor_fingerprint: string | null;
+          parent_job_id: string | null;
+          root_job_id: string;
+          depth: number;
+          status: string;
+          max_usd: number;
+          max_calls: number;
+          max_concurrency: number;
+          deadline: string;
+          spent_usd: number;
+          held_usd: number;
+          calls_made: number;
+          items_total: number | null;
+          items_done: number;
+          heartbeat_at: string | null;
+          cancel_requested: boolean;
+          error: string | null;
+          created_at: string;
+          started_at: string | null;
+          finished_at: string | null;
+        };
+        Insert: never;
+        /** The one column a client may write. Everything else moves through the functions. */
+        Update: { cancel_requested?: boolean };
+        Relationships: [
+          {
+            foreignKeyName: 'ai_jobs_workspace_id_fkey';
+            columns: ['workspace_id'];
+            isOneToOne: false;
+            referencedRelation: 'workspaces';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      ai_calls: {
+        Row: {
+          id: string;
+          job_id: string;
+          feature: string;
+          workspace_id: string | null;
+          payer_id: string;
+          actor_id: string | null;
+          provider: string;
+          model: string;
+          prompt_version: number | null;
+          status: string;
+          reserved_usd: number;
+          prompt_tokens: number | null;
+          completion_tokens: number | null;
+          prompt_usd_per_mtok: number | null;
+          completion_usd_per_mtok: number | null;
+          /** Generated from the tokens and the snapshotted prices. */
+          cost_usd: number | null;
+          validator_status: string | null;
+          validator_findings: Json | null;
+          error: string | null;
+          created_at: string;
+          settled_at: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: 'ai_calls_job_id_fkey';
+            columns: ['job_id'];
+            isOneToOne: false;
+            referencedRelation: 'ai_jobs';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      ai_job_items: {
+        Row: {
+          job_id: string;
+          position: number;
+          ref: Json;
+          status: string;
+          attempts: number;
+          call_id: string | null;
+          error: string | null;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      ai_proposals: {
+        Row: {
+          id: string;
+          call_id: string;
+          workspace_id: string;
+          feature: string;
+          target_table: string;
+          target_id: string | null;
+          proposed: Json;
+          outcome: string | null;
+          edit_distance: number | null;
+          decided_by: string | null;
+          decided_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          call_id: string;
+          workspace_id: string;
+          feature: string;
+          target_table: string;
+          target_id?: string | null;
+          proposed: Json;
+          outcome?: string | null;
+          edit_distance?: number | null;
+          decided_by?: string | null;
+          decided_at?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['ai_proposals']['Insert']>;
+        Relationships: [];
       };
     };
     Views: { [_ in never]: never };
@@ -866,6 +1145,90 @@ export type Database = {
         };
         /** The id of the smoked entry — the row itself, or the one split off it. */
         Returns: string;
+      };
+      /**
+       * Admission. Every gate that costs anything to check is here, once per
+       * job rather than once per call, and it raises rather than returning a
+       * verdict so a caller cannot forget to look.
+       *
+       * GRK10 no such project (or not visible — deliberately the same),
+       * GRK11 AI is off, GRK12 feature off, GRK13 not allowed,
+       * GRK14 rate limited, GRK15 allowance spent, GRK16 daily limit,
+       * GRK17 too deep, GRK18 job too large for what is left, GRK1B paused.
+       */
+      ai_begin_job: {
+        Args: {
+          p_feature: string;
+          p_workspace: string;
+          p_class?: string;
+          p_max_usd?: number | null;
+          p_max_calls?: number | null;
+          p_parent?: string | null;
+          p_fingerprint?: string | null;
+          p_items_total?: number | null;
+        };
+        Returns: string;
+      };
+      /** One call within an admitted job. GRK19 when a ceiling is reached. */
+      ai_begin_call: {
+        Args: { p_job: string; p_prompt_version?: number | null };
+        Returns: string;
+      };
+      /** Settles a call and returns what it actually cost, in USD. */
+      ai_end_call: {
+        Args: {
+          p_call: string;
+          p_prompt: number;
+          p_completion: number;
+          p_validator_status?: string | null;
+          p_validator_findings?: Json | null;
+          p_error?: string | null;
+        };
+        Returns: number;
+      };
+      ai_end_job: {
+        Args: { p_job: string; p_status: string; p_error?: string | null };
+        Returns: void;
+      };
+      ai_cancel_job: { Args: { p_job: string }; Returns: void };
+      ai_enqueue_items: { Args: { p_job: string; p_refs: Json }; Returns: number };
+      ai_claim_items: {
+        Args: { p_job: string; p_limit?: number };
+        Returns: Database['public']['Tables']['ai_job_items']['Row'][];
+      };
+      ai_finish_item: {
+        Args: {
+          p_job: string;
+          p_position: number;
+          p_ok: boolean;
+          p_call?: string | null;
+          p_error?: string | null;
+        };
+        Returns: void;
+      };
+      /** Returns the id of the version matching this body, inserting it if new. */
+      ai_register_prompt: { Args: { p_feature: string; p_body: string }; Returns: number };
+      /**
+       * A month's spend, grouped, for the caller — as payer and as actor both.
+       * `role` says which: 'mine', 'on my bill' (somebody else ran it), or
+       * 'on their bill' (I ran it, they paid).
+       */
+      my_ai_usage: {
+        Args: { p_period?: string | null };
+        Returns: {
+          feature: string;
+          feature_name: string;
+          workspace_id: string | null;
+          workspace_name: string | null;
+          app: Database['public']['Enums']['app_slug'] | null;
+          role: string;
+          calls: number;
+          prompt_tokens: number;
+          completion_tokens: number;
+          cost_usd: number;
+          failures: number;
+          validator_failures: number;
+        }[];
       };
     };
     Enums: {

@@ -244,6 +244,20 @@ $$;
 create trigger workspaces_add_owner after insert on public.workspaces
   for each row execute function public.handle_new_workspace();
 
+-- Present in production from the original core migrations and previously
+-- missing here, which meant every migration from 20260806170000 onwards failed
+-- to apply against the harness — the WBPR schema, its anon grants, the agent
+-- tables and the caller_roll backfill. The suite passed because it only ever
+-- ran the seven invite migrations; anything added after them could not be
+-- tested at all until this existed.
+create function public.touch_updated_at() returns trigger
+language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
 -- Production's copy of this has `search_path = public, pg_temp`, which cannot
 -- resolve citext and so fails to compile the moment it is called — the invite
 -- that had been sitting unaccepted since July was hitting exactly this. It is

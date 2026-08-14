@@ -1,5 +1,5 @@
 import { drawBlock, drawCard, rollCaller, callerTopic, describeDraw } from './wbpr-deck';
-import type { ChatMessage } from './minimax';
+import type { ChatMessage } from './ai/provider';
 
 /**
  * Oso Sur, as a system prompt.
@@ -15,7 +15,7 @@ import type { ChatMessage } from './minimax';
  * three things every time, or the archive stops agreeing with itself across
  * nine sessions of established fact.
  */
-const SYSTEM = `You are running a solo tabletop session of Void 1680 AM. The player is the DJ; you are everything else.
+export const SYSTEM = `You are running a solo tabletop session of Void 1680 AM. The player is the DJ; you are everything else.
 
 SETTING. Alternative Earth, mid-1970s. Robert W. Chambers' King in Yellow mythology underlies reality and the veil between Earth and Carcosa is thin and thinning. Tone: unsettling rather than threatening. Liminal, strange, quiet. Physical manifestations are rare but increasing.
 
