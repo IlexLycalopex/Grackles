@@ -276,8 +276,15 @@ That much is per-sitting, which is the right amount of machinery for one feature
 and the wrong amount for two. `docs/ai-architecture.md` specifies what replaces
 it: a metered call path, per-person allowances in the shape `app_grants` already
 uses, a spend ledger both the payer and the actor can read, and a platform admin
-who can turn a feature — or all of them — off without a deploy. None of it is
-built.
+who can turn a feature — or all of them — off without a deploy.
+
+It also specifies the half that is not about money. The rules in the desk's
+system prompt — never name a track, never invent a card — are checkable against
+state this app is already holding, and checking them turns "the model
+misbehaved" into a number that can regress. Whether a proposal was accepted,
+edited or thrown away is the other free measurement, and cost per accepted
+answer is the figure that decides whether a feature earns its tokens. None of it
+is built.
 
 ## Photographs
 

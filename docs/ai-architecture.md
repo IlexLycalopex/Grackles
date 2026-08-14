@@ -23,11 +23,20 @@ What it cannot answer today:
   person paying are different people.
 - **Can it be turned off?** Only by unsetting `MINIMAX_API_KEY`, which is a
   deploy, and which turns off everything at once.
+- **Is any of it any good?** Nothing records whether an answer was right, or
+  whether it broke one of the rules its own prompt states, or what happened to
+  it after it was shown to somebody. The desk's rules — never name a track,
+  never invent a card — hold today because the model complies, and if it stops
+  complying the only detector is Jamie noticing.
 
-The rest of this document is the answer to those four questions, in the shape
+The rest of this document is the answer to those five questions, in the shape
 this codebase already uses for the same class of problem: entitlements in the
 database, checked by a `SECURITY DEFINER` function, defaulting to deny, with a
 platform admin who may hand them out.
+
+The first four are about money and the fifth is not, and the fifth is the one
+that decides whether any of this was worth doing. Governing spend without
+governing quality optimises for the wrong thing very efficiently.
 
 ## Principles
 
@@ -55,6 +64,14 @@ These come first because most of the design below is just them applied.
 7. **Refusing is free.** Every gate is a database check with no network call
    behind it. Being over budget costs nothing, which is what makes it safe to
    set the limit low.
+8. **Checked where it can be checked, judged only where it cannot.** The same
+   principle as the deck, applied to the answer rather than the question: most
+   of what a model gets wrong here is wrong against something the app already
+   holds. Verify that in code. Judgement is for the residue.
+9. **A cheap wrong answer is the expensive one.** Every control below has a
+   quality counterpart, and neither number means much without the other. The
+   goal is the cheapest option that clears the bar, which is not the same
+   instruction as "spend less".
 
 ## Who pays, and who acts
 
@@ -118,6 +135,18 @@ create table public.ai_features (
   -- feature that strangers may run is the one that needs two.
   min_role       text not null default 'owner'
                  check (min_role in ('anon','viewer','editor','owner')),
+
+  -- Bound per feature rather than globally. Classification and prose have
+  -- different requirements and should not be forced onto one model because the
+  -- registry had only one column for it.
+  provider       text not null default 'minimax',
+  model          text not null default 'minimax-m3',
+
+  -- The quality floor and its actuator. Null disables the check; a feature
+  -- switched off by its own failure rate carries the timestamp, so it reports
+  -- differently from one an admin turned off.
+  quality_floor    numeric check (quality_floor between 0 and 1),
+  auto_disabled_at timestamptz,
 
   created_at     timestamptz not null default now()
 );
@@ -259,6 +288,16 @@ create table public.ai_calls (
 
   provider       text not null,
   model          text not null,
+
+  -- Which prompt produced this. Without it, a report spanning a prompt change
+  -- compares two different systems and says nothing about either.
+  prompt_version integer references public.ai_prompt_versions(id),
+
+  -- The validator's verdict on the response (see Quality, below). Recorded on
+  -- every call, whatever the outcome — a rule that is only checked when
+  -- somebody is looking is not a rule.
+  validator_status   text check (validator_status in ('pass','warn','fail')),
+  validator_findings jsonb,
 
   status         text not null default 'reserved'
                  check (status in ('reserved','ok','failed','released')),
@@ -442,6 +481,204 @@ sentence shown to the editor says so — "the owner's allowance for this month i
 spent" — because otherwise they will read it as their own and be confused by a
 limit they cannot see.
 
+## Quality
+
+Everything above governs what a call costs. None of it can tell a good answer
+from a bad one, and a feature that is cheap and wrong is the worse failure —
+token minimisation on its own is just minimising usefulness.
+
+### "Good" means something different in each feature
+
+| Feature | The failure that matters | How it is caught |
+|---|---|---|
+| Metadata enrichment | A wrong publisher, an invented ISBN | Checked against the source that supplied it |
+| Duplicate proposals | Merging two artists who are genuinely different | Asymmetric — precision over recall, because a bad merge destroys data and a missed one costs nothing |
+| Tasting notes, blurbs | Flavours the person never mentioned; wrong length or tone | No ground truth: acceptance, and the edit |
+| The desk | Naming a track, inventing a card, contradicting the archive | The app holds the cards and the transcript, so both rules are checkable |
+| The write-up | A track that never played, a block that did not happen | Checked against the sitting's own state |
+| Ask the archive | A confident answer over zero rows | Checked against the rows the query actually returned |
+
+Five of those six have a deterministic check available. That is the whole design
+of this section: **validators, not judges.** If the app can decide, the app
+decides — the same argument that moved the deck out of the prompt, applied to
+the answer instead of the question.
+
+### The validator
+
+One per feature, run on every response before it reaches a person, its verdict
+written to `ai_calls.validator_status` and `validator_findings`.
+
+The desk is the clearest case. Its system prompt already carries hard rules —
+*never name a track*, *never invent a card* — and today they hold because the
+model complies. If it stops complying, Jamie notices or he does not, and nothing
+records it either way. But the app knows exactly which cards are down and
+exactly what the DJ typed, so both are a function of state it is already
+holding:
+
+```ts
+// lib/ai/validators/wbpr.ts
+//
+// Not a check that the reply is good — a check that it is legal. The rules it
+// enforces are the ones stated in the system prompt, which is the point: a rule
+// worth writing into a prompt is worth verifying, or it is a wish.
+export function validateDeskReply(reply: string, state: AgentState, said: string): Findings
+```
+
+What a `fail` does is per feature, not global. On the desk it is a warning shown
+beside the reply, because the night should not stop for it. On the write-up it
+blocks the save, because that is the path that writes to five tables. On
+enrichment it drops the offending field and keeps the rest.
+
+**Parse rate is the free one.** The write-up either returns valid JSON against
+its shape or it does not, and that single number is the first thing to move when
+a prompt or a model changes. It costs nothing to record and it is the cheapest
+regression alarm in the system.
+
+### The proposal ledger
+
+The propose-then-confirm discipline already earns the best quality signal
+available, and currently throws it away. What a person did with a proposal *is*
+the evaluation:
+
+```sql
+-- The quality ledger, and the mirror of ai_calls. One row per thing a model
+-- offered a person, and what became of it.
+create table public.ai_proposals (
+  id           uuid primary key default gen_random_uuid(),
+  call_id      uuid not null references public.ai_calls(id),
+  feature      text not null references public.ai_features(key),
+
+  -- What it was offered against: 'rl_books', and the row if one existed.
+  target_table text not null,
+  target_id    uuid,
+
+  proposed     jsonb not null,
+
+  outcome      text check (outcome in ('accepted','edited','discarded','expired')),
+
+  -- How much of it survived. Cheap to compute at save time, and the single
+  -- most informative quality number here: an accepted proposal that was
+  -- rewritten before saving is not the same event as one saved as offered.
+  edit_distance integer,
+
+  decided_by   uuid references public.profiles(id),
+  decided_at   timestamptz,
+  created_at   timestamptz not null default now()
+);
+```
+
+`expired` matters as much as the other three. A proposal nobody ever decided on
+is not a neutral outcome — it usually means the feature interrupted somebody
+who did not want it.
+
+From this: accepted-verbatim rate, median edit distance, and **cost per accepted
+proposal**, all per feature and per prompt version. The last of those is the
+number that closes a feature down, and it cannot be computed from the cost
+ledger alone.
+
+### A prompt is a versioned artifact
+
+```sql
+create table public.ai_prompt_versions (
+  id          integer generated always as identity primary key,
+  feature     text not null references public.ai_features(key),
+  version     integer not null,
+  hash        text not null,          -- of the body, so a silent edit is visible
+  body        text not null,
+  active      boolean not null default false,
+  notes       text,
+  created_at  timestamptz not null default now(),
+  unique (feature, version)
+);
+```
+
+Three things this buys that a string in a `.ts` file does not:
+
+- **Comparison.** Metrics are grouped by version, so "the acceptance rate fell"
+  can be attributed rather than guessed at.
+- **Rollback.** Flipping `active` is faster than a deploy, and the failure it
+  undoes is usually noticed at an inconvenient hour.
+- **Canary.** A new version served to a fraction of calls, promoted only if
+  validator and acceptance rates hold. Cost per accepted proposal is the
+  comparison that decides it.
+
+The system prompt stays in code as the source it is edited in; the row is what
+was actually sent, hashed. If those two disagree, the row is right.
+
+### Golden cases
+
+A small, deliberately curated set of frozen inputs with expectations, replayed
+against any prompt or model change **before** it ships.
+
+```sql
+create table public.ai_golden_cases (
+  id           uuid primary key default gen_random_uuid(),
+  feature      text not null references public.ai_features(key),
+  input        jsonb not null,
+  expectations jsonb not null,   -- what must hold, not what must be said
+  curated_from uuid references public.ai_calls(id),
+  created_at   timestamptz not null default now()
+);
+```
+
+For the desk, a case is a saved transcript replayed with the same cards, and the
+expectation is that the *rules* hold — not that the prose matches. Prose that
+matches last month's word for word would be the bug.
+
+This also resolves the retention tension from the privacy section. Keeping every
+prompt forever in case an evaluation needs one is the wrong trade; curating a
+few dozen cases deliberately, with the workspace owner's agreement, is the same
+capability with a fraction of the exposure.
+
+**And it is the only defence against a model changing underneath you.**
+`minimax-m3` is a name, not a fixed artifact — providers revise weights behind a
+stable identifier without announcing it. Nothing else in this design would
+detect that; a golden run on a schedule would, and the provider's request id and
+any version string it returns should be recorded on the call so a step change
+can be dated.
+
+### Where a judge is appropriate, and its rules
+
+For the residue — tone, whether a blurb reads like the person's own notes —
+there is nothing to check against and judgement is the only option. Four
+constraints on it:
+
+1. **Sampled, never universal.** Judging every call doubles the bill to measure
+   the bill.
+2. **Billed to the platform, not the payer.** The user did not ask for the
+   evaluation; charging them for it would be indefensible on a report they can
+   read.
+3. **Never gates a user-visible action.** It produces a trend line. A judge in
+   the request path is a second thing that can be wrong, in series.
+4. **Not the same model.** A judge shares its generator's blind spots, and will
+   confidently approve exactly the failures nobody else caught.
+
+### Quality needs an actuator too
+
+A dashboard nobody acts on is not a control. The quality counterpart of the
+budget refusal is a floor, enforced the same way:
+
+> If a feature's validator failure rate over its last *N* calls exceeds its
+> threshold, it disables itself — the same switch a platform admin has, thrown
+> automatically, with the reason recorded.
+
+`ai_features` gains `quality_floor numeric` and `auto_disabled_at timestamptz`,
+and a disabled-by-quality feature reports differently from one an admin turned
+off, because the two need different responses from whoever finds it.
+
+This is the part that makes the section governance rather than instrumentation.
+Everything before it produces numbers; this acts on them without waiting for
+somebody to look.
+
+### Cost and quality are one frontier
+
+The routing decision — a small model for classification, an expensive one for
+prose — is only answerable with both halves. Cheapest model that clears the
+validator suite and holds its acceptance rate, chosen per feature, re-run when
+either the prices or the models change. `ai_models` therefore carries the
+evidence alongside the price, and "which model does this feature use" is a
+per-feature column rather than a global default.
+
 ## Reporting, at a user level
 
 ### `/settings/ai` — the person
@@ -464,9 +701,16 @@ information is only available to one of the two people who need it — the same
 failure the dashboard's invitations had, where the policy was right for the
 table and wrong for the page.
 
-**The last fifty calls.** Feature, project, when, tokens, cost, and the error if
-it failed. Failed calls are shown, with their cost — a page that hides them is a
-page that cannot explain a bill.
+**What it was worth.** Beside every cost figure, and on the same row rather than
+a separate page: accepted-verbatim rate, median edit distance, and validator
+failures. The report has to be able to say *"the desk cost £2.40 this month and
+you discarded three of the five write-ups it produced"*, because a spend figure
+alone cannot distinguish a feature worth paying for from one that is merely
+affordable. Cost per accepted proposal is the headline number per feature.
+
+**The last fifty calls.** Feature, project, when, tokens, cost, prompt version,
+the validator's verdict, and the error if it failed. Failed calls are shown,
+with their cost — a page that hides them is a page that cannot explain a bill.
 
 The natural RLS policy on `ai_calls` is `payer_id = auth.uid() or actor_id =
 auth.uid() or app.is_platform_admin()`, and that is the right policy for the
@@ -499,8 +743,19 @@ and the sentence explains it. Nothing is lost — the WBPR transcript is in the
 database for exactly this reason.
 
 **Features.** The registry as a table: enable, disable, change `max_tokens`,
-change `min_role`. Disabling a feature is the surgical version of the kill
-switch and should be the more common action.
+change `min_role`, change the model it is bound to. Disabling a feature is the
+surgical version of the kill switch and should be the more common action.
+
+**Prompts.** Every feature's versions, which is active, and the metrics for each
+— validator failure rate, acceptance rate, cost per accepted proposal. Promote,
+roll back, or start a canary from here. A feature that disabled itself on its
+quality floor surfaces here rather than in the switches above, with the findings
+that tripped it, because the useful next action is a rollback and not a
+re-enable.
+
+**Golden runs.** The last replay per feature, what changed since the previous
+one, and a button to run them now. Scheduled weekly regardless, because the
+change being watched for is one nobody deploys.
 
 **Models and prices.** The allowlist, and the prices new calls will snapshot.
 Editing a price inserts a new `effective_from` row rather than updating one, so
@@ -577,19 +832,71 @@ transaction. The cases that matter:
   double count.
 - The sweeper releases a stale reservation and leaves a fresh one alone.
 
+The quality half is not a database test and belongs beside the code it checks —
+`npm run check`'s neighbour rather than `tests/test.sh`'s:
+
+- Each validator against a fixture of known-bad output: a desk reply naming a
+  track, a write-up citing a card that was never drawn, an enrichment result
+  with an ISBN whose check digit fails, an archive answer citing a row id that
+  was not in the result set. A validator with no failing fixture has never been
+  shown to detect anything.
+- The write-up's parser against a fenced response, a truncated one, and one with
+  prose before the JSON. These are the three ways it will actually fail.
+- A feature crossing its quality floor disables itself, and an admin re-enabling
+  it clears `auto_disabled_at` rather than leaving a stale timestamp that makes
+  the next incident unreadable.
+
 ## Order of work
 
 Each phase is useful on its own and none of them requires the next.
 
 | Phase | What ships | Why this order |
 |---|---|---|
-| 0 | `ai_features`, `ai_models`, `ai_calls`, `ai_sessions`, `withMeter`, WBPR wrapped | Recording only — no gate, no budget, no behaviour change. A month of real data before anything starts refusing on the strength of it. |
-| 1 | `ai_budgets`, `ai_periods`, `ai_begin_call`/`ai_end_call`, the sweeper | The ceilings, informed by what phase 0 actually measured rather than by a guess. |
-| 2 | `/settings/ai`, the workspace panel | Reporting, once there is something to report. |
-| 3 | `/admin/ai` | Platform controls. Last because until phase 1 exists there is nothing to control but the kill switch, which is a SQL update. |
+| 0 | `ai_features`, `ai_models`, `ai_calls`, `ai_sessions`, `ai_prompt_versions`, `ai_proposals`, `withMeter`, the desk's validator, WBPR wrapped | Recording only — no gate, no floor, no behaviour change. A month of real data before anything starts refusing on the strength of it. |
+| 1 | `ai_budgets`, `ai_periods`, `ai_begin_call`/`ai_end_call`, the sweeper, the quality floor | Both sets of ceilings, informed by what phase 0 measured rather than by a guess. |
+| 2 | `/settings/ai`, the workspace panel | Reporting — cost and quality on the same rows, once there is something to report. |
+| 3 | `/admin/ai`, golden cases and their scheduled run | Platform controls. Last because until phase 1 exists there is nothing to control but the kill switch, which is a SQL update. |
 | 4 | Anonymous features | Only after 1–3. A stranger spending an owner's money needs every part of this, and needs it proven. |
 
-Phase 0 before phase 1 is the important ordering. Setting a limit before knowing
-what a normal month costs produces a limit that is either meaningless or
-constantly in the way, and the second one teaches people to ask for it to be
-raised rather than to look at what they are spending.
+Phase 0 before phase 1 is the important ordering, and it applies to both halves.
+Setting a spend limit before knowing what a normal month costs produces a limit
+that is either meaningless or constantly in the way, and the second teaches
+people to ask for it to be raised rather than to look at what they are spending.
+A quality floor set before knowing the normal failure rate does the same thing
+faster: a feature that disables itself every Tuesday will be switched off
+permanently by the third Tuesday, and the floor will be blamed rather than the
+thing it was detecting.
+
+The validators are the exception to "measure first" and ship in phase 0 with the
+meter. They are not a threshold to be calibrated — they enforce rules the
+prompts already state, and a rule stated but unverified is a wish. Their
+*consequences* are what waits for phase 1.
+
+## Still outstanding
+
+Named so they are not mistaken for decisions already taken. Each is a real gap,
+not a refinement:
+
+- **Batch and job control.** Every gate here is per call. One action that fans
+  out — an embedding backfill, enrichment across a whole year, any agent loop —
+  passes all of them, repeatedly, and exhausts a budget without failing a single
+  check. This needs a job with one reservation, a declared call ceiling and a
+  kill, and it is the largest hole in the document.
+- **Not calling at all.** Result caching keyed on an input hash, and recording a
+  cache hit as a zero-cost row so hit rate is visible. Cheaper than every limit
+  here combined, and unmodelled.
+- **Idempotency and retries.** No key on a call means a double-submitted form
+  spends twice, and a retry after a timeout spends twice more.
+- **Environment.** Preview deployments spend production budget and pollute
+  production quality metrics. The ledger needs to know which is which.
+- **Provider failure.** 429s, outages, and a circuit breaker — which is a
+  governance control, not only a resilience one.
+- **Alerts.** Resend is already wired. A budget at 80%, a feature tripping its
+  floor, an anomaly: a control nobody is told about is a control nobody uses.
+- **Reconciliation.** The ledger is self-attested until it is compared against
+  the provider's own usage figures. And the payer is in the UK while the bill is
+  in USD, so a period needs an FX snapshot or every report drifts.
+- **What leaves the building.** Per-workspace consent to send contents to a
+  third party, retention on prompts and transcripts, deletion, and — for any
+  feature whose output is published — injection isolation and a moderation
+  queue.
