@@ -211,7 +211,10 @@ const when = (iso: string) =>
 
 <AppShell title="AI controls · Grackles">
   <h1 class="page-title">AI controls</h1>
-  <p class="page-intro">Platform-wide. Everything here takes effect on the next call.</p>
+  <p class="page-intro">
+    Platform-wide. Everything here takes effect on the next call.
+    <a href="/admin">Everything else about the site is here.</a>
+  </p>
 
   {error && <p class="notice notice--error" role="alert">{error}</p>}
   {notice && <p class="notice notice--ok">{notice}</p>}

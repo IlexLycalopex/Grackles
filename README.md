@@ -23,6 +23,7 @@ several people can share a project.
 | ✅ | WBPR migrated off GitHub Pages — nine sessions, five tables, editable in place |
 | ✅ | The WBPR broadcast agent (MiniMax M3) — running; the one-click write-up is the last untested path |
 | 🟡 | AI governance — built, tested, **not applied**. See `docs/ai-architecture.md` and `supabase/README.md` |
+| 🟡 | The platform console at `/admin` — built, tested, **not applied** (same migrations) |
 | ⬜ | WBPR's map and veil pages — left behind in the migration, see below |
 | ✅ | Custom SMTP — Supabase's own magic-link and confirmation emails go out through Resend, alongside the app's invitations |
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
@@ -102,7 +103,8 @@ every value of the enum — so this is the only thing stopping it being offered.
 /api/wbpr/:workspace/log           write the sitting up as a broadcast
 
 /settings/ai                       what AI has cost you, and what it was worth
-/admin/ai                          platform controls (platform admins; 404 otherwise)
+/admin                             the platform console (platform admins; 404 otherwise)
+/admin/ai                          AI controls (platform admins; 404 otherwise)
 /api/ai/cancel                     stop a job
 /api/ai/decide                     accept or discard a proposal
 /api/ai/job/tick                   run one slice of a batch
@@ -307,6 +309,34 @@ misbehaved" into a number that can regress. Whether a proposal was accepted,
 edited or thrown away is the other free measurement, and cost per accepted
 answer is the figure that decides whether a feature earns its tokens. None of it
 is built.
+
+## The platform console
+
+`/admin` is the page for whoever runs the site rather than whoever owns a
+project. It answers two questions nothing else did: what exists here, and what
+has been granted to whom.
+
+Every read goes through a `SECURITY DEFINER` function gated on
+`app.is_platform_admin()`, never a widened policy. `workspaces_read` hiding a
+private project from an admin who is not a member is *correct* for every other
+page on this site; the console needs a different question asked by somebody
+entitled to ask it, and that is what those functions are. The same reasoning as
+`my_pending_invites()`, one privilege level up.
+
+**It shows metadata and counts, never contents.** An admin can see that a
+private Cigar Lounge holds forty entries, who owns it and who may read it. They
+cannot read the entries. Being able to administer a project is not the same as
+being able to read it, and collapsing the two would make every private project
+on the site private only by courtesy.
+
+Two things it refuses to do, because both leave a state only the service-role
+key can recover from: remove the last platform admin, and leave a project with
+no owner.
+
+The four facts that decide what somebody may do here — platform admin, what
+they may create, what they may spend, what they belong to — live in four tables
+and had never been visible together. Handing them out one screen at a time is
+how somebody ends up with an AI allowance and nothing to spend it on.
 
 ## Filling in a book's details
 

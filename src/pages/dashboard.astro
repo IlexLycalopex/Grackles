@@ -94,7 +94,9 @@ const inviteError = inviteFailed
   <h1 class="page-title">Your projects</h1>
   <p class="page-intro">
     Everything you own or have been invited to, across every app.
-    {' '}<a href="/settings/ai">What AI has cost you</a>{isPlatformAdmin && <> · <a href="/admin/ai">AI controls</a></>}.
+    {' '}<a href="/settings/ai">What AI has cost you</a>{isPlatformAdmin && (
+      <> · <a href="/admin">Platform</a> · <a href="/admin/ai">AI controls</a></>
+    )}.
   </p>
 
   {error && <p class="notice notice--error" role="alert">Could not load your projects: {error.message}</p>}

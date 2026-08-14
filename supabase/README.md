@@ -77,6 +77,7 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `20260814101500_ai_curate` | `ai_curate_desk_case()` — freezing a real sitting as a golden case |
 | `20260814101600_ai_deletion` | `on delete set null` on every AI reference to `profiles`, so using a feature no longer makes an account undeletable |
 | `20260814101700_ai_statements` | `ai_statements` and `ai_reconciliation()` — the ledger checked against the provider's own figure |
+| `20260814101800_admin_console` | `admin_overview/projects/people/invites/members()` and the controls beside them — the platform console |
 
 **Not yet applied.** Two things to do first:
 
@@ -110,6 +111,8 @@ New SQLSTATEs, continuing the GRK series:
 | `GRK1D` | A preview deployment tried to spend |
 | `GRK1E` | The project has not consented to its records being sent |
 | `GRK1F` | The provider's breaker is open — nothing was sent |
+| `GRK20` | That would remove the last platform admin |
+| `GRK21` | That would leave a project with no owner |
 
 ### Housekeeping
 
@@ -188,6 +191,7 @@ psql -d grackles -f tests/baseline.sql
 for f in migrations/*.sql; do psql -d grackles -v ON_ERROR_STOP=1 --single-transaction -f "$f"; done
 tests/test.sh
 tests/ai.sh
+tests/admin.sh
 ```
 
 **Both suites want a fresh database, in that order.** `test.sh` writes rows

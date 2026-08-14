@@ -1410,6 +1410,111 @@ export type Database = {
       /** Returns the id of the version matching this body, inserting it if new. */
       ai_register_prompt: { Args: { p_feature: string; p_body: string }; Returns: number };
       /**
+       * The platform console.
+       *
+       * Every one of these raises 42501 for anyone who is not a platform
+       * admin. They exist because the policies are right for every other page
+       * on the site — workspaces_read hiding a private project the admin is
+       * not in is correct — and the console needs a different question asked
+       * by somebody entitled to ask it.
+       *
+       * They return metadata and counts, never contents. Being able to
+       * administer a project is not the same as being able to read it.
+       */
+      admin_overview: {
+        Args: Record<string, never>;
+        Returns: {
+          projects: number;
+          public_projects: number;
+          external: number;
+          people: number;
+          admins: number;
+          memberships: number;
+          pending_invites: number;
+          ai_spend_usd: number;
+          ai_jobs_running: number;
+        }[];
+      };
+      admin_projects: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          app: Database['public']['Enums']['app_slug'];
+          slug: string;
+          name: string;
+          visibility: Database['public']['Enums']['visibility'];
+          external_url: string;
+          owner_id: string | null;
+          owner_name: string | null;
+          owner_email: string | null;
+          members: number;
+          records: number;
+          ai_spend_usd: number;
+          created_at: string;
+          updated_at: string;
+        }[];
+      };
+      admin_people: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          display_name: string;
+          email: string;
+          is_admin: boolean;
+          owns: number;
+          memberships: number;
+          grants: Record<string, number>;
+          /** Null where there is no budget row at all, which is a refusal. */
+          ai_monthly_usd: number | null;
+          ai_enabled: boolean;
+          ai_spend_usd: number;
+          created_at: string;
+        }[];
+      };
+      admin_invites: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          email: string;
+          role: Database['public']['Enums']['member_role'];
+          workspace_name: string | null;
+          app: Database['public']['Enums']['app_slug'] | null;
+          grant_apps: Database['public']['Enums']['app_slug'][];
+          invited_by: string | null;
+          created_at: string;
+          expires_at: string;
+        }[];
+      };
+      /** GRK20 when it would remove the last platform admin. */
+      admin_set_platform_admin: { Args: { p_user: string; p_is_admin: boolean }; Returns: void };
+      /** Zero withdraws the grant. */
+      admin_set_grant: {
+        Args: { p_user: string; p_app: Database['public']['Enums']['app_slug']; p_max: number };
+        Returns: void;
+      };
+      admin_set_visibility: {
+        Args: { p_workspace: string; p_visibility: Database['public']['Enums']['visibility'] };
+        Returns: void;
+      };
+      admin_revoke_invite: { Args: { p_invite: string }; Returns: void };
+      /** GRK21 when it would leave a project with no owner. */
+      admin_set_member_role: {
+        Args: { p_workspace: string; p_user: string; p_role: Database['public']['Enums']['member_role'] };
+        Returns: void;
+      };
+      admin_remove_member: { Args: { p_workspace: string; p_user: string }; Returns: void };
+      /** One project's roster, loaded when the console's disclosure is opened. */
+      admin_members: {
+        Args: { p_workspace: string };
+        Returns: {
+          user_id: string;
+          display_name: string;
+          email: string;
+          role: Database['public']['Enums']['member_role'];
+          joined_at: string;
+        }[];
+      };
+      /**
        * The admin console's two questions.
        *
        * Spend is already readable — ai_calls_read includes platform admins —
