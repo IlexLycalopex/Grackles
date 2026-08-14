@@ -25,8 +25,8 @@ several people can share a project.
 | ✅ | Cigar Lounge search — a filter box on the log and the humidor, matching words, wrappers and sizes |
 | ✅ | Cigar lookup — schema applied, the reference desk, the panel on the add form, and an entry showing what a lookup said about it |
 | ✅ | Album covers looked up on save — the build step the migration dropped, moved to the write |
-| 🟡 | AI governance — built, tested, **not applied**. See `docs/ai-architecture.md` and `supabase/README.md` |
-| 🟡 | The platform console at `/admin` — built, tested, **not applied** (same migrations) |
+| ✅ | AI governance — applied and live. See `docs/ai-architecture.md` and `supabase/README.md` |
+| ✅ | The platform console at `/admin` — applied and live (same migrations) |
 | ⬜ | WBPR's map and veil pages — left behind in the migration, see below |
 | ✅ | Custom SMTP — Supabase's own magic-link and confirmation emails go out through Resend, alongside the app's invitations |
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
@@ -437,9 +437,9 @@ allowance. One envelope, one call ceiling, one thing to cancel.
 
 All of that is now built — `supabase/migrations/20260814*`, `src/lib/ai/`,
 `/settings/ai` for a person, `/admin/ai` for the platform, and a panel on each
-project's settings page. The migrations are **not applied**: the prices seeded
-into `ai_models` are placeholders, and every limit downstream is computed from
-them.
+project's settings page. The migrations are applied: the prices in `ai_models`
+were checked against MiniMax's published rates before they were, because every
+limit downstream is computed from them and a wrong one does not fail loudly.
 
 It also specifies the half that is not about money. The rules in the desk's
 system prompt — never name a track, never invent a card — are checkable against

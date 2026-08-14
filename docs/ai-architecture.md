@@ -2,13 +2,13 @@
 
 The layer that has to exist before a second feature starts spending money.
 
-**Status.** Phases 0–4 are built and unapplied: `supabase/migrations/20260814*`,
-`src/lib/ai/`, `/settings/ai`, `/admin/ai`, and the AI panel on a project's
-settings page. WBPR runs through it. The migrations have not been applied to the
-live project — they want a hand on them, and the prices in `ai_models` are
-placeholders that must be checked against MiniMax's own list before phase 1's
-limits mean anything. Phase 5 (cron drain, scheduled jobs) and phase 6
-(anonymous features) are not built. What changed on the way is recorded under
+**Status.** Phases 0–4 are built and **applied to the live project** as of
+2026-08-14: `supabase/migrations/20260814*`, `src/lib/ai/`, `/settings/ai`,
+`/admin/ai`, and the AI panel on a project's settings page. WBPR, the reading
+enrichment run and the cigar lookup all run through it. The prices in
+`ai_models` were checked against MiniMax's published rates before applying,
+because every limit downstream is computed from them. Phase 5 (cron drain,
+scheduled jobs) and phase 6 (anonymous features) are not built. What changed on the way is recorded under
 *What the build changed*, near the end.
 
 ## Why now

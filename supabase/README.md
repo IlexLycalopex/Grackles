@@ -88,15 +88,29 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `20260814101600_ai_deletion` | `on delete set null` on every AI reference to `profiles`, so using a feature no longer makes an account undeletable |
 | `20260814101700_ai_statements` | `ai_statements` and `ai_reconciliation()` — the ledger checked against the provider's own figure |
 | `20260814101800_admin_console` | `admin_overview/projects/people/invites/members()` and the controls beside them — the platform console |
+| `20260814101900_cigar_lookup` | Registers `cigars.lookup`, bringing the reference desk onto the metered path |
+| `20260814102000_search_path` | Pins `search_path` on the four functions that did not, one of which this branch un-hardened by replacing production's `touch_updated_at` |
 
-**Not yet applied.** Two things to do first:
+**Applied 2026-08-14**, as four migrations rather than twenty — the layer is not
+meaningful in halves, so the files were bundled and applied as units that each
+either land or do not. The applied SQL is the files with the prose stripped;
+equivalence was checked by comparing a schema fingerprint (columns, defaults,
+comment-normalised function bodies, policies, indexes, grants, constraints)
+between a database built from the files and one built from the bundle, and then
+again between that and production. 360 objects, same digest, across PostgreSQL
+16 locally and 17 live.
 
-1. **Check the prices.** `ai_models` is seeded with placeholders. Every refusal
-   downstream is computed from them, and a wrong price does not fail loudly — it
-   quietly makes every limit the wrong size.
-2. **Decide the default allowance.** `ai_platform_settings.default_monthly_usd`
-   is $5. Everyone who owns a workspace is backfilled with a null
-   `monthly_usd`, which means they get that default.
+Two things were settled before applying:
+
+1. **The prices.** `ai_models` is seeded with $0.30/$1.20 per million tokens,
+   checked against MiniMax's published rates rather than assumed. Two facts
+   about them are on the migration: they are the standard tier for inputs up to
+   512K, which is why one row is enough when the largest prompt allowance on the
+   site is 12,000 tokens; and they are presented as a permanent 50% discount on
+   a $0.60/$2.40 list, which is what `effective_from` exists to survive.
+2. **The default allowance.** `ai_platform_settings.default_monthly_usd` is $5.
+   Everyone who owns a workspace is backfilled with a null `monthly_usd`, which
+   means they get that default.
 
 Ordering matters within the set: `100300` alters the table `100000` creates and
 depends on the jobs from `100200`. Apply in filename order.
