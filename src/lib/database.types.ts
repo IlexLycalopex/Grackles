@@ -808,6 +808,8 @@ export type Database = {
           auto_disabled_at: string | null;
           /** Null falls back to the platform default, which is sized for the desk. */
           prompt_allowance_tokens: number | null;
+          /** True when the feature transmits stored records, not just what was typed. */
+          sends_records: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -826,6 +828,7 @@ export type Database = {
           quality_floor?: number | null;
           auto_disabled_at?: string | null;
           prompt_allowance_tokens?: number | null;
+          sends_records?: boolean;
         };
         Update: Partial<Database['public']['Tables']['ai_features']['Insert']>;
         Relationships: [];
@@ -840,6 +843,8 @@ export type Database = {
           anon_rate_per_hour: number;
           max_job_share: number;
           prompt_allowance_tokens: number;
+          /** Null keeps transcripts forever, which is the default deliberately. */
+          transcript_retention_days: number | null;
           /** Off by default: a preview deployment that can spend is a pull request that can spend. */
           preview_enabled: boolean;
           updated_at: string;
@@ -924,6 +929,9 @@ export type Database = {
           daily_usd: number | null;
           allow_anon: boolean;
           allow_scheduled: boolean;
+          /** When the owner agreed to this project's records being sent, and who. */
+          consent_at: string | null;
+          consent_by: string | null;
           updated_at: string;
         };
         Insert: {
@@ -933,6 +941,8 @@ export type Database = {
           daily_usd?: number | null;
           allow_anon?: boolean;
           allow_scheduled?: boolean;
+          consent_at?: string | null;
+          consent_by?: string | null;
         };
         Update: Partial<Database['public']['Tables']['ai_workspace_features']['Insert']>;
         Relationships: [];

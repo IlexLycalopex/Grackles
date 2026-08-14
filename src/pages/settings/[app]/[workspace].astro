@@ -212,12 +212,32 @@ if (Astro.request.method === 'POST') {
     if (parsedDaily !== null && (!Number.isFinite(parsedDaily) || parsedDaily < 0)) {
       error = 'A daily limit has to be a number, or empty for none.';
     } else {
+      // Consent is recorded as a moment and a person, not as a boolean. "Who
+      // agreed, and when" is the question that gets asked afterwards, and a
+      // true/false cannot answer it.
+      const consenting = form.get('consent') !== null;
+
+      // Read here rather than from the page's own list, which is loaded after
+      // this block runs. Consent already given keeps its original timestamp:
+      // saving the panel again is not a fresh agreement, and overwriting the
+      // date would erase when the decision was actually taken.
+      const { data: existing } = await supabase
+        .from('ai_workspace_features')
+        .select('consent_at, consent_by')
+        .eq('workspace_id', workspace.id)
+        .eq('feature', feature)
+        .maybeSingle();
+
       const { error: e } = await supabase
         .from('ai_workspace_features')
         .upsert({
           workspace_id: workspace.id,
           feature,
           enabled: form.get('enabled') !== null,
+          consent_at: consenting
+            ? (existing?.consent_at ?? new Date().toISOString())
+            : null,
+          consent_by: consenting ? (existing?.consent_by ?? user.id) : null,
           daily_usd: parsedDaily,
           // Meaningless unless the project is public, and refused at admission
           // in that case. The control below is disabled rather than hidden,
@@ -268,10 +288,23 @@ const ownerCount = (members ?? []).filter(m => m.role === 'owner').length;
 // showing the desk's switches.
 const appFeatures = FEATURES.filter(f => f.app === app.slug);
 
+// Which of them transmit stored records rather than something just typed. The
+// answer is currently none, and the control only appears for the ones that do.
+const { data: featureRows } = appFeatures.length
+  ? await supabase
+      .from('ai_features')
+      .select('key, sends_records')
+      .in('key', appFeatures.map(f => f.key))
+  : { data: [] };
+
+const sendsRecords = new Set(
+  (featureRows ?? []).filter(f => f.sends_records).map(f => f.key)
+);
+
 const { data: aiSwitches } = appFeatures.length
   ? await supabase
       .from('ai_workspace_features')
-      .select('feature, enabled, daily_usd, allow_anon')
+      .select('feature, enabled, daily_usd, allow_anon, consent_at, consent_by')
       .eq('workspace_id', workspace.id)
   : { data: [] };
 
@@ -529,6 +562,15 @@ const aiFailedChecks = aiChecked.filter(c => c.validator_status === 'fail').leng
                   placeholder="none"
                 />
               </label>
+              {sendsRecords.has(feature.key) && (
+                <label class="grant-picker__option" title="This feature sends the project's stored records to a third party. Nothing runs until somebody agrees to that.">
+                  <input
+                    type="checkbox" name="consent"
+                    checked={Boolean(current?.consent_at)}
+                  />
+                  may send this project's records
+                </label>
+              )}
               <label class="grant-picker__option" title={
                 workspace.visibility === 'public'
                   ? 'Anyone who can read this project may run it, at your expense.'

@@ -1352,7 +1352,8 @@ not a refinement:
 - **Reconciliation.** The ledger is self-attested until it is compared against
   the provider's own usage figures. And the payer is in the UK while the bill is
   in USD, so a period needs an FX snapshot or every report drifts.
-- **What leaves the building.** Per-workspace consent to send contents to a
-  third party, retention on prompts and transcripts, deletion, and — for any
-  feature whose output is published — injection isolation and a moderation
-  queue.
+- **Deletion.** Consent, retention and injection isolation are built; what a
+  deleted user's transcripts and proposals should do is not decided, and
+  provider-side retention is not ours to delete whatever we decide.
+- **A moderation queue,** for the first feature whose output is published
+  rather than proposed. None exists yet, and none should until it does.

@@ -347,6 +347,34 @@ check "a job whose worker stopped ticking gives its envelope back" ok \
      if res <> 0 then raise exception 'envelope still held: %', res; end if;
    end \$\$;" "$as_jamie"
 
+echo "── what leaves the building"
+# The flag is on the feature, not the platform: sending a book title and
+# sending the shelf are different acts, and only the second needs asking.
+$PSQL -c "insert into public.ai_features
+            (key,app,name,max_tokens,min_role,default_max_usd,default_max_calls,sends_records)
+          values ('wbpr.archive','wbpr','Ask the archive',600,'owner',0.05,3,true)
+          on conflict (key) do update set sends_records = true;" >/dev/null
+
+check "a records-sending feature is refused without consent" GRK1E \
+  "select public.ai_begin_job('wbpr.archive','$WBPR','single');" "$as_jamie"
+check "the same feature runs once the project has agreed" ok \
+  "insert into public.ai_workspace_features (workspace_id,feature,consent_at,consent_by)
+     values ('$WBPR','wbpr.archive',now(),'$JAMIE');
+   select public.ai_begin_job('wbpr.archive','$WBPR','single');" "$as_jamie"
+# Consent is prior to authorisation: whether the records may go at all is a
+# different question from who is asking.
+check "consent is checked before the role is" GRK1E \
+  "select public.ai_begin_job('wbpr.archive','$WBPR','single');" "$as_rob"
+check "a feature that sends nothing stored needs no consent" ok \
+  "$open_desk" "$as_jamie"
+
+check "transcripts are kept unless somebody sets a retention" ok \
+  "do \$\$ begin
+     $SU
+     if public.ai_sweep_transcripts() <> 0 then
+       raise exception 'swept with no retention configured'; end if;
+   end \$\$;" "$as_jamie"
+
 echo "── environment and idempotency"
 # Every pull request gets a preview deployment, it shares this Supabase project,
 # and the person who opened it is not the person who pays.

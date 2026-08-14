@@ -90,6 +90,10 @@ export const AI_MESSAGES: Record<string, string> = {
   GRK1A: 'That feature has too many prompt versions on record.',
   GRK1B: 'No new AI work is being accepted at the moment.',
   GRK1C: 'No allowed model is configured for that feature.',
+  GRK1D: 'Preview deployments are not allowed to spend.',
+  // Deliberately about the project rather than about the person. Nobody's
+  // permissions are the problem; a decision has not been taken.
+  GRK1E: "This project has not agreed to send its records to a model. An owner can turn that on in the project's settings.",
 };
 
 /**

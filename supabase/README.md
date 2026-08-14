@@ -71,6 +71,7 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `20260814100900_reading_enrich` | `ai_features.prompt_allowance_tokens`, and the `reading.enrich` feature |
 | `20260814101000_ai_notices` | `ai_notices`, `ai_check_budgets()`, `ai_housekeeping()` and its admin-callable twin |
 | `20260814101100_ai_golden` | `ai_golden_cases`, `ai_golden_runs`, `ai_golden_status()`, and the `platform.golden` feature |
+| `20260814101200_ai_consent` | `ai_features.sends_records`, per-project consent, transcript retention, and `ai_begin_job` rebuilt around the new clause |
 
 **Not yet applied.** Two things to do first:
 
@@ -102,6 +103,7 @@ New SQLSTATEs, continuing the GRK series:
 | `GRK1B` | Admissions are paused |
 | `GRK1C` | No allowed price for that model |
 | `GRK1D` | A preview deployment tried to spend |
+| `GRK1E` | The project has not consented to its records being sent |
 
 ### Housekeeping
 
