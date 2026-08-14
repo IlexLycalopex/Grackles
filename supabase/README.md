@@ -74,6 +74,7 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `20260814101200_ai_consent` | `ai_features.sends_records`, per-project consent, transcript retention, and `ai_begin_job` rebuilt around the new clause |
 | `20260814101300_ai_fixes` | The root's call ceiling counting its children, and `ai_cache_take` returning the call it records |
 | `20260814101400_ai_breaker` | `ai_provider_health`, and the breaker wired into `ai_begin_call` and `ai_end_call` |
+| `20260814101500_ai_curate` | `ai_curate_desk_case()` — freezing a real sitting as a golden case |
 
 **Not yet applied.** Two things to do first:
 

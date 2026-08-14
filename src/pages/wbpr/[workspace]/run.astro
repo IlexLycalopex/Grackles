@@ -1,6 +1,7 @@
 ---
 import WbprLayout from '../../../layouts/WbprLayout.astro';
 import { resolveWorkspace } from '../../../lib/workspace';
+import { loadEntitlements } from '../../../lib/grants';
 
 export const prerender = false;
 
@@ -16,6 +17,11 @@ if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pat
 if (!workspace.isOwner) return new Response('Forbidden', { status: 403 });
 
 const base = `/wbpr/${workspace.slug}`;
+
+// A golden case holds a frozen copy of this transcript and the prompt sent with
+// it, so keeping one is a platform-admin action even though the desk is merely
+// owner-only. The button is hidden rather than refused for everybody else.
+const { isPlatformAdmin } = await loadEntitlements(supabase, user!.id);
 
 const { data: highest } = await supabase
   .from('wbpr_broadcasts')
@@ -94,6 +100,12 @@ const resumeState = (unfinished?.state ?? {}) as {
       <div class="wbpr-actions" id="controls" style="margin-top: 2rem">
         <button class="wbpr-button" type="button" id="next"></button>
         <button class="wbpr-button wbpr-button--quiet" type="button" id="skip"></button>
+        {isPlatformAdmin && (
+          <button class="wbpr-button wbpr-button--quiet" type="button" id="keep"
+                  title="Freeze this exchange so a prompt or model change has to keep passing it">
+            Keep as a case
+          </button>
+        )}
         <button class="wbpr-button wbpr-button--danger" type="button" data-act="abandon">
           Abandon the night
         </button>
@@ -193,6 +205,13 @@ const resumeState = (unfinished?.state ?? {}) as {
     for (const btn of document.querySelectorAll('#controls button[data-act="abandon"]')) {
       btn.hidden = !sessionId;
       btn.disabled = busy;
+    }
+    const keep = document.getElementById('keep');
+    if (keep) {
+      // Only once something has actually been said. A case frozen from an empty
+      // sitting has no question in it to ask again.
+      keep.hidden = !sessionId;
+      keep.disabled = busy;
     }
     $('say-form').querySelector('button').disabled = busy || !sessionId;
     sayForm.hidden = !sessionId || closed;
@@ -330,7 +349,24 @@ const resumeState = (unfinished?.state ?? {}) as {
     show(await post('chat', { action: 'say', session_id: sessionId, text }));
   });
 
-  document.querySelectorAll('#controls button').forEach((btn) => {
+  document.getElementById('keep')?.addEventListener('click', async () => {
+    if (!sessionId || busy) return;
+    const name = prompt('What is this case called?', `Session ${new Date().toISOString().slice(0, 10)}`);
+    if (name === null) return;
+
+    const res = await fetch('/api/ai/golden/curate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, name }),
+    });
+    const data = await res.json().catch(() => null);
+    line(res.ok ? 'table' : 'error',
+      res.ok
+        ? 'Kept. A prompt or model change now has to keep passing this.'
+        : (data?.error ?? 'That could not be kept.'));
+  });
+
+  document.querySelectorAll('#controls button:not(#keep)').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const act = btn.dataset.act;
 

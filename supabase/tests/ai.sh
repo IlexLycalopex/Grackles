@@ -779,6 +779,42 @@ check "the status function is refused to a non-admin" 42501 \
   "select * from public.ai_golden_status();" "$as_rob"
 # Billed to the platform, never to the feature under test: nobody asked for the
 # evaluation.
+# The suite was built and left empty, and an empty suite passes. Curating from
+# a real sitting is what makes it non-empty in practice — nobody was ever going
+# to paste a transcript into a form.
+check "a sitting can be frozen as a case" ok \
+  "do \$\$ declare sid uuid; cid uuid; msgs jsonb; begin
+     $SU
+     insert into public.wbpr_agent_sessions (workspace_id, created_by, state)
+       values ('$WBPR','$JAMIE','{\"block\":1,\"cards\":[],\"caller\":null,\"blocks\":[]}'::jsonb)
+       returning id into sid;
+     insert into public.wbpr_agent_messages (workspace_id, session_id, position, role, content)
+       values ('$WBPR', sid, 0, 'user', 'Block 1. Drawing: 7 of Clubs.'),
+              ('$WBPR', sid, 1, 'assistant', 'Cards are down.'),
+              ('$WBPR', sid, 2, 'user', 'I am playing something.');
+     $DOWN
+     cid := public.ai_curate_desk_case(sid, 'a block opening');
+     select input->'messages' into msgs from public.ai_golden_cases where id = cid;
+     -- Up to and including the last thing we asked, and not the answer:
+     -- keeping the old reply would be handing the model its own homework.
+     if jsonb_array_length(msgs) <> 3 then
+       raise exception 'expected three messages, got %', jsonb_array_length(msgs); end if;
+     if msgs->2->>'role' <> 'user' then
+       raise exception 'the case ends on an answer, not a question'; end if;
+   end \$\$;" "$as_jamie"
+
+check "a sitting with nothing said cannot be frozen" GRK10 \
+  "do \$\$ declare sid uuid; begin
+     $SU
+     insert into public.wbpr_agent_sessions (workspace_id, created_by, state)
+       values ('$WBPR','$JAMIE','{}'::jsonb) returning id into sid;
+     $DOWN
+     perform public.ai_curate_desk_case(sid, 'empty');
+   end \$\$;" "$as_jamie"
+
+check "curating is refused to a non-admin" 42501 \
+  "select public.ai_curate_desk_case('00000000-0000-4000-8000-000000000000','x');" "$as_rob"
+
 check "golden runs are their own feature with their own ceiling" ok \
   "do \$\$ begin
      if not exists (select 1 from public.ai_features where key = 'platform.golden')

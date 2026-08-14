@@ -1288,6 +1288,11 @@ export type Database = {
        * platform admin. The cron-facing twin is service_role's, because cron
        * has no session and app.is_platform_admin() is false without one.
        */
+      /**
+       * Freeze a sitting as a golden case. Platform admins only — a case holds
+       * a frozen copy of somebody's data and the prompt sent with it.
+       */
+      ai_curate_desk_case: { Args: { p_session: string; p_name: string }; Returns: string };
       /** The latest run per case, and whether the one before it passed. */
       ai_golden_status: {
         Args: Record<string, never>;

@@ -107,6 +107,7 @@ every value of the enum — so this is the only thing stopping it being offered.
 /api/ai/decide                     accept or discard a proposal
 /api/ai/job/tick                   run one slice of a batch
 /api/reading/:workspace/enrich     start an enrichment run
+/api/ai/golden/curate              freeze a sitting as a golden case (admins)
 ```
 
 Static segments beat dynamic ones in Astro's routing, so `pick/new` wins over

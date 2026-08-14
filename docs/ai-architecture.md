@@ -1354,10 +1354,10 @@ not a refinement:
   schema and nothing can produce one: a scheduled job has no `auth.uid()`, and
   giving the cron drain a way to say who it is without handing it service_role
   is phase 5's first problem, not an afterthought.
-- **Golden cases have no cases.** The tables, the runner, the expectation
-  checking and the admin page are built and tested; what does not exist is a way
-  to curate a case from a real call with two clicks, so the suite is empty and
-  an empty suite passes.
+- **Only the desk can be curated from.** Its transcript is in the database
+  already; enrichment's input is not stored anywhere, so freezing one of those
+  would mean either retaining every prompt or rebuilding the input at curation
+  time from a book that may since have changed. Neither is obviously right.
 - **Idempotency outside a batch.** `ai_job_items`' primary key covers the batch
   case completely. A double-submitted form on a `single` job is still two jobs,
   and needs a client-supplied key at admission.
