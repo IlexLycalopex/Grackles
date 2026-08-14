@@ -274,9 +274,15 @@ what was spent.
 
 That much is per-sitting, which is the right amount of machinery for one feature
 and the wrong amount for two. `docs/ai-architecture.md` specifies what replaces
-it: a metered call path, per-person allowances in the shape `app_grants` already
-uses, a spend ledger both the payer and the actor can read, and a platform admin
-who can turn a feature — or all of them — off without a deploy.
+it: a metered path to the model, per-person allowances in the shape `app_grants`
+already uses, a spend ledger both the payer and the actor can read, and a
+platform admin who can turn a feature — or all of them — off without a deploy.
+
+The unit it governs is a *job* rather than a call, and every call belongs to one
+even when there is only ever going to be a single call. A sitting at the desk is
+already a job in everything but name; enriching a year of books is four hundred
+calls that would each pass a per-call check on the way to spending a month's
+allowance. One envelope, one call ceiling, one thing to cancel.
 
 It also specifies the half that is not about money. The rules in the desk's
 system prompt — never name a track, never invent a card — are checkable against

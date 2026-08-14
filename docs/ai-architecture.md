@@ -72,6 +72,9 @@ These come first because most of the design below is just them applied.
    quality counterpart, and neither number means much without the other. The
    goal is the cheapest option that clears the bar, which is not the same
    instruction as "spend less".
+10. **Every call belongs to a job.** There is no such thing as a loose call, not
+    even a single one. It is the difference between a system that governs one
+    call well and a system that governs the work a person actually asked for.
 
 ## Who pays, and who acts
 
@@ -109,6 +112,92 @@ The payer scope is the direct analogue of `app_grants`, and intentionally so: it
 is the same problem — a per-person entitlement with a quota, handed out by a
 platform admin, defaulting to nothing — and it should be the same shape so that
 the second one is recognisable to anyone who has read the first.
+
+There is a fifth scope, and it is the one the four above cannot express: the
+job.
+
+## The unit of work
+
+A per-call gate governs one call well and the work somebody actually asked for
+not at all. "Enrich this year's books" is four hundred calls, each of which
+passes every check in the table above, four hundred times, and exhausts a
+month's allowance without a single refusal. The gate did its job on every call
+and the system still failed.
+
+So the unit of control is not the call. It is the **job**: a bounded piece of
+AI work with one envelope, one ceiling on how many calls it may make, one
+lifecycle, and one thing that can be cancelled.
+
+**Every call belongs to a job, including a job of one.** That is the
+simplification the whole section rests on. A single tasting-note expansion
+creates a job with `max_calls = 1`, runs it, and closes it — slightly more
+machinery than it needs, in exchange for there being exactly one code path,
+one ledger relationship, one reporting shape and no special case anywhere for
+"the small kind". The alternative is a nullable `job_id` and two of everything,
+which is how the per-call gate came to be the only gate in the first place.
+
+`ai_sessions` from the earlier draft is deleted by this. A WBPR sitting was
+already a job — bounded, resumable, with an envelope somebody was paying for —
+and describing it as a different kind of thing was a mistake.
+
+### Four shapes, one table
+
+| Class | Example | N known up front? | Who waits |
+|---|---|---|---|
+| `single` | A tasting note, a blurb | Yes, and it is 1 | The person who pressed the button |
+| `interactive` | The desk, ask-the-archive | No — the human decides when it ends | The person, turn by turn |
+| `batch` | Enrich a year, embed the archive | Yes | Nobody; it is watched, not waited on |
+| `scheduled` | Nightly embedding refresh | Yes | Nobody, and there is no actor at all |
+
+They differ in defaults and in how they are driven, not in structure. One table,
+one set of ceilings, one cancel.
+
+### The ceilings a job carries
+
+Five, and each exists because of a specific way the per-call gate fails:
+
+| Ceiling | Stops |
+|---|---|
+| `max_usd` — the envelope | The four-hundred-call batch. This is the one that closes the hole. |
+| `max_calls` | A loop whose calls are individually cheap. A budget alone does not catch this until it is spent. |
+| `deadline` | A job that holds an envelope for a week because nothing ever finished it. |
+| `max_depth` | Recursion. A step that can enqueue another step will, eventually, forever. |
+| `max_concurrency` | A batch firing four hundred calls at a provider at once, which is a rate-limit ban rather than a bill. |
+
+`max_depth` is the one most easily left out and the most expensive to retrofit,
+because by the time it is needed the code that fans out has already been
+written without a depth to pass down.
+
+### The rule that makes fan-out safe
+
+A job may spawn children — a planning step that enqueues per-item work is the
+obvious case. **Children draw from the root job's envelope, not their own.**
+
+Without that rule, envelopes multiply with the tree: a job with a £1 envelope
+spawning ten children with £1 envelopes has spent £10, and every individual
+check passed. The envelope belongs to the root, `parent_job_id` and `depth` are
+carried down, and the platform caps depth outright.
+
+### Reserving: fail fast, or drip
+
+The per-call rule — reserve the worst case — does not survive contact with a
+batch, because reserving four hundred worst cases at once will refuse jobs that
+would comfortably have fitted. Two answers, and which applies is a property of
+the class:
+
+- **`batch` and `scheduled` reserve the whole envelope up front.** A batch that
+  stops at item 180 because somebody else's spend landed first is worse than one
+  that never started: the year is now half-enriched, and whoever asked has to
+  work out which half. Refusing at the door is the honest failure.
+- **`interactive` and `single` reserve per call, topping up as they go.** A
+  conversation must not be refused at turn one for tokens it will probably never
+  spend, and a sitting stopped part-way through is an ordinary ending — the desk
+  already treats `abandoned` as a normal outcome.
+
+One more rule on top: **a single job's envelope may not exceed half the payer's
+remaining monthly allowance.** Otherwise the first big batch of the month locks
+its owner out of their own account until it finishes, and the fix — cancelling
+it — costs them everything it had already spent.
 
 ## Schema
 
@@ -262,6 +351,109 @@ create table public.ai_workspace_features (
 An absent row means the feature's own default applies. That keeps enabling a new
 feature from requiring a backfill across every workspace.
 
+### Jobs
+
+```sql
+-- The unit of work. Everything that reaches a provider hangs off one of these,
+-- including the single-call kind, so there is no second path to govern.
+create table public.ai_jobs (
+  id            uuid primary key default gen_random_uuid(),
+
+  feature       text not null references public.ai_features(key),
+  workspace_id  uuid not null references public.workspaces(id) on delete cascade,
+
+  class         text not null
+                check (class in ('single','interactive','batch','scheduled')),
+
+  payer_id      uuid not null references public.profiles(id),
+
+  -- Null for a scheduled job, which has no actor. actor_kind distinguishes
+  -- that from an anonymous visitor, who also has no actor_id but is a very
+  -- different thing to find in a report.
+  actor_id      uuid references public.profiles(id),
+  actor_kind    text not null default 'user'
+                check (actor_kind in ('user','anon','system')),
+  actor_fingerprint text,
+
+  -- Fan-out. The envelope lives on the root; descendants draw from it.
+  parent_job_id uuid references public.ai_jobs(id) on delete cascade,
+  root_job_id   uuid not null references public.ai_jobs(id),
+  depth         integer not null default 0,
+
+  status        text not null default 'queued'
+                check (status in ('queued','running','done','cancelled','failed','exhausted')),
+
+  -- The ceilings. Copied from the feature's defaults at creation rather than
+  -- read through a join, so raising a default does not retroactively widen a
+  -- job that is already running.
+  max_usd       numeric(10,6) not null,
+  max_calls     integer not null,
+  max_depth     integer not null default 2,
+  max_concurrency integer not null default 4,
+  deadline      timestamptz not null,
+
+  -- Drawn down as calls settle. The job is exhausted, not failed, when either
+  -- runs out — a distinction that matters because one is a limit working
+  -- correctly and the other is something broken.
+  spent_usd     numeric(12,8) not null default 0,
+  calls_made    integer not null default 0,
+
+  -- Progress, for a batch. Null elsewhere.
+  items_total   integer,
+  items_done    integer,
+
+  -- Set by every tick. A job whose heartbeat has stopped is reaped and its
+  -- envelope released; without it a crashed worker holds an envelope until the
+  -- deadline, which for a nightly job is most of a day.
+  heartbeat_at  timestamptz,
+
+  cancel_requested boolean not null default false,
+  error         text,
+
+  created_at    timestamptz not null default now(),
+  started_at    timestamptz,
+  finished_at   timestamptz
+);
+
+create index ai_jobs_workspace_idx on public.ai_jobs (workspace_id, created_at desc);
+create index ai_jobs_payer_idx     on public.ai_jobs (payer_id, created_at desc);
+-- The queue: what a tick picks up, cheapest possible read.
+create index ai_jobs_runnable_idx  on public.ai_jobs (status, created_at)
+  where status in ('queued','running');
+```
+
+`root_job_id` is `not null` and self-referencing for a root job, so every query
+that means "this job and everything it spawned" is one predicate rather than a
+recursive CTE. The envelope check reads the root row and only the root row.
+
+```sql
+-- A batch's work list. Its existence is what makes a batch resumable, and its
+-- unique key is what makes an item impossible to charge for twice.
+create table public.ai_job_items (
+  job_id     uuid not null references public.ai_jobs(id) on delete cascade,
+  position   integer not null,
+
+  -- What this item is about: a book id, a broadcast id. Deliberately loose —
+  -- the job runner does not know what it is enriching.
+  ref        jsonb not null,
+
+  status     text not null default 'pending'
+             check (status in ('pending','running','done','failed','skipped')),
+  attempts   integer not null default 0,
+  call_id    uuid references public.ai_calls(id),
+  error      text,
+
+  primary key (job_id, position)
+);
+
+create index ai_job_items_pending_idx on public.ai_job_items (job_id, position)
+  where status = 'pending';
+```
+
+The primary key is the idempotency key. A retried tick that re-processes item
+57 finds it already `done` and does nothing, which is the whole of the
+double-charging defence and costs a unique index.
+
 ### The ledger
 
 ```sql
@@ -282,9 +474,10 @@ create table public.ai_calls (
   actor_id       uuid references public.profiles(id),
   actor_fingerprint text,
 
-  -- Optional grouping — one WBPR sitting, one enrichment batch. The successor
-  -- to wbpr_agent_sessions' counters.
-  session_id     uuid references public.ai_sessions(id) on delete set null,
+  -- Not optional. Every call belongs to a job, including the single-call kind,
+  -- because a nullable grouping is a grouping half the reports will forget to
+  -- account for.
+  job_id         uuid not null references public.ai_jobs(id),
 
   provider       text not null,
   model          text not null,
@@ -332,10 +525,12 @@ create index ai_calls_actor_rate_idx  on public.ai_calls (actor_id, created_at d
 create index ai_calls_open_idx        on public.ai_calls (created_at) where status = 'reserved';
 ```
 
-`ai_sessions` is `wbpr_agent_sessions` with the WBPR-specific columns removed:
-workspace, feature, status, `state jsonb`, created_by, timestamps. WBPR keeps
-its own table for the transcript and the night's state; what it gives up is the
-three counters, which become a view over `ai_calls`.
+`ai_calls_job_idx on (job_id, created_at)` as well, because the job detail view
+is the one read that happens while somebody is watching a progress bar.
+
+WBPR keeps `wbpr_agent_sessions` for the transcript and the night's state — that
+is the app's own business. What it gives up is the three counters, which become
+a view over the calls belonging to the sitting's job.
 
 ### The period counter
 
@@ -356,80 +551,172 @@ create table public.ai_periods (
 budget is checked against their sum, so two concurrent calls cannot both fit
 into the last penny.
 
-## The two-phase call
+## Opening a job, and calls within it
 
-Every AI call in the system goes through the same pair of functions. There is no
-second path, and `lib/ai/` is the only place `minimax.ts` is imported from.
+Four functions, and no other route to a provider. `lib/ai/` is the only place
+`minimax.ts` is imported from, and `withJob` is the only place these are called.
 
 ```sql
--- Phase one: may this call happen, and hold its worst case.
+-- Admission. Everything expensive to decide happens here, once per job, rather
+-- than once per call — which is what makes a four-hundred-item batch a single
+-- decision instead of four hundred identical ones.
 --
 -- SECURITY DEFINER because it reads platform settings and other people's
--- budgets — questions RLS deliberately cannot express for the caller, the same
+-- budgets: questions RLS deliberately cannot express for the caller, the same
 -- reasoning as my_pending_invites().
-create function public.ai_begin_call(
+create function public.ai_begin_job(
   p_feature      text,
   p_workspace    uuid,
+  p_class        text,
+  p_max_usd      numeric,      -- the envelope asked for
+  p_max_calls    integer,
+  p_parent       uuid default null,
   p_fingerprint  text default null
 ) returns uuid
-language plpgsql security definer set search_path = public, extensions, pg_temp as $$
-...
-$$;
 
--- Phase two: settle it.
+-- Draw one call from a job that is already admitted. Cheap: the expensive
+-- gates were cleared at admission, so this checks the job's own ceilings, the
+-- kill switch, and cancellation.
+create function public.ai_begin_call(p_job uuid) returns uuid
+
+-- Settle it. Moves the actual from the job's reservation into its spend, and
+-- from the period's reserved into its committed.
 create function public.ai_end_call(
-  p_call        uuid,
-  p_prompt      integer,
-  p_completion  integer,
-  p_error       text default null
+  p_call uuid, p_prompt integer, p_completion integer, p_error text default null
 ) returns void
+
+-- Close the job: release whatever the envelope did not spend.
+create function public.ai_end_job(p_job uuid, p_status text, p_error text default null)
+  returns void
 ```
 
 ### The order of the gates, and why it is fixed
 
-`ai_begin_call` checks in this order. The order is load-bearing in the same way
-`requireWrite()`'s is — it is what decides which failure a caller learns about,
-and one of these must not be the first thing a stranger discovers.
+`ai_begin_job` checks in this order. The order is load-bearing in the same way
+`requireWrite()`'s is — it decides which failure a caller learns about, and one
+of these must not be the first thing a stranger discovers.
 
 | # | Check | Raises |
 |---|---|---|
-| 1 | The workspace exists and this caller may see it | `GRK10` — indistinguishable from not existing, because a private project must not announce itself by refusing an AI call differently from a missing one |
+| 1 | The workspace exists and this caller may see it | `GRK10` — indistinguishable from not existing, because a private project must not announce itself by refusing an AI job differently from a missing one |
 | 2 | Platform `enabled` | `GRK11` |
 | 3 | Feature exists and is `enabled` | `GRK12` |
-| 4 | Workspace has it enabled | `GRK12` — same code; the distinction is the admin's business, not the visitor's |
+| 4 | Workspace has it enabled; `allow_scheduled` if this is a scheduled job | `GRK12` |
 | 5 | Actor clears `min_role`, and `allow_anon` if anonymous | `GRK13` |
 | 6 | Rate limit for this actor or fingerprint | `GRK14` |
-| 7 | Payer's budget has room for the reservation | `GRK15` |
-| 8 | Workspace's `daily_usd` has room | `GRK16` |
+| 7 | `depth < max_depth`, and this feature may fan out at all | `GRK17` |
+| 8 | The envelope is within half the payer's remaining allowance | `GRK18` |
+| 9 | Payer's budget has room for the envelope | `GRK15` |
+| 10 | Workspace's `daily_usd` has room | `GRK16` |
 
 Check 1 first, always. Everything after it may reveal that a workspace exists.
 
-Checks 7 and 8 last because they write, and the six before them are pure reads
-that will refuse most bad requests without touching the counter row.
+Checks 8–10 last because they write; the seven before them are pure reads that
+will refuse most bad requests without touching a counter row.
 
-The reservation is `max_tokens × completion price`, plus a flat allowance for
-the prompt — the worst case, not an estimate. A budget that can be exceeded by
-one unusually long call is not a budget; the difference comes back on settle,
-so the only cost of being pessimistic is briefly under-reporting the remaining
-allowance.
+A **child job skips 2 through 10 entirely** and inherits its root's admission.
+Re-checking a budget the root already reserved would refuse children out of an
+envelope that has money in it, which is the failure mode that makes fan-out
+unusable. Only check 7 applies to a child, and it is the only one that has
+anything left to say.
 
-### When phase two never happens
+### What is reserved, and when
 
-A crash between the two leaves a `reserved` row holding budget forever. A
-sweeper releases anything still `reserved` after fifteen minutes:
+`ai_begin_call` reserves `max_tokens × completion price` plus a flat prompt
+allowance — the worst case, not an estimate. A budget that can be exceeded by
+one unusually long call is not a budget, and the difference comes back on
+settle, so the only cost of pessimism is briefly under-reporting what is left.
+
+Where that worst case is *held* is what differs by class:
+
+- `batch` and `scheduled`: the whole envelope moves into `ai_periods.reserved_usd`
+  at admission. Individual calls draw against the job, not the period, so a
+  batch cannot be interrupted by someone else's spending.
+- `single` and `interactive`: nothing is held at admission beyond one call's
+  worth. Each call reserves against the period as it happens, and a job that
+  ends early never held money it did not use.
+
+### Every tick re-asks the cheap questions
+
+`ai_begin_call` re-checks the platform kill switch, the job's `cancel_requested`
+flag, its deadline, and its two ceilings. This is what fixes the gap the earlier
+draft admitted to and left open: a kill switch that could not reach a running
+sitting. It still does not interrupt a call in flight — that would abandon
+tokens already being paid for — but it stops the next one, which for anything
+longer than a single call is the difference between a control and a suggestion.
+
+### When settlement never happens
+
+Two reapers, because there are now two things that can be left holding money.
 
 ```sql
+-- A call whose outcome we never saw.
 update public.ai_calls set status = 'released', settled_at = now()
  where status = 'reserved' and created_at < now() - interval '15 minutes';
+
+-- A job whose worker stopped ticking.
+update public.ai_jobs set status = 'failed', error = 'heartbeat lost', finished_at = now()
+ where status = 'running'
+   and coalesce(heartbeat_at, started_at) < now() - interval '10 minutes';
 ```
 
-Fifteen because it must comfortably exceed the longest call the platform allows
-and be short enough that a crash does not lock somebody out of their own budget
-for an afternoon. Released rather than charged is a judgement call and worth
-stating plainly: a call whose outcome we never saw *may* have been billed by the
-provider, so this errs toward the user rather than toward the invoice. The rows
-stay in the ledger marked `released`, so a discrepancy against the provider's own
-statement is visible rather than invented.
+Fifteen minutes for a call: comfortably longer than the longest call the
+platform allows, short enough that a crash does not lock somebody out of their
+own budget for an afternoon. Ten for a job, because a job is expected to tick
+far more often than that and the envelope it holds is larger.
+
+Released rather than charged is a judgement call worth stating plainly: a call
+whose outcome we never saw *may* have been billed by the provider, so this errs
+toward the user rather than the invoice. The rows stay in the ledger marked
+`released`, so a discrepancy against the provider's own statement is visible
+rather than invented.
+
+## Running a job
+
+Admission is a database question. Execution is not, and it is where the design
+meets Vercel's function timeouts — a four-hundred-item batch cannot run inside
+a request no matter how it is gated.
+
+**One worker, three triggers.** `runTick(jobId)` claims a few pending items,
+processes them under `max_concurrency`, updates the heartbeat and progress, and
+returns whether there is more to do. It is identical in all three cases; only
+what calls it differs.
+
+| Trigger | For | Why |
+|---|---|---|
+| The request itself | `single`, `interactive` | One or two calls inside the handler. There is nothing to schedule. |
+| The browser | `batch` started by a person | The page that started it POSTs `/api/ai/job/tick` until the job reports done, showing progress as it goes. No infrastructure, cancellable, and honest about the fact that something is running. |
+| Cron | `scheduled`, and any batch left unattended | A Vercel cron hits a drain endpoint each minute; it picks up runnable jobs oldest first and ticks each once. Slow, unattended, needs nothing new. |
+
+Starting with a browser pump for user-initiated batches is deliberate. It needs
+no queue, no worker service and no new dependency — the same test `lib/email.ts`
+and `lib/minimax.ts` were held to — and it degrades honestly: close the tab and
+the job stops ticking, the reaper releases the envelope, and the work already
+done stays done because every item was committed as it finished. When the first
+genuinely unattended job appears, the cron drain picks up the same jobs with the
+same worker, and nothing about the job's own definition changes.
+
+Two properties that make this safe to leave running:
+
+- **Claiming is atomic.** An item moves `pending → running` with
+  `update … where status = 'pending' returning *`, so two ticks racing — a
+  cron drain and an open tab — cannot both take item 57. The same
+  RLS-shaped reasoning as every delete in this app: ask for the rows back and
+  check you got them.
+- **A poison item cannot stall a job.** Three attempts, then `failed`, and the
+  job continues. A batch that dies on one malformed record, with 380 good ones
+  behind it, is the failure this exists to prevent.
+
+### Cancelling
+
+Setting `cancel_requested` is all the UI does. The next tick sees it, marks the
+job `cancelled`, and releases the envelope. Calls in flight finish and settle —
+they are already paid for. Completed items stay completed, which is the point of
+committing each one as it lands rather than at the end.
+
+An admin cancelling somebody else's job uses the same flag through the same
+function. There is no second cancel path with different semantics, because
+during an incident is the worst possible time to discover that there was one.
 
 ## The application side
 
@@ -439,30 +726,57 @@ src/lib/ai/
 ├── minimax.ts      today's implementation, moved, otherwise unchanged
 ├── features.ts     the code-side mirror of ai_features — keys and their types
 ├── json.ts         ask for a shape, parse, validate, fail to a sentence
-└── meter.ts        withMeter(): the only way to reach a provider
+├── validators/     one per feature; see Quality
+├── job.ts          withJob(): the only way to reach a provider
+└── worker.ts       runTick(): the one worker, whatever triggered it
 ```
 
-`meter.ts` is the whole of the application-side contract:
+`job.ts` is the whole of the application-side contract:
 
 ```ts
 /**
  * The one door to a provider.
  *
- * Nothing in src/pages imports a provider directly. The reservation is taken
- * before the call and settled after it, including on failure — a call that
- * errored still spent tokens often enough that treating failure as free is how
- * a budget quietly stops working.
+ * Nothing in src/pages imports a provider directly. The job is admitted before
+ * anything is spent and closed afterwards whatever happened, including on
+ * failure — a call that errored still spent tokens often enough that treating
+ * failure as free is how a budget quietly stops working.
+ *
+ * A single-call feature uses this too, with a job of one. The overhead is a row;
+ * the alternative is a second path, and a second path is how the per-call gate
+ * became the only gate.
  */
-export async function withMeter<T>(
-  ctx: { supabase: SupabaseClient<Database>; feature: FeatureKey; workspaceId: string; fingerprint?: string },
-  run: (chat: MeteredChat) => Promise<T>
-): Promise<Metered<T>>
+export async function withJob<T>(
+  ctx: {
+    supabase: SupabaseClient<Database>;
+    feature: FeatureKey;
+    workspaceId: string;
+    class?: JobClass;        // defaults to 'single'
+    parentJobId?: string;    // set by a step that fans out; depth is derived
+    fingerprint?: string;
+  },
+  run: (job: JobHandle) => Promise<T>
+): Promise<Ran<T>>
 ```
 
-Callers get a `chat` that has already had its `max_tokens` clamped to the
-feature's registered ceiling — the budget was reserved against that number, so
-a caller who could pass a larger one would be spending money that was never
-held.
+A `JobHandle` offers `chat()` and, for a batch, `enqueue(items)` and
+`claim(n)`. `chat()` has already had its `max_tokens` clamped to the feature's
+registered ceiling — the reservation was taken against that number, so a caller
+able to pass a larger one would be spending money that was never held. It throws
+when the job is out of calls, out of envelope, cancelled or past its deadline,
+and those are ordinary control flow rather than errors: for a batch they mean
+"stop cleanly and report progress", not "fail".
+
+```ts
+/**
+ * One slice of a batch. Called from a request, a browser pump or a cron drain
+ * with no difference in behaviour — which is what lets the trigger change later
+ * without the job's definition changing with it.
+ */
+export async function runTick(
+  supabase: SupabaseClient<Database>, jobId: string
+): Promise<{ done: boolean; itemsDone: number; itemsTotal: number; spentUsd: number }>
+```
 
 Refusals arrive as SQLSTATEs and become sentences the same way grant errors do,
 extending `describeGrantError`'s table:
@@ -475,6 +789,13 @@ extending `describeGrantError`'s table:
 | `GRK14` | That is a lot of requests at once — give it a minute. |
 | `GRK15` | This month's AI allowance is spent. |
 | `GRK16` | This project has reached its daily AI limit. |
+| `GRK17` | That went too many steps deep — nothing was run. |
+| `GRK18` | That job is too large for what is left this month. Narrow it, or wait for the allowance to reset. |
+
+`GRK18` is deliberately a different sentence from `GRK15`: the allowance is not
+spent, the job simply will not fit inside half of what remains, and the useful
+next action is to enrich one year rather than five. A single "no budget" message
+for both would send somebody to ask for a limit rise they do not need.
 
 `GRK15` is the owner's own allowance even when an editor triggered it, and the
 sentence shown to the editor says so — "the owner's allowance for this month is
@@ -670,6 +991,25 @@ This is the part that makes the section governance rather than instrumentation.
 Everything before it produces numbers; this acts on them without waiting for
 somebody to look.
 
+### A batch fails fast on quality too
+
+The floor above is a feature-level trailing average, which is the right
+instrument for a slow drift and far too slow for a batch. Four hundred items
+producing nonsense should stop at twenty, not at four hundred, and the trailing
+average across the feature will not have moved enough to notice until most of
+the money is gone.
+
+So a job carries its own abort rule: **if the first *k* items validate as `fail`
+at a rate above the feature's floor, the job stops itself as `exhausted` and
+reports what it did.** Twenty items is a large enough sample to be sure and a
+small enough one to be cheap, and the work already committed stays committed —
+the failure mode this avoids is spending an afternoon's allowance discovering
+something twenty items would have told you.
+
+It is the same reasoning as reserving a batch's whole envelope up front, arriving
+at the opposite behaviour for the opposite reason: refuse early when the problem
+is predictable, stop early when it is not.
+
 ### Cost and quality are one frontier
 
 The routing decision — a small model for classification, an expensive one for
@@ -708,9 +1048,16 @@ you discarded three of the five write-ups it produced"*, because a spend figure
 alone cannot distinguish a feature worth paying for from one that is merely
 affordable. Cost per accepted proposal is the headline number per feature.
 
-**The last fifty calls.** Feature, project, when, tokens, cost, prompt version,
-the validator's verdict, and the error if it failed. Failed calls are shown,
-with their cost — a page that hides them is a page that cannot explain a bill.
+**Jobs, not calls, at the top level.** The list is what was asked for — "enrich
+2024", "a night at the desk", "a tasting note" — with its cost, progress,
+outcome and a cancel button while it is running. Calls are the detail underneath
+one job. Nobody thinks in calls, and a report that leads with four hundred rows
+is a report that gets closed.
+
+**The last fifty calls,** underneath. Feature, project, when, tokens, cost,
+prompt version, the validator's verdict, and the error if it failed. Failed
+calls are shown, with their cost — a page that hides them is a page that cannot
+explain a bill.
 
 The natural RLS policy on `ai_calls` is `payer_id = auth.uid() or actor_id =
 auth.uid() or app.is_platform_admin()`, and that is the right policy for the
@@ -757,6 +1104,17 @@ re-enable.
 one, and a button to run them now. Scheduled weekly regardless, because the
 change being watched for is one nobody deploys.
 
+**The queue.** Every job currently `queued` or `running`, across all workspaces:
+whose it is, what it is spending, how far through, when it last ticked. Cancel
+any of them, and a global pause that stops new jobs being admitted while letting
+running ones finish. Pause and the kill switch are different instruments — one
+drains, the other stops — and an incident wants whichever fits, not an argument
+about which one it has.
+
+The queue view is also where the reapers report. A job that lost its heartbeat
+and a job somebody cancelled look identical in the totals and mean entirely
+different things, so they are labelled apart here rather than in a log.
+
 **Models and prices.** The allowlist, and the prices new calls will snapshot.
 Editing a price inserts a new `effective_from` row rather than updating one, so
 past calls keep the price they were valued at.
@@ -793,12 +1151,15 @@ something is wrong, and they are cheap queries over an indexed ledger.
 The desk keeps `wbpr_agent_sessions` — the transcript, the state, the block
 number are all WBPR's business and belong to it. What changes:
 
-1. `ai_sessions` gains a row per sitting; `wbpr_agent_sessions` gains a
-   nullable `ai_session_id`.
+1. **A sitting becomes an `interactive` job.** `wbpr_agent_sessions` gains a
+   nullable `ai_job_id`. This is a smaller change than it sounds: a sitting
+   already has a lifecycle, an owner, a `running`/`logged`/`abandoned` status
+   and an implicit ceiling of four blocks. It was a job with the governance
+   left out.
 2. `prompt_tokens`, `completion_tokens` and `calls` stop being written and are
    replaced by a view over `ai_calls`. They are kept, not dropped, until the
    view has been checked against them for a full night.
-3. The chat and log routes wrap their `chat()` calls in `withMeter`. The
+3. The chat and log routes wrap their `chat()` calls in `withJob`. The
    owner-only check stays where it is — `min_role: 'owner'` on the feature row
    is the same rule expressed in the new place, and both holding is not
    redundancy worth removing.
@@ -832,6 +1193,31 @@ transaction. The cases that matter:
   double count.
 - The sweeper releases a stale reservation and leaves a fresh one alone.
 
+The job cases are the ones that would have caught the hole this section exists
+to close, and none of them is expressible against a single call:
+
+- A batch of 400 whose envelope exceeds the remaining allowance is refused at
+  admission (`GRK18`) and makes **no** calls. The old design's failure was that
+  it made 400 successful ones.
+- A job at `max_calls` refuses the next call while its envelope still has money
+  in it — the two ceilings are independent and it is easy to implement one and
+  believe you have both.
+- A child job draws from the root's envelope. Ten children of a £1 root spend at
+  most £1 between them, not £10.
+- A job at `max_depth` is refused (`GRK17`); its parent continues.
+- Two ticks racing for the same pending item: exactly one gets it. Run it as two
+  concurrent transactions, not two sequential ones, or it proves nothing.
+- An item that fails three times is marked `failed` and the job carries on to
+  the next.
+- A tick after `cancel_requested` makes no call, marks the job `cancelled`, and
+  releases the envelope; the items already `done` stay `done`.
+- The job reaper releases the envelope of a job whose heartbeat stopped, and
+  leaves one that ticked a minute ago alone.
+- A batch whose first twenty items fail validation stops itself at twenty.
+- The kill switch thrown mid-batch stops the next tick. This is the one that
+  distinguishes a control from a suggestion, and the earlier draft could not
+  have passed it.
+
 The quality half is not a database test and belongs beside the code it checks —
 `npm run check`'s neighbour rather than `tests/test.sh`'s:
 
@@ -852,11 +1238,25 @@ Each phase is useful on its own and none of them requires the next.
 
 | Phase | What ships | Why this order |
 |---|---|---|
-| 0 | `ai_features`, `ai_models`, `ai_calls`, `ai_sessions`, `ai_prompt_versions`, `ai_proposals`, `withMeter`, the desk's validator, WBPR wrapped | Recording only — no gate, no floor, no behaviour change. A month of real data before anything starts refusing on the strength of it. |
-| 1 | `ai_budgets`, `ai_periods`, `ai_begin_call`/`ai_end_call`, the sweeper, the quality floor | Both sets of ceilings, informed by what phase 0 measured rather than by a guess. |
-| 2 | `/settings/ai`, the workspace panel | Reporting — cost and quality on the same rows, once there is something to report. |
-| 3 | `/admin/ai`, golden cases and their scheduled run | Platform controls. Last because until phase 1 exists there is nothing to control but the kill switch, which is a SQL update. |
-| 4 | Anonymous features | Only after 1–3. A stranger spending an owner's money needs every part of this, and needs it proven. |
+| 0 | `ai_features`, `ai_models`, `ai_jobs`, `ai_calls`, `ai_prompt_versions`, `ai_proposals`, `withJob`, the desk's validator, WBPR wrapped | Recording only — no gate, no floor, no behaviour change. Jobs exist and every call has one, but nothing is refused yet. A month of real data before anything starts refusing on the strength of it. |
+| 1 | `ai_budgets`, `ai_periods`, the four functions enforcing, both reapers, the quality floor | Both sets of ceilings, informed by what phase 0 measured rather than by a guess. |
+| 2 | `ai_job_items`, `runTick`, the browser pump, cancel | Batch execution, once there is something safe to run it inside. The first real batch feature can land here. |
+| 3 | `/settings/ai`, the workspace panel | Reporting — jobs at the top, cost and quality on the same rows, once there is something to report. |
+| 4 | `/admin/ai`, the queue view, golden cases and their scheduled run | Platform controls. Late because until phase 1 exists there is nothing to control but the kill switch, which is a SQL update. |
+| 5 | Cron drain, scheduled jobs, the system actor | Unattended work. It needs the queue view above it, because a job nobody is watching needs somewhere to be looked at. |
+| 6 | Anonymous features | Last. A stranger spending an owner's money needs every part of this, and needs it proven. |
+
+**Phase 0 ships the job tables even though nothing enforces them yet.** That is
+the whole point of doing this now rather than later: `job_id` is `not null` on
+the ledger, and a column that becomes mandatory after a month of history is a
+backfill of invented parents. The shape is cheap to lay down and expensive to
+retrofit, which is the same argument as `actor_id`.
+
+**Phase 2 before any batch feature exists** is deliberate too. The temptation is
+to build enrichment first and discover the batch machinery it needs on the way,
+which is exactly how the per-call gate came to be the only gate — the first
+feature was interactive, so a per-call unit looked sufficient, and it was, right
+up until it was not.
 
 Phase 0 before phase 1 is the important ordering, and it applies to both halves.
 Setting a spend limit before knowing what a normal month costs produces a limit
@@ -877,16 +1277,12 @@ prompts already state, and a rule stated but unverified is a wish. Their
 Named so they are not mistaken for decisions already taken. Each is a real gap,
 not a refinement:
 
-- **Batch and job control.** Every gate here is per call. One action that fans
-  out — an embedding backfill, enrichment across a whole year, any agent loop —
-  passes all of them, repeatedly, and exhausts a budget without failing a single
-  check. This needs a job with one reservation, a declared call ceiling and a
-  kill, and it is the largest hole in the document.
 - **Not calling at all.** Result caching keyed on an input hash, and recording a
   cache hit as a zero-cost row so hit rate is visible. Cheaper than every limit
-  here combined, and unmodelled.
-- **Idempotency and retries.** No key on a call means a double-submitted form
-  spends twice, and a retry after a timeout spends twice more.
+  here combined, and unmodelled. This is now the largest gap.
+- **Idempotency outside a batch.** `ai_job_items`' primary key covers the batch
+  case completely. A double-submitted form on a `single` job is still two jobs,
+  and needs a client-supplied key at admission.
 - **Environment.** Preview deployments spend production budget and pollute
   production quality metrics. The ledger needs to know which is which.
 - **Provider failure.** 429s, outages, and a circuit breaker — which is a
