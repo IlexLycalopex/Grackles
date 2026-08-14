@@ -68,6 +68,7 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `20260814100600_ai_quality_floor` | `ai_enforce_quality_floors()`, and the reaper that calls it |
 | `20260814100700_ai_environment` | `ai_jobs.environment` and `idempotency_key`; `ai_begin_job` rebuilt around both |
 | `20260814100800_ai_cache` | `ai_cache`, `ai_calls.cache_hit`, and the take/put/sweep functions |
+| `20260814100900_reading_enrich` | `ai_features.prompt_allowance_tokens`, and the `reading.enrich` feature |
 
 **Not yet applied.** Two things to do first:
 

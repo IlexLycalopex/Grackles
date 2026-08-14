@@ -80,6 +80,7 @@ every value of the enum — so this is the only thing stopping it being offered.
 /reading/:workspace/book/:id       edit a book
 /reading/:workspace/year/new       add a year
 /reading/:workspace/year/:year     year status and target
+/reading/:workspace/enrich         fill in missing details (editor+)
 
 /cigars/:workspace                 Cigar Lounge — the log
 /cigars/:workspace/humidor         what is resting
@@ -103,6 +104,9 @@ every value of the enum — so this is the only thing stopping it being offered.
 /settings/ai                       what AI has cost you, and what it was worth
 /admin/ai                          platform controls (platform admins; 404 otherwise)
 /api/ai/cancel                     stop a job
+/api/ai/decide                     accept or discard a proposal
+/api/ai/job/tick                   run one slice of a batch
+/api/reading/:workspace/enrich     start an enrichment run
 ```
 
 Static segments beat dynamic ones in Astro's routing, so `pick/new` wins over
@@ -302,6 +306,36 @@ misbehaved" into a number that can regress. Whether a proposal was accepted,
 edited or thrown away is the other free measurement, and cost per accepted
 answer is the figure that decides whether a feature earns its tokens. None of it
 is built.
+
+## Filling in a book's details
+
+`/reading/:workspace/enrich` is the first feature that runs as a *batch*, and it
+is the shape the rest should follow.
+
+**The facts are not the model's.** OpenLibrary supplies the page count, the year,
+the ISBN and the cover; the model is handed up to three candidate editions and
+asked two questions only — which of them is the book on your shelf, and where it
+sits in the genres, publishers and tags *you already use*. It is told not to
+repeat a fact back, and if it does anyway the validator rejects the whole answer
+by comparing every factual field to the edition it picked. A model asked for an
+ISBN returns a plausible one.
+
+**Nothing is written.** A run produces `ai_proposals`, and the page is where a
+person ticks what to keep. That is what makes a wrong answer a row somebody
+declines rather than a shelf somebody has to repair — and it is also free
+telemetry: accepted, accepted-after-editing, discarded and never-decided are
+four different facts about whether the feature is worth its tokens.
+
+**The vocabulary is read once per run, not once per book.** It is the same for
+all four hundred, and it is what stops the model minting "Science Fiction",
+"Sci-Fi" and "SF" across one afternoon.
+
+Execution is a browser pump: the page posts to `/api/ai/job/tick` until the job
+reports done. No queue, no worker service, no new dependency. Close the tab and
+the job stops ticking, the reaper returns the envelope, and every book already
+looked up stays looked up — each item is committed as it lands. When something
+genuinely unattended needs running, a cron drain calls the same endpoint for the
+same jobs with the same worker.
 
 ## Photographs
 

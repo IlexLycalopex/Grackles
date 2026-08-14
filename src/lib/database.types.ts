@@ -806,6 +806,8 @@ export type Database = {
           max_depth: number;
           quality_floor: number | null;
           auto_disabled_at: string | null;
+          /** Null falls back to the platform default, which is sized for the desk. */
+          prompt_allowance_tokens: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -823,6 +825,7 @@ export type Database = {
           max_depth?: number;
           quality_floor?: number | null;
           auto_disabled_at?: string | null;
+          prompt_allowance_tokens?: number | null;
         };
         Update: Partial<Database['public']['Tables']['ai_features']['Insert']>;
         Relationships: [];

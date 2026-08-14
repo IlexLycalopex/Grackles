@@ -1313,6 +1313,13 @@ that always agreed with its implementation would be one nobody checked.
 - **The desk keeps its counters for now.** The spec said they stop being written
   and become a view. They are dual-written instead: taking them away first would
   mean discovering a discrepancy with nothing left to compare against.
+- **The prompt allowance had to become per-feature.** A flat 12,000 tokens was
+  sized for the desk, where a four-block transcript really can reach eight
+  thousand. An enrichment turn is about nine hundred, so the same allowance
+  reserved four times what a four-hundred-book batch could possibly spend — and
+  the envelope check then refused jobs that fit comfortably. A worst case that
+  is wildly pessimistic is not a safe worst case, it is a limit in the wrong
+  place.
 
 ## Still outstanding
 

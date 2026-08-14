@@ -66,6 +66,14 @@ const { user } = Astro.locals;
             Publishers
           </a>
 
+          {/* Only to somebody who could act on what it produces. A viewer
+              following this would reach a page whose every button is refused. */}
+          {workspace.canWrite && (
+            <a href={`${base}/enrich`} class={`site-nav__pill${pathname.startsWith(`${base}/enrich`) ? ' active' : ''}`}>
+              Fill in
+            </a>
+          )}
+
           {workspace.role && <span class="site-nav__pill site-nav__role">{workspace.role}</span>}
           <a class="site-nav__pill" href={user ? '/dashboard' : `/login?next=${pathname}`}>
             {user ? 'Projects' : 'Sign in'}

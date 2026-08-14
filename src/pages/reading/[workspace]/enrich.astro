@@ -1,0 +1,325 @@
+---
+import RlLayout from '../../../layouts/RlLayout.astro';
+import { requireWrite } from '../../../lib/workspace';
+import { loadYears } from '../../../lib/reading-list';
+import { money } from '../../../lib/ai/usage';
+
+export const prerender = false;
+
+/**
+ * Filling in the shelf.
+ *
+ * Two halves: starting a run, and deciding what came back. Nothing here writes
+ * to a book — the batch produces proposals and this page is where a person
+ * turns one into a change, which is what keeps an occasional wrong answer a
+ * nuisance rather than a repair job.
+ *
+ * `enrich` beats `[year]` because static segments win in Astro's routing. That
+ * is load-bearing across this app and worth not undoing by accident.
+ */
+
+const { supabase, user } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const gate = await requireWrite(
+  supabase, 'reading-list', wsSlug, user?.id ?? null, Astro.url.pathname
+);
+if (!gate.ok) return gate.response;
+const { workspace } = gate;
+
+const years = await loadYears(supabase, workspace.id);
+
+// The same predicate the start route uses. Two copies of a rule is one copy too
+// many, but this one is a count for a sentence and that one decides what gets
+// enqueued — and a page that promised a different number from what ran would be
+// worse than the duplication.
+const { count: thin } = await supabase
+  .from('rl_books')
+  .select('id', { count: 'exact', head: true })
+  .eq('workspace_id', workspace.id)
+  .or('genre.eq.,publisher_normalised.eq.,pages.is.null');
+
+const { data: proposals } = await supabase
+  .from('ai_proposals')
+  .select('id, target_id, proposed, created_at')
+  .eq('workspace_id', workspace.id)
+  .eq('feature', 'reading.enrich')
+  .is('outcome', null)
+  .order('created_at', { ascending: false })
+  .limit(50);
+
+// One query for the titles rather than fifty embedded joins.
+const bookIds = (proposals ?? []).map(p => p.target_id).filter((id): id is string => Boolean(id));
+const { data: books } = bookIds.length
+  ? await supabase.from('rl_books').select('id, title, author').in('id', bookIds)
+  : { data: [] };
+const titleFor = new Map((books ?? []).map(b => [b.id, b]));
+
+// What was decided lately, so the page can say whether this is working without
+// anybody going to look at the ledger.
+const { data: decided } = await supabase
+  .from('ai_proposals')
+  .select('outcome')
+  .eq('workspace_id', workspace.id)
+  .eq('feature', 'reading.enrich')
+  .not('outcome', 'is', null)
+  .limit(200);
+
+const kept = (decided ?? []).filter(d => d.outcome !== 'discarded').length;
+const total = (decided ?? []).length;
+
+const { data: jobs } = await supabase
+  .from('ai_jobs')
+  .select('id, status, items_done, items_total, spent_usd, created_at')
+  .eq('workspace_id', workspace.id)
+  .eq('feature', 'reading.enrich')
+  .order('created_at', { ascending: false })
+  .limit(1);
+
+const running = (jobs ?? []).find(j => j.status === 'queued' || j.status === 'running') ?? null;
+
+const FIELD_LABELS: Record<string, string> = {
+  genre: 'Genre',
+  publisher_normalised: 'Publisher',
+  tags: 'Tags',
+  pages: 'Pages',
+  year_published: 'Published',
+  isbn: 'ISBN',
+  cover_url: 'Cover',
+  link_openlibrary: 'OpenLibrary',
+};
+
+/**
+ * The cards, shaped here rather than in the template.
+ *
+ * Astro's template is JSX-flavoured, so a `Record<string, unknown>` inside it
+ * parses as a JSX generic and everything after it stops making sense. Anything
+ * that needs a type annotation belongs up here anyway; the template is better
+ * for reading when it only lays things out.
+ */
+interface Card {
+  id: string;
+  title: string;
+  author: string;
+  why: string;
+  unsure: boolean;
+  fields: { key: string; label: string; value: string }[];
+}
+
+const cards: Card[] = (proposals ?? []).map(proposal => {
+  const payload = (proposal.proposed ?? {}) as {
+    fields?: Record<string, unknown>;
+    why?: string;
+    confidence?: string;
+  };
+  const book = proposal.target_id ? titleFor.get(proposal.target_id) : null;
+
+  return {
+    id: proposal.id,
+    title: book?.title ?? 'a book that has since gone',
+    author: book?.author ?? '',
+    why: payload.why ?? '',
+    unsure: payload.confidence === 'low',
+    fields: Object.entries(payload.fields ?? {}).map(([key, value]) => ({
+      key,
+      label: FIELD_LABELS[key] ?? key,
+      value: Array.isArray(value) ? value.join(', ') : String(value),
+    })),
+  };
+});
+---
+
+<RlLayout
+  title={`Fill in the details · ${workspace.name}`}
+  description="Facts from OpenLibrary, judgement from you"
+  workspace={workspace}
+  years={years}
+>
+  <div class="container">
+    <div class="page-header">
+      <h1>Fill in the details</h1>
+      <p class="subtitle">
+        {thin ?? 0} book{thin === 1 ? '' : 's'} missing a genre, a publisher or a page count.
+        {total > 0 && ` You have kept ${kept} of the last ${total} suggestions.`}
+      </p>
+    </div>
+
+    <p class="enrich-note">
+      The page count, the year, the ISBN and the cover come from OpenLibrary, not
+      from the model — it is asked which edition is yours and where the book sits
+      in the genres and tags you already use, and nothing else. Everything it
+      answers arrives here as a suggestion. Nothing is written until you say so.
+    </p>
+
+    <div class="enrich-start">
+      <button class="rl-button" id="start" disabled={!thin} data-slug={workspace.slug} data-job={running?.id ?? ''}>
+        {running ? 'A run is already going' : `Look up ${thin ?? 0} books`}
+      </button>
+      <span id="progress" class="enrich-progress">
+        {running && `${running.items_done}/${running.items_total ?? '?'} · ${money(Number(running.spent_usd))}`}
+      </span>
+    </div>
+    <p class="enrich-note" id="trouble" hidden></p>
+
+    {cards.length === 0 && (
+      <p class="enrich-note">
+        Nothing waiting. Suggestions appear here as the run finds them.
+      </p>
+    )}
+
+    {cards.map(card => (
+      <form method="POST" action="/api/ai/decide" class="enrich-card">
+        <input type="hidden" name="proposal_id" value={card.id} />
+        <input type="hidden" name="next" value={Astro.url.pathname} />
+
+        <div class="enrich-card__head">
+          <strong>{card.title}</strong>
+          {card.author && <span class="enrich-muted"> — {card.author}</span>}
+          {card.unsure && <span class="enrich-flag">the model was unsure</span>}
+        </div>
+
+        {card.why && <p class="enrich-why">{card.why}</p>}
+
+        <ul class="enrich-fields">
+          {card.fields.map(field => (
+            <li>
+              <label>
+                <input type="checkbox" name="field" value={field.key} checked />
+                <span class="enrich-field__label">{field.label}</span>
+                <span class="enrich-field__value">{field.value}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+
+        <div class="enrich-card__actions">
+          <button class="rl-button" type="submit" name="outcome" value="accepted">
+            Save what is ticked
+          </button>
+          <button class="rl-button rl-button--quiet" type="submit" name="outcome" value="discarded">
+            Discard
+          </button>
+        </div>
+      </form>
+    ))}
+
+  </div>
+</RlLayout>
+
+<script>
+  // The browser pump. It is the whole execution model for a batch: no queue, no
+  // worker service, nothing new to run. Close the tab and the job stops
+  // ticking, the reaper gives the envelope back, and every book already done
+  // stays done — each item is committed as it lands rather than at the end.
+  const start = document.getElementById('start') as HTMLButtonElement | null;
+  const progress = document.getElementById('progress');
+  const trouble = document.getElementById('trouble');
+
+  if (start && progress && trouble) {
+    const slug = start.dataset.slug ?? '';
+
+    const say = (message: string) => {
+      trouble.textContent = message;
+      trouble.hidden = !message;
+    };
+
+    async function pump(jobId: string) {
+      // Sequential, not parallel. Concurrency inside a tick is the job's own
+      // max_concurrency, decided by the server; two pumps racing would only
+      // contend for the same claimed items.
+      for (;;) {
+        const res = await fetch('/api/ai/job/tick', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: jobId }),
+        });
+
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data) {
+          say('The run stopped answering. What it finished has been kept.');
+          return;
+        }
+
+        const money = data.spentUsd < 0.01
+          ? `$${(data.spentUsd ?? 0).toFixed(4)}`
+          : `$${(data.spentUsd ?? 0).toFixed(2)}`;
+        progress!.textContent = `${data.itemsDone}/${data.itemsTotal} · ${money}`;
+
+        if (data.done) {
+          if (data.ended === 'exhausted') {
+            say('The run stopped early — too many answers were failing their check.');
+          } else if (data.ended === 'cancelled') {
+            say('Cancelled. What it finished has been kept.');
+          }
+          // The suggestions are server-rendered, so the finished run needs the
+          // page again rather than a second copy of the markup in here.
+          location.reload();
+          return;
+        }
+      }
+    }
+
+    // A run that was already going when the page loaded: pick it up rather than
+    // offering to start a second one.
+    const existing = start.dataset.job;
+    if (existing) {
+      start.disabled = true;
+      pump(existing);
+    }
+
+    start.addEventListener('click', async () => {
+      start.disabled = true;
+      say('');
+      progress!.textContent = 'Starting…';
+
+      const res = await fetch(`/api/reading/${slug}/enrich`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.job_id) {
+        say(data?.error ?? 'That could not be started.');
+        progress!.textContent = '';
+        start.disabled = false;
+        return;
+      }
+
+      progress!.textContent = `0/${data.items} · $0`;
+      pump(data.job_id);
+    });
+  }
+</script>
+
+<style>
+  .enrich-note { max-width: 46rem; opacity: 0.8; margin-bottom: 1rem; }
+  .enrich-start { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+  .enrich-progress { font-variant-numeric: tabular-nums; opacity: 0.75; }
+
+  .enrich-card {
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 4px;
+    padding: 0.9rem 1rem;
+    margin-bottom: 0.9rem;
+    max-width: 46rem;
+  }
+  .enrich-card__head { margin-bottom: 0.3rem; }
+  .enrich-muted { opacity: 0.65; }
+  .enrich-flag {
+    margin-left: 0.5rem;
+    font-size: 0.8rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: 3px;
+    background: rgba(154, 106, 0, 0.15);
+  }
+  .enrich-why { font-style: italic; opacity: 0.75; margin: 0 0 0.5rem; }
+
+  .enrich-fields { list-style: none; padding: 0; margin: 0 0 0.7rem; }
+  .enrich-fields li { padding: 0.15rem 0; }
+  .enrich-fields label { display: flex; gap: 0.5rem; align-items: baseline; }
+  .enrich-field__label { min-width: 7rem; opacity: 0.7; font-size: 0.85rem; }
+  .enrich-field__value { flex: 1; }
+
+  .enrich-card__actions { display: flex; gap: 0.6rem; }
+</style>

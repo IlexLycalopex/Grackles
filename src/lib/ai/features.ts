@@ -18,6 +18,7 @@ import type { AppSlug } from '../database.types';
 export const FEATURE_KEYS = [
   'wbpr.desk',
   'wbpr.writeup',
+  'reading.enrich',
 ] as const;
 
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
@@ -44,6 +45,12 @@ export const FEATURES: FeatureNote[] = [
     app: 'wbpr',
     class: 'single',
     what: 'The one call that turns a finished sitting into a broadcast.',
+  },
+  {
+    key: 'reading.enrich',
+    app: 'reading-list',
+    class: 'batch',
+    what: 'Facts from OpenLibrary, genre and tags from your own vocabulary. Proposals, not writes.',
   },
 ];
 
