@@ -42,6 +42,10 @@ open_desk="select public.ai_begin_job('wbpr.desk','$WBPR','interactive');"
 # whoever the preamble said.
 SU="perform set_config('role','postgres',true);"
 DOWN="perform set_config('role','authenticated',true);"
+# The same, for a test running as a stranger. Coming back down to
+# 'authenticated' would quietly test a different role's grants than the one the
+# preamble asked for.
+DOWN_ANON="perform set_config('role','anon',true);"
 
 echo "── admission"
 check "owner may open a sitting" ok "$open_desk" "$as_jamie"
@@ -190,6 +194,58 @@ check "a job past its deadline stops" GRK19 \
      $DOWN
      perform public.ai_begin_call(j);
    end \$\$;" "$as_jamie"
+
+# A provider that errors after generating has already billed for what it
+# generated. Treating failure as free is the quiet way a budget stops adding up.
+check "a failed call still commits what it spent" ok \
+  "do \$\$ declare j uuid; c uuid; cost numeric; com numeric; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive');
+     c := public.ai_begin_call(j);
+     cost := public.ai_end_call(c, 400, 30, null, null, 'the model answered 500');
+     if cost <= 0 then raise exception 'a failed call was recorded as free'; end if;
+     if (select status from public.ai_calls where id=c) <> 'failed' then
+       raise exception 'not marked failed'; end if;
+     select committed_usd into com from public.ai_periods
+      where payer_id='$JAMIE' and period=date_trunc('month',now())::date;
+     if com <> cost then raise exception 'committed % but cost %', com, cost; end if;
+   end \$\$;" "$as_jamie"
+
+# Three conditions, all required, because spending an owner's money without
+# signing in is the path that needs every switch thrown deliberately.
+$PSQL -c "insert into public.ai_features (key,app,name,max_tokens,min_role,default_max_usd,default_max_calls)
+          values ('wbpr.callin','wbpr','Call the station',300,'anon',0.02,2) on conflict do nothing;" >/dev/null
+check "a stranger is refused when the project has not allowed it" GRK13 \
+  "select public.ai_begin_job('wbpr.callin','$WBPR','single',null,null,null,'fp1');" "$as_anon"
+check "a stranger is refused on a project that is not public" GRK13 \
+  "do \$\$ begin
+     $SU
+     insert into public.ai_workspace_features (workspace_id,feature,allow_anon)
+       values ('$WBPR','wbpr.callin',true);
+     update public.workspaces set visibility='unlisted' where id='$WBPR';
+     $DOWN_ANON
+     perform public.ai_begin_job('wbpr.callin','$WBPR','single',null,null,null,'fp1');
+   end \$\$;" "$as_anon"
+check "a stranger is admitted only with all three switches thrown" ok \
+  "do \$\$ begin
+     $SU
+     insert into public.ai_workspace_features (workspace_id,feature,allow_anon)
+       values ('$WBPR','wbpr.callin',true);
+     $DOWN_ANON
+     perform public.ai_begin_job('wbpr.callin','$WBPR','single',null,null,null,'fp1');
+   end \$\$;" "$as_anon"
+check "a stranger's job is billed to the owner" ok \
+  "do \$\$ declare j uuid; begin
+     $SU
+     insert into public.ai_workspace_features (workspace_id,feature,allow_anon)
+       values ('$WBPR','wbpr.callin',true);
+     $DOWN_ANON
+     j := public.ai_begin_job('wbpr.callin','$WBPR','single',null,null,null,'fp1');
+     $SU
+     if (select payer_id from public.ai_jobs where id=j) <> '$JAMIE' then
+       raise exception 'a stranger was billed to somebody else'; end if;
+     if (select actor_kind from public.ai_jobs where id=j) <> 'anon' then
+       raise exception 'not recorded as anonymous'; end if;
+   end \$\$;" "$as_anon"
 
 echo "── fan-out"
 # Without the root-envelope rule, ten children of a £1 job spend £10 and every
