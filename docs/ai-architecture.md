@@ -1363,8 +1363,10 @@ not a refinement:
   and needs a client-supplied key at admission.
 - **Environment.** Preview deployments spend production budget and pollute
   production quality metrics. The ledger needs to know which is which.
-- **Provider failure.** 429s, outages, and a circuit breaker — which is a
-  governance control, not only a resilience one.
+- **Backoff inside a tick.** The breaker stops a batch hammering a dead
+  provider, but there is no wait-and-retry on a single 429: the call fails, the
+  item burns an attempt, and the next tick tries again immediately. `Retry-After`
+  is read and reported and not yet acted on.
 - **Sending the notices.** They are raised as rows and nothing drains them.
   Doing so needs either a scheduled job with a service-role key — which this
   repo has deliberately never had — or somebody pressing the button on

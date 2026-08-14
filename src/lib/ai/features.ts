@@ -94,6 +94,10 @@ export const AI_MESSAGES: Record<string, string> = {
   // Deliberately about the project rather than about the person. Nobody's
   // permissions are the problem; a decision has not been taken.
   GRK1E: "This project has not agreed to send its records to a model. An owner can turn that on in the project's settings.",
+  // Deliberately about the model rather than about the request. Nothing the
+  // caller did is wrong, and telling them to try something different would send
+  // them looking for a fault on their side.
+  GRK1F: 'The model is not answering. Nothing was sent — try again in a few minutes.',
 };
 
 /**

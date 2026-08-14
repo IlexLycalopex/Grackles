@@ -843,6 +843,8 @@ export type Database = {
           anon_rate_per_hour: number;
           max_job_share: number;
           prompt_allowance_tokens: number;
+          breaker_threshold: number;
+          breaker_minutes: number;
           /** Null keeps transcripts forever, which is the default deliberately. */
           transcript_retention_days: number | null;
           /** Off by default: a preview deployment that can spend is a pull request that can spend. */
@@ -1091,6 +1093,23 @@ export type Database = {
           prompt_version?: number | null;
         };
         Update: never;
+        Relationships: [];
+      };
+      ai_provider_health: {
+        Row: {
+          provider: string;
+          model: string;
+          /** Consecutive: one failure in fifty is a provider working normally. */
+          consecutive_failures: number;
+          /** While in the future, calls are refused without being attempted. */
+          opened_until: string | null;
+          last_error: string | null;
+          opened_count: number;
+          updated_at: string;
+        };
+        Insert: never;
+        /** Closing it by hand is an admin action, and the only write offered. */
+        Update: { opened_until?: string | null; consecutive_failures?: number };
         Relationships: [];
       };
       ai_notices: {

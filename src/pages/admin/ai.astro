@@ -67,6 +67,19 @@ if (Astro.request.method === 'POST') {
     if (!e) notice = `${str('key')} saved.`;
   }
 
+  if (action === 'breaker') {
+    // Closing it by hand is the right call after a provider incident is over:
+    // the breaker's own timer is a guess and somebody watching a status page
+    // knows better.
+    const { error: e } = await supabase
+      .from('ai_provider_health')
+      .update({ opened_until: null, consecutive_failures: 0 })
+      .eq('provider', str('provider'))
+      .eq('model', str('model'));
+    error = e?.message ?? null;
+    if (!e) notice = `${str('provider')}/${str('model')} is back in service.`;
+  }
+
   if (action === 'housekeeping') {
     // Until something schedules this, pressing it is the only way a stale
     // reservation is ever released — which makes it the most load-bearing
@@ -146,6 +159,13 @@ const [{ data: platform }, { data: features }, { data: models }, { data: spend }
   ]);
 
 const { data: golden } = await supabase.rpc('ai_golden_status');
+
+const { data: health } = await supabase
+  .from('ai_provider_health')
+  .select('provider, model, consecutive_failures, opened_until, opened_count, last_error, updated_at')
+  .order('provider');
+
+const open = (health ?? []).filter(h => h.opened_until && new Date(h.opened_until) > new Date());
 
 const { data: notices } = await supabase
   .from('ai_notices')
@@ -372,6 +392,62 @@ const when = (iso: string) =>
       ))}
     </tbody>
   </table>
+
+  {open.length > 0 && (
+    <p class="notice notice--error" role="alert">
+      {open.map(h => `${h.provider}/${h.model}`).join(', ')} is not answering.
+      Calls are being refused without being attempted, which is the point — a
+      retry storm against a broken provider costs reservations and time and
+      achieves nothing.
+    </p>
+  )}
+
+  <p class="section-label">Providers</p>
+  <p class="page-intro">
+    Five consecutive failures opens the breaker for five minutes. Consecutive,
+    not total: one failure in fifty is a provider working normally. A bad answer
+    is not a failure here — that is the quality floor's business, and counting it
+    would trip this on a bad prompt.
+  </p>
+  {(health ?? []).length === 0 && <p class="empty">Nothing has been called yet.</p>}
+  {(health ?? []).length > 0 && (
+    <table class="ai-table">
+      <thead>
+        <tr><th>Provider</th><th>Model</th><th class="num">In a row</th><th>State</th><th>Last error</th><th></th></tr>
+      </thead>
+      <tbody>
+        {(health ?? []).map(h => {
+          const isOpen = h.opened_until && new Date(h.opened_until) > new Date();
+          return (
+            <tr>
+              <td>{h.provider}</td>
+              <td>{h.model}</td>
+              <td class="num">{h.consecutive_failures}</td>
+              <td>
+                {isOpen
+                  ? <span class="ai-bad">open until {when(h.opened_until!)}</span>
+                  : 'answering'}
+                {h.opened_count > 0 && (
+                  <span class="ai-muted"> · opened {h.opened_count}×</span>
+                )}
+              </td>
+              <td class="ai-muted">{h.last_error ?? '—'}</td>
+              <td>
+                {isOpen && (
+                  <form method="POST" class="inline-form">
+                    <input type="hidden" name="action" value="breaker" />
+                    <input type="hidden" name="provider" value={h.provider} />
+                    <input type="hidden" name="model" value={h.model} />
+                    <button class="button button--quiet" type="submit">Close it</button>
+                  </form>
+                )}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  )}
 
   <p class="section-label">Golden runs</p>
   <p class="page-intro">

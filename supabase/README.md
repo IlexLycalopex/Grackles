@@ -72,6 +72,8 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `20260814101000_ai_notices` | `ai_notices`, `ai_check_budgets()`, `ai_housekeeping()` and its admin-callable twin |
 | `20260814101100_ai_golden` | `ai_golden_cases`, `ai_golden_runs`, `ai_golden_status()`, and the `platform.golden` feature |
 | `20260814101200_ai_consent` | `ai_features.sends_records`, per-project consent, transcript retention, and `ai_begin_job` rebuilt around the new clause |
+| `20260814101300_ai_fixes` | The root's call ceiling counting its children, and `ai_cache_take` returning the call it records |
+| `20260814101400_ai_breaker` | `ai_provider_health`, and the breaker wired into `ai_begin_call` and `ai_end_call` |
 
 **Not yet applied.** Two things to do first:
 
@@ -104,6 +106,7 @@ New SQLSTATEs, continuing the GRK series:
 | `GRK1C` | No allowed price for that model |
 | `GRK1D` | A preview deployment tried to spend |
 | `GRK1E` | The project has not consented to its records being sent |
+| `GRK1F` | The provider's breaker is open — nothing was sent |
 
 ### Housekeeping
 

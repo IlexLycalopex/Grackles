@@ -70,13 +70,21 @@ async function complete(messages: ChatMessage[], options: CompleteOptions): Prom
     // Logged whole, reported short. The body can carry a key echo or a request
     // id, neither of which belongs on a page.
     console.error('minimax returned an error', { status: response.status, body: body.slice(0, 500) });
-    return {
-      ok: false,
-      reason: response.status === 401
-        ? 'the model refused the key'
-        : `the model answered ${response.status}`,
-      usage: noUsage,
-    };
+
+    // 429 and 5xx are the provider being unavailable rather than the request
+    // being wrong, and they are what the breaker counts. Said in those words so
+    // that the reason on the call row distinguishes "it is down" from "we asked
+    // it something it would not do" — the two want different responses and the
+    // ledger is where somebody looks to tell them apart.
+    const retryAfter = response.headers.get('retry-after');
+    const reason =
+      response.status === 401 ? 'the model refused the key'
+      : response.status === 429
+        ? `the model is rate-limiting us${retryAfter ? ` (retry after ${retryAfter}s)` : ''}`
+      : response.status >= 500 ? `the model is unavailable (${response.status})`
+      : `the model answered ${response.status}`;
+
+    return { ok: false, reason, usage: noUsage };
   }
 
   const payload = await response.json().catch(() => null);

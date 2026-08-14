@@ -507,6 +507,119 @@ check "the cache does not cross projects" ok \
        raise exception 'the entry escaped its workspace'; end if;
    end \$\$;" "$as_jamie"
 
+echo "── when the provider is what is broken"
+# Consecutive, not total: one failure in fifty is a provider working normally.
+check "five failures in a row open the breaker" ok \
+  "do \$\$ declare j uuid; c uuid; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive',0.5,20);
+     for i in 1..5 loop
+       c := public.ai_begin_call(j);
+       perform public.ai_end_call(c, 0, 0, null, null, 'the model answered 500');
+     end loop;
+     if not exists (select 1 from public.ai_provider_health
+                     where provider='minimax' and opened_until > now()) then
+       raise exception 'the breaker stayed shut'; end if;
+   end \$\$;" "$as_jamie"
+
+check "an open breaker refuses the next call without attempting it" GRK1F \
+  "do \$\$ declare j uuid; c uuid; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive',0.5,20);
+     for i in 1..5 loop
+       c := public.ai_begin_call(j);
+       perform public.ai_end_call(c, 0, 0, null, null, 'the model answered 500');
+     end loop;
+     perform public.ai_begin_call(j);
+   end \$\$;" "$as_jamie"
+
+check "four failures are not enough" ok \
+  "do \$\$ declare j uuid; c uuid; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive',0.5,20);
+     for i in 1..4 loop
+       c := public.ai_begin_call(j);
+       perform public.ai_end_call(c, 0, 0, null, null, 'the model answered 500');
+     end loop;
+     perform public.ai_begin_call(j);
+   end \$\$;" "$as_jamie"
+
+# One good answer means the provider is back, whatever it did before.
+check "a success resets the count" ok \
+  "do \$\$ declare j uuid; c uuid; n integer; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive',0.5,20);
+     for i in 1..4 loop
+       c := public.ai_begin_call(j);
+       perform public.ai_end_call(c, 0, 0, null, null, 'boom');
+     end loop;
+     c := public.ai_begin_call(j);
+     perform public.ai_end_call(c, 100, 50);
+     select consecutive_failures into n from public.ai_provider_health where provider='minimax';
+     if n <> 0 then raise exception 'still counting %', n; end if;
+   end \$\$;" "$as_jamie"
+
+# The model answered, and answered badly. That is the quality floor's business;
+# counting it here would trip the breaker on a bad prompt.
+check "a validator failure is not a provider failure" ok \
+  "do \$\$ declare j uuid; c uuid; n integer; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive',0.5,20);
+     for i in 1..8 loop
+       c := public.ai_begin_call(j);
+       perform public.ai_end_call(c, 100, 50, 'fail', '[]'::jsonb);
+     end loop;
+     select coalesce(consecutive_failures,0) into n
+       from public.ai_provider_health where provider='minimax';
+     if coalesce(n,0) <> 0 then raise exception 'bad answers tripped the breaker'; end if;
+   end \$\$;" "$as_jamie"
+
+# A batch settling twenty failures into an already-open breaker would push its
+# closing time out by an hour.
+check "an open breaker is not pushed further out by more failures" ok \
+  "do \$\$ declare j uuid; c uuid; first timestamptz; later timestamptz; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive',0.5,20);
+     for i in 1..5 loop
+       c := public.ai_begin_call(j);
+       perform public.ai_end_call(c, 0, 0, null, null, 'boom');
+     end loop;
+     select opened_until into first from public.ai_provider_health where provider='minimax';
+     $SU
+     insert into public.ai_calls (job_id,feature,workspace_id,payer_id,provider,model,reserved_usd)
+       values (j,'wbpr.desk','$WBPR','$JAMIE','minimax','minimax-m3',0)
+       returning id into c;
+     $DOWN
+     perform public.ai_end_call(c, 0, 0, null, null, 'boom');
+     select opened_until into later from public.ai_provider_health where provider='minimax';
+     if later <> first then raise exception 'the breaker moved: % then %', first, later; end if;
+   end \$\$;" "$as_jamie"
+
+check "an admin can close the breaker by hand" ok \
+  "do \$\$ begin
+     $SU
+     insert into public.ai_provider_health (provider,model,opened_until)
+       values ('minimax','minimax-m3', now() + interval '1 hour');
+     $DOWN
+     update public.ai_provider_health set opened_until = null, consecutive_failures = 0
+      where provider = 'minimax';
+     if exists (select 1 from public.ai_provider_health where opened_until > now()) then
+       raise exception 'still open'; end if;
+   end \$\$;" "$as_jamie"
+
+# Asserted by outcome rather than by error, because an UPDATE refused by a
+# USING clause does not raise — it narrows to zero rows and reports success.
+# That is the same silent narrowing every delete in this app checks for, and a
+# test expecting an exception would have passed while proving nothing.
+check "an ordinary user cannot close it" ok \
+  "do \$\$ begin
+     $SU
+     insert into public.ai_provider_health (provider,model,opened_until)
+       values ('minimax','minimax-m3', now() + interval '1 hour')
+       on conflict (provider,model) do update set opened_until = excluded.opened_until;
+     $DOWN
+     update public.ai_provider_health set opened_until = null
+      where provider = 'minimax';
+     $SU
+     if not exists (select 1 from public.ai_provider_health
+                     where provider = 'minimax' and opened_until > now()) then
+       raise exception 'a non-admin closed the breaker'; end if;
+   end \$\$;" "$as_rob"
+
 echo "── the quality floor"
 # The control that was a column and a wish until something read it.
 check "a feature whose answers keep failing switches itself off" ok \
