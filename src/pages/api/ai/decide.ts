@@ -63,11 +63,17 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     const payload = (proposal.proposed ?? {}) as { fields?: Record<string, unknown> };
     const fields = payload.fields ?? {};
 
-    // The person may have unticked individual fields on the review page. What
+    // The person may have untick individual fields on the review page. What
     // they left ticked is what gets written, and the difference is the signal.
+    //
+    // No fallback for an empty set. An earlier version treated "nothing ticked"
+    // as "no preference expressed" and wrote everything — so unticking every
+    // box saved every field, which is the exact opposite of what unticking
+    // every box means. An unchecked checkbox submits nothing; that is the
+    // whole of the ambiguity, and the form always renders them.
     const keep = new Set(form.getAll('field').map(String));
     const applied = Object.fromEntries(
-      Object.entries(fields).filter(([key]) => keep.size === 0 || keep.has(key))
+      Object.entries(fields).filter(([key]) => keep.has(key))
     );
 
     if (Object.keys(applied).length === 0) {

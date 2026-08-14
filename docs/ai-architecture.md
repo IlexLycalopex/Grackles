@@ -1321,6 +1321,27 @@ that always agreed with its implementation would be one nobody checked.
   is wildly pessimistic is not a safe worst case, it is a limit in the wrong
   place.
 
+## What reading it back found
+
+Three bugs, all the same shape: a rule stated in a comment and not quite
+delivered by the code beneath it — which is the failure this whole layer exists
+to catch one level up, so they are recorded rather than quietly fixed.
+
+- **The root's call ceiling did not count its children's calls.**
+  `ai_begin_call` incremented the root's counter only when the root *was* the
+  caller, so the check above it could never trip. The envelope still bounded the
+  money, which is why nothing looked wrong; a fan-out simply had as many calls
+  as it liked.
+- **A cache hit threw away the call it had just recorded.** The caller got
+  content and nothing to attach a proposal to, so enrichment stopped proposing
+  anything for a book whose answer was already cached — exactly the second run
+  somebody does after discarding the first suggestion, and it would have looked
+  like the feature doing nothing at all.
+- **Unticking every field saved every field.** The review form treated "nothing
+  ticked" as "no preference expressed" and wrote the lot. An unchecked checkbox
+  submits nothing; that is the whole of the ambiguity, and the form always
+  renders them.
+
 ## Still outstanding
 
 Named so they are not mistaken for decisions already taken. Each is a real gap,

@@ -65,7 +65,7 @@ export interface Validation {
 }
 
 export interface TurnResult {
-  callId: string | null;
+  callId: string;
   content: string;
   usage: Usage;
   costUsd: number;
@@ -234,17 +234,23 @@ export function jobHandle(supabase: Client, jobId: string, feature: FeatureKey):
         if (cacheError) {
           return { ok: false, code: codeOf(cacheError), error: describeAiError(cacheError) };
         }
-        if (typeof cached === 'string') {
+        const hit = cached?.[0];
+        if (hit?.content) {
           return {
             ok: true,
-            callId: null,
-            content: cached,
+            // The hit's own ledger row, so a cached answer is an ordinary turn
+            // to everything downstream. Returning null here meant enrichment
+            // silently stopped proposing anything for a book it had already
+            // looked up — which is exactly the second run somebody does after
+            // discarding the first suggestion.
+            callId: hit.call_id,
+            content: hit.content,
             usage: { prompt_tokens: 0, completion_tokens: 0 },
             costUsd: 0,
             cacheHit: true,
             // Re-checked rather than remembered. A validator that has changed
             // since the answer was stored should get its say, and it is free.
-            validation: request.validate ? request.validate(cached) : null,
+            validation: request.validate ? request.validate(hit.content) : null,
           };
         }
       }

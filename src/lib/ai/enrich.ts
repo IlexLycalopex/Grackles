@@ -336,11 +336,6 @@ export async function enrichOne(
     return { ok: true, callId: turn.callId };
   }
 
-  // A cache hit has no call of its own to hang the proposal from, so the
-  // proposal is skipped rather than orphaned: the identical proposal already
-  // exists from the call that filled the cache.
-  if (!turn.callId) return { ok: true };
-
   const { error } = await supabase.from('ai_proposals').insert({
     call_id: turn.callId,
     workspace_id: workspaceId,

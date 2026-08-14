@@ -262,6 +262,21 @@ check "children draw on the root's envelope, not their own" ok \
      if held <= 0 then raise exception 'child call did not draw on the root'; end if;
    end \$\$;" "$as_jamie"
 
+# The root's ceiling covers the whole tree. It said so and did not do it: the
+# root's counter only moved when the root was itself the caller, so the check
+# above it could never trip and a fan-out had as many calls as it liked.
+check "a child's calls count against the root's ceiling" GRK19 \
+  "do \$\$ declare root uuid; kid uuid; begin
+     $SU
+     update public.ai_features set max_depth=2 where key='wbpr.desk';
+     $DOWN
+     root := public.ai_begin_job('wbpr.desk','$WBPR','batch',1.0,2);
+     kid  := public.ai_begin_job('wbpr.desk','$WBPR','single',null,10,root);
+     perform public.ai_begin_call(kid);
+     perform public.ai_begin_call(kid);
+     perform public.ai_begin_call(kid);
+   end \$\$;" "$as_jamie"
+
 check "a child beyond max_depth is refused" GRK17 \
   "do \$\$ declare root uuid; kid uuid; begin
      update public.ai_features set max_depth=0 where key='wbpr.desk';
@@ -415,7 +430,7 @@ echo "── the cache"
 check "a miss returns nothing and records nothing" ok \
   "do \$\$ declare j uuid; c text; begin
      j := public.ai_begin_job('wbpr.desk','$WBPR','interactive');
-     c := public.ai_cache_take(j, 'nothing-here');
+     select content into c from public.ai_cache_take(j, 'nothing-here');
      if c is not null then raise exception 'a miss returned %', c; end if;
      if (select calls_made from public.ai_jobs where id=j) <> 0 then
        raise exception 'a miss counted as a call'; end if;
@@ -427,7 +442,7 @@ check "a hit costs nothing and is recorded anyway" ok \
   "do \$\$ declare j uuid; c text; n bigint; cost numeric; begin
      j := public.ai_begin_job('wbpr.desk','$WBPR','interactive');
      perform public.ai_cache_put(j, 'k1', 'the answer');
-     c := public.ai_cache_take(j, 'k1');
+     select content into c from public.ai_cache_take(j, 'k1');
      if c <> 'the answer' then raise exception 'got %', c; end if;
      select count(*), coalesce(sum(cost_usd),0) into n, cost
        from public.ai_calls where job_id = j and cache_hit;
@@ -445,6 +460,18 @@ check "cache hits count against the job's call ceiling" GRK19 \
      perform public.ai_cache_take(j, 'k1');
    end \$\$;" "$as_jamie"
 
+# A hit writes a ledger row and used to throw its id away, leaving the caller
+# with content and nothing to attach a proposal to.
+check "a hit hands back the call it recorded" ok \
+  "do \$\$ declare j uuid; cid uuid; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive');
+     perform public.ai_cache_put(j, 'k1', 'the answer');
+     select call_id into cid from public.ai_cache_take(j, 'k1');
+     if cid is null then raise exception 'no call id came back'; end if;
+     if not exists (select 1 from public.ai_calls where id = cid and cache_hit) then
+       raise exception 'the id does not name a cache-hit call'; end if;
+   end \$\$;" "$as_jamie"
+
 # Serving an answer from a superseded model would hide the change that was
 # made on purpose.
 check "changing the model invalidates what it produced" ok \
@@ -454,7 +481,7 @@ check "changing the model invalidates what it produced" ok \
      $SU
      update public.ai_features set model = 'minimax-m4' where key = 'wbpr.desk';
      $DOWN
-     c := public.ai_cache_take(j, 'k1');
+     select content into c from public.ai_cache_take(j, 'k1');
      if c is not null then raise exception 'served a stale model answer'; end if;
    end \$\$;" "$as_jamie"
 
@@ -462,7 +489,7 @@ check "an expired entry is not served, and sweeps away" ok \
   "do \$\$ declare j uuid; c text; begin
      j := public.ai_begin_job('wbpr.desk','$WBPR','interactive');
      perform public.ai_cache_put(j, 'k1', 'stale', null, interval '-1 day');
-     c := public.ai_cache_take(j, 'k1');
+     select content into c from public.ai_cache_take(j, 'k1');
      if c is not null then raise exception 'served an expired entry'; end if;
      $SU
      if public.ai_cache_sweep() < 1 then raise exception 'nothing swept'; end if;

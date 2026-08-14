@@ -1259,7 +1259,11 @@ export type Database = {
        * call, and still counts against the job's call ceiling — the budget
        * cannot stop a loop that costs nothing.
        */
-      ai_cache_take: { Args: { p_job: string; p_key: string }; Returns: string | null };
+      ai_cache_take: {
+        Args: { p_job: string; p_key: string };
+        /** Empty on a miss. The call id is the hit's own ledger row. */
+        Returns: { content: string; call_id: string }[];
+      };
       /**
        * Reaping, cache sweeping, quality floors and budget warnings, for a
        * platform admin. The cron-facing twin is service_role's, because cron
