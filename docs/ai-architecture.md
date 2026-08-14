@@ -1344,8 +1344,11 @@ not a refinement:
   production quality metrics. The ledger needs to know which is which.
 - **Provider failure.** 429s, outages, and a circuit breaker — which is a
   governance control, not only a resilience one.
-- **Alerts.** Resend is already wired. A budget at 80%, a feature tripping its
-  floor, an anomaly: a control nobody is told about is a control nobody uses.
+- **Sending the notices.** They are raised as rows and nothing drains them.
+  Doing so needs either a scheduled job with a service-role key — which this
+  repo has deliberately never had — or somebody pressing the button on
+  `/admin/ai`. The rows are there and readable meanwhile, which is better than
+  the silence, and worse than an email.
 - **Reconciliation.** The ledger is self-attested until it is compared against
   the provider's own usage figures. And the payer is in the UK while the bill is
   in USD, so a period needs an FX snapshot or every report drifts.

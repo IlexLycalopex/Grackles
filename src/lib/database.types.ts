@@ -1036,6 +1036,23 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      ai_notices: {
+        Row: {
+          id: string;
+          kind: string;
+          /** Null means the platform admins — a feature tripping is nobody's project. */
+          recipient: string | null;
+          subject: string;
+          body: string;
+          dedupe_key: string;
+          created_at: string;
+          sent_at: string | null;
+          error: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       ai_proposals: {
         Row: {
           id: string;
@@ -1186,6 +1203,20 @@ export type Database = {
        * cannot stop a loop that costs nothing.
        */
       ai_cache_take: { Args: { p_job: string; p_key: string }; Returns: string | null };
+      /**
+       * Reaping, cache sweeping, quality floors and budget warnings, for a
+       * platform admin. The cron-facing twin is service_role's, because cron
+       * has no session and app.is_platform_admin() is false without one.
+       */
+      ai_housekeeping_now: {
+        Args: Record<string, never>;
+        Returns: {
+          calls_released: number;
+          jobs_reaped: number;
+          cache_swept: number;
+          notices: number;
+        }[];
+      };
       ai_cache_put: {
         Args: {
           p_job: string;

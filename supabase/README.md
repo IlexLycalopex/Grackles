@@ -69,6 +69,7 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `20260814100700_ai_environment` | `ai_jobs.environment` and `idempotency_key`; `ai_begin_job` rebuilt around both |
 | `20260814100800_ai_cache` | `ai_cache`, `ai_calls.cache_hit`, and the take/put/sweep functions |
 | `20260814100900_reading_enrich` | `ai_features.prompt_allowance_tokens`, and the `reading.enrich` feature |
+| `20260814101000_ai_notices` | `ai_notices`, `ai_check_budgets()`, `ai_housekeeping()` and its admin-callable twin |
 
 **Not yet applied.** Two things to do first:
 
@@ -100,6 +101,22 @@ New SQLSTATEs, continuing the GRK series:
 | `GRK1B` | Admissions are paused |
 | `GRK1C` | No allowed price for that model |
 | `GRK1D` | A preview deployment tried to spend |
+
+### Housekeeping
+
+`ai_housekeeping()` is the one thing that wants scheduling: it releases
+reservations whose calls were never settled, reaps jobs whose worker stopped
+ticking, sweeps expired cache entries, checks the quality floors and raises a
+notice for anyone most of the way through their allowance.
+
+It is granted to `service_role` only, because cron has no session and
+`app.is_platform_admin()` is false without one. Until something schedules it,
+`ai_housekeeping_now()` — the admin-callable twin, behind a button on
+`/admin/ai` — is the only thing that runs it. **A stale reservation holds budget
+until one of the two is called**, so this is not a nicety.
+
+Scheduling it needs a service-role key, and this repo deliberately has none.
+That is a decision to take deliberately rather than a gap to close quietly.
 
 ## Applied
 

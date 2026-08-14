@@ -524,6 +524,74 @@ check "calls that pass their check leave the feature alone" ok \
        raise exception 'tripped on a clean run'; end if;
    end \$\$;" "$as_jamie"
 
+echo "── notices"
+# A control nobody is told about is a control nobody uses. The floor already
+# disables the feature; this is whether anybody finds out before they next
+# happen to open the admin page.
+check "a feature switching itself off raises a notice" ok \
+  "do \$\$ declare j uuid; c uuid; begin
+     $SU
+     update public.ai_features set quality_floor = 0.10 where key='wbpr.desk';
+     $DOWN
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive',0.5,30);
+     for i in 1..25 loop
+       c := public.ai_begin_call(j);
+       perform public.ai_end_call(c, 10, 10, 'fail', '[]'::jsonb);
+     end loop;
+     perform public.ai_end_job(j, 'done');
+     $SU
+     perform public.ai_enforce_quality_floors();
+     if not exists (select 1 from public.ai_notices where kind = 'quality') then
+       raise exception 'the floor tripped silently'; end if;
+   end \$\$;" "$as_jamie"
+
+check "a payer most of the way through their allowance is told" ok \
+  "do \$\$ begin
+     $SU
+     insert into public.ai_periods (payer_id,period,committed_usd)
+     values ('$JAMIE',date_trunc('month',now())::date,4.5);
+     if public.ai_check_budgets() < 1 then raise exception 'no notice raised'; end if;
+     if not exists (select 1 from public.ai_notices
+                     where kind = 'budget' and recipient = '$JAMIE') then
+       raise exception 'the notice was not addressed to the payer'; end if;
+   end \$\$;" "$as_jamie"
+
+# Once per payer per month per threshold, or a nightly job turns one fact into
+# thirty emails.
+check "the same warning is not raised twice" ok \
+  "do \$\$ begin
+     $SU
+     insert into public.ai_periods (payer_id,period,committed_usd)
+     values ('$JAMIE',date_trunc('month',now())::date,4.5);
+     perform public.ai_check_budgets();
+     perform public.ai_check_budgets();
+     if (select count(*) from public.ai_notices where kind='budget') <> 1 then
+       raise exception 'raised twice'; end if;
+   end \$\$;" "$as_jamie"
+
+check "somebody comfortably inside their allowance is left alone" ok \
+  "do \$\$ begin
+     $SU
+     insert into public.ai_periods (payer_id,period,committed_usd)
+     values ('$JAMIE',date_trunc('month',now())::date,0.5);
+     if public.ai_check_budgets() <> 0 then raise exception 'warned too early'; end if;
+   end \$\$;" "$as_jamie"
+
+check "a notice is only readable by the person it is for" ok \
+  "do \$\$ begin
+     $SU
+     insert into public.ai_periods (payer_id,period,committed_usd)
+     values ('$JAMIE',date_trunc('month',now())::date,4.5);
+     perform public.ai_check_budgets();
+     $DOWN
+     perform set_config('request.jwt.claims','{\"sub\":\"$ROB\"}',true);
+     if exists (select 1 from public.ai_notices) then
+       raise exception 'a notice leaked'; end if;
+   end \$\$;" "$as_jamie"
+
+check "housekeeping is refused to a non-admin" 42501 \
+  "select * from public.ai_housekeeping_now();" "$as_rob"
+
 echo "── who may see what"
 $PSQL -c "
   select public.ai_begin_job('wbpr.desk','$WBPR','interactive');

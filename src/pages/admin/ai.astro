@@ -66,6 +66,21 @@ if (Astro.request.method === 'POST') {
     if (!e) notice = `${str('key')} saved.`;
   }
 
+  if (action === 'housekeeping') {
+    // Until something schedules this, pressing it is the only way a stale
+    // reservation is ever released — which makes it the most load-bearing
+    // button on the page rather than a convenience.
+    const { data, error: e } = await supabase.rpc('ai_housekeeping_now');
+    error = e?.message ?? null;
+    const run = data?.[0];
+    if (!e && run) {
+      notice = `Released ${run.calls_released} reservation${run.calls_released === 1 ? '' : 's'}, ` +
+        `reaped ${run.jobs_reaped} job${run.jobs_reaped === 1 ? '' : 's'}, ` +
+        `swept ${run.cache_swept} cache entr${run.cache_swept === 1 ? 'y' : 'ies'}, ` +
+        `raised ${run.notices} notice${run.notices === 1 ? '' : 's'}.`;
+    }
+  }
+
   if (action === 'budget') {
     const { error: e } = await supabase.rpc('ai_set_budget', {
       p_user: str('user_id'),
@@ -85,6 +100,12 @@ const [{ data: platform }, { data: features }, { data: models }, { data: spend }
     supabase.rpc('ai_admin_spend', { p_period: null }),
     supabase.rpc('ai_admin_queue'),
   ]);
+
+const { data: notices } = await supabase
+  .from('ai_notices')
+  .select('id, kind, subject, body, created_at, sent_at, error')
+  .order('created_at', { ascending: false })
+  .limit(10);
 
 // The four things that mean something is wrong, as cheap queries over an
 // indexed ledger rather than a dashboard nobody reads.
@@ -305,6 +326,37 @@ const when = (iso: string) =>
       ))}
     </tbody>
   </table>
+
+  <p class="section-label">Housekeeping</p>
+  <p class="page-intro">
+    Releases reservations whose calls were never settled, reaps jobs whose worker
+    stopped ticking, sweeps expired cache entries, and raises a notice for anyone
+    most of the way through their allowance. Nothing schedules this yet, so
+    pressing it is currently the only thing that runs it.
+  </p>
+  <form method="POST" class="inline-form">
+    <input type="hidden" name="action" value="housekeeping" />
+    <button class="button" type="submit">Run housekeeping</button>
+  </form>
+
+  {(notices ?? []).length > 0 && (
+    <>
+      <p class="section-label">Notices</p>
+      <ul class="member-list">
+        {(notices ?? []).map(n => (
+          <li class="member">
+            <div class="member__who">
+              <span class="member__name">
+                {n.subject}
+                {!n.sent_at && <span class="ai-bad"> unsent</span>}
+              </span>
+              <span class="member__email">{n.body}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </>
+  )}
 
   <p class="section-label">Anomalies</p>
   <p class="page-intro">
