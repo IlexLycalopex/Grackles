@@ -1383,9 +1383,10 @@ not a refinement:
   repo has deliberately never had — or somebody pressing the button on
   `/admin/ai`. The rows are there and readable meanwhile, which is better than
   the silence, and worse than an email.
-- **Reconciliation.** The ledger is self-attested until it is compared against
-  the provider's own usage figures. And the payer is in the UK while the bill is
-  in USD, so a period needs an FX snapshot or every report drifts.
+- **Pulling the statement automatically.** It is entered by hand, which is a
+  monthly job and honest, but it does mean reconciliation only happens when
+  somebody does it. An integration maintained for twelve numbers a year is
+  probably worse; a reminder is probably better than either.
 - **Provider-side retention.** A deleted account's rows here lose their name,
   but whatever the provider kept of those prompts is not ours to delete, and
   saying otherwise on a privacy page would be a lie.

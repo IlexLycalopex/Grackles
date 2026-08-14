@@ -845,6 +845,8 @@ export type Database = {
           prompt_allowance_tokens: number;
           breaker_threshold: number;
           breaker_minutes: number;
+          /** Indicative only. The rate that applied to a month is on its statement. */
+          usd_to_gbp: number | null;
           /** Null keeps transcripts forever, which is the default deliberately. */
           transcript_retention_days: number | null;
           /** Off by default: a preview deployment that can spend is a pull request that can spend. */
@@ -1097,6 +1099,28 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      ai_statements: {
+        Row: {
+          provider: string;
+          period: string;
+          provider_usd: number;
+          /** What actually left the bank, if known. The only real exchange rate here. */
+          charged_gbp: number | null;
+          note: string;
+          entered_by: string | null;
+          entered_at: string;
+        };
+        Insert: {
+          provider: string;
+          period: string;
+          provider_usd: number;
+          charged_gbp?: number | null;
+          note?: string;
+          entered_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['ai_statements']['Insert']>;
+        Relationships: [];
+      };
       ai_provider_health: {
         Row: {
           provider: string;
@@ -1290,6 +1314,24 @@ export type Database = {
        * platform admin. The cron-facing twin is service_role's, because cron
        * has no session and app.is_platform_admin() is false without one.
        */
+      /**
+       * What the ledger says a month cost, against what the provider says.
+       * Variance is null where no statement has been entered — "not checked"
+       * and "checked and matched" are different states.
+       */
+      ai_reconciliation: {
+        Args: { p_months?: number };
+        Returns: {
+          provider: string;
+          period: string;
+          ledger_usd: number;
+          provider_usd: number | null;
+          variance_usd: number | null;
+          released: number;
+          charged_gbp: number | null;
+          note: string;
+        }[];
+      };
       /**
        * Freeze a sitting as a golden case. Platform admins only — a case holds
        * a frozen copy of somebody's data and the prompt sent with it.

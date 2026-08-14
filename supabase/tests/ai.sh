@@ -821,6 +821,56 @@ check "golden runs are their own feature with their own ceiling" ok \
        then raise exception 'no platform.golden feature'; end if;
    end \$\$;" "$as_jamie"
 
+echo "── against the bill"
+check "a month with no statement reports no variance, not a zero one" ok \
+  "do \$\$ declare j uuid; c uuid; r record; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive');
+     c := public.ai_begin_call(j);
+     perform public.ai_end_call(c, 1000, 200);
+     select * into r from public.ai_reconciliation(1)
+      where period = date_trunc('month', now())::date limit 1;
+     if r.ledger_usd <= 0 then raise exception 'the ledger reported nothing'; end if;
+     -- 'not checked' and 'checked and matched' are different states, and a page
+     -- showing both as 0.00 cannot say which it is looking at.
+     if r.variance_usd is not null then
+       raise exception 'an unchecked month reported a variance'; end if;
+   end \$\$;" "$as_jamie"
+
+check "entering the statement gives the variance" ok \
+  "do \$\$ declare j uuid; c uuid; r record; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive');
+     c := public.ai_begin_call(j);
+     perform public.ai_end_call(c, 1000, 200);
+     insert into public.ai_statements (provider, period, provider_usd)
+       values ('minimax', date_trunc('month', now())::date, 9.9999);
+     select * into r from public.ai_reconciliation(1)
+      where period = date_trunc('month', now())::date and provider = 'minimax';
+     if r.variance_usd is null then raise exception 'no variance computed'; end if;
+     if round(r.variance_usd + r.ledger_usd, 4) <> 9.9999 then
+       raise exception 'variance does not reconcile: % + %', r.variance_usd, r.ledger_usd; end if;
+   end \$\$;" "$as_jamie"
+
+# A released reservation is the specific thing most likely to explain a gap, so
+# it is reported beside the variance rather than folded into it.
+check "released reservations are counted separately" ok \
+  "do \$\$ declare j uuid; c uuid; r record; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive');
+     c := public.ai_begin_call(j);
+     $SU
+     update public.ai_calls set created_at = now() - interval '30 minutes' where id = c;
+     perform public.ai_reap();
+     $DOWN
+     select * into r from public.ai_reconciliation(1)
+      where period = date_trunc('month', now())::date and provider = 'minimax';
+     if coalesce(r.released,0) < 1 then raise exception 'the released call was not counted'; end if;
+   end \$\$;" "$as_jamie"
+
+check "reconciliation is refused to a non-admin" 42501 \
+  "select * from public.ai_reconciliation();" "$as_rob"
+check "a statement cannot be entered by an ordinary user" "row-level security" \
+  "insert into public.ai_statements (provider,period,provider_usd)
+   values ('minimax', date_trunc('month',now())::date, 1);" "$as_rob"
+
 echo "── leaving"
 # An editor who owns nothing and merely used a feature once became undeletable
 # the moment ai_jobs recorded them as an actor. A right somebody has, quietly

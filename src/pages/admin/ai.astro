@@ -67,6 +67,19 @@ if (Astro.request.method === 'POST') {
     if (!e) notice = `${str('key')} saved.`;
   }
 
+  if (action === 'statement') {
+    const { error: e } = await supabase.from('ai_statements').upsert({
+      provider: str('provider'),
+      period: str('period'),
+      provider_usd: Number(str('provider_usd')) || 0,
+      charged_gbp: str('charged_gbp') === '' ? null : Number(str('charged_gbp')),
+      note: str('note'),
+      entered_by: user.id,
+    });
+    error = e?.message ?? null;
+    if (!e) notice = 'Statement recorded.';
+  }
+
   if (action === 'breaker') {
     // Closing it by hand is the right call after a provider incident is over:
     // the breaker's own timer is a guess and somebody watching a status page
@@ -159,6 +172,8 @@ const [{ data: platform }, { data: features }, { data: models }, { data: spend }
   ]);
 
 const { data: golden } = await supabase.rpc('ai_golden_status');
+
+const { data: reconciliation } = await supabase.rpc('ai_reconciliation', { p_months: 6 });
 
 const { data: health } = await supabase
   .from('ai_provider_health')
@@ -400,6 +415,65 @@ const when = (iso: string) =>
       retry storm against a broken provider costs reservations and time and
       achieves nothing.
     </p>
+  )}
+
+  <p class="section-label">Against the bill</p>
+  <p class="page-intro">
+    Everything else in here is derived from our own ledger, which is filled in by
+    the same code that spends the money — so it can be internally consistent and
+    wrong. The provider's statement is the only independent number. A small
+    variance is expected: a released reservation is a call whose outcome was
+    never seen, recorded at zero and possibly billed anyway.
+  </p>
+  {(reconciliation ?? []).length === 0 && <p class="empty">Nothing has been spent yet.</p>}
+  {(reconciliation ?? []).length > 0 && (
+    <table class="ai-table">
+      <thead>
+        <tr>
+          <th>Month</th><th>Provider</th><th class="num">Ledger</th>
+          <th class="num">Statement</th><th class="num">Variance</th>
+          <th class="num">Released</th><th>Record it</th>
+        </tr>
+      </thead>
+      <tbody>
+        {(reconciliation ?? []).map(r => (
+          <tr>
+            <td>{r.period.slice(0, 7)}</td>
+            <td>{r.provider}</td>
+            <td class="num">{money(Number(r.ledger_usd))}</td>
+            <td class="num">
+              {r.provider_usd === null
+                ? <span class="ai-muted">not checked</span>
+                : money(Number(r.provider_usd))}
+            </td>
+            <td class="num">
+              {r.variance_usd === null
+                ? <span class="ai-muted">—</span>
+                : Math.abs(Number(r.variance_usd)) > Number(r.ledger_usd) * 0.1
+                  ? <span class="ai-bad">{money(Number(r.variance_usd))}</span>
+                  : money(Number(r.variance_usd))}
+            </td>
+            <td class="num">
+              {r.released > 0 ? <span class="ai-warn">{r.released}</span> : '—'}
+            </td>
+            <td>
+              <form method="POST" class="inline-form">
+                <input type="hidden" name="action" value="statement" />
+                <input type="hidden" name="provider" value={r.provider} />
+                <input type="hidden" name="period" value={r.period} />
+                <input class="field__input field__input--auto" type="number" step="0.0001"
+                       min="0" name="provider_usd" placeholder="$"
+                       value={r.provider_usd ?? ''} />
+                <input class="field__input field__input--auto" type="number" step="0.0001"
+                       min="0" name="charged_gbp" placeholder="£"
+                       value={r.charged_gbp ?? ''} />
+                <button class="button button--quiet" type="submit">Save</button>
+              </form>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )}
 
   <p class="section-label">Providers</p>

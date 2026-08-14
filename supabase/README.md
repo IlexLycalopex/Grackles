@@ -76,6 +76,7 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `20260814101400_ai_breaker` | `ai_provider_health`, and the breaker wired into `ai_begin_call` and `ai_end_call` |
 | `20260814101500_ai_curate` | `ai_curate_desk_case()` — freezing a real sitting as a golden case |
 | `20260814101600_ai_deletion` | `on delete set null` on every AI reference to `profiles`, so using a feature no longer makes an account undeletable |
+| `20260814101700_ai_statements` | `ai_statements` and `ai_reconciliation()` — the ledger checked against the provider's own figure |
 
 **Not yet applied.** Two things to do first:
 
