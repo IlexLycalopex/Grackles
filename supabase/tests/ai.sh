@@ -291,6 +291,78 @@ check "a job whose worker stopped ticking gives its envelope back" ok \
      if res <> 0 then raise exception 'envelope still held: %', res; end if;
    end \$\$;" "$as_jamie"
 
+echo "── the quality floor"
+# The control that was a column and a wish until something read it.
+check "a feature whose answers keep failing switches itself off" ok \
+  "do \$\$ declare j uuid; c uuid; begin
+     $SU
+     update public.ai_features set quality_floor = 0.10 where key='wbpr.desk';
+     $DOWN
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive',0.5,30);
+     for i in 1..25 loop
+       c := public.ai_begin_call(j);
+       perform public.ai_end_call(c, 10, 10, 'fail', '[]'::jsonb);
+     end loop;
+     perform public.ai_end_job(j, 'done');
+     $SU
+     perform public.ai_enforce_quality_floors();
+     if (select auto_disabled_at from public.ai_features where key='wbpr.desk') is null then
+       raise exception 'the floor did not trip'; end if;
+   end \$\$;"  "$as_jamie"
+
+check "a feature switched off by its floor refuses the next job" GRK12 \
+  "do \$\$ declare j uuid; c uuid; begin
+     $SU
+     update public.ai_features set quality_floor = 0.10 where key='wbpr.desk';
+     $DOWN
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive',0.5,30);
+     for i in 1..25 loop
+       c := public.ai_begin_call(j);
+       perform public.ai_end_call(c, 10, 10, 'fail', '[]'::jsonb);
+     end loop;
+     perform public.ai_end_job(j, 'done');
+     $SU
+     perform public.ai_enforce_quality_floors();
+     $DOWN
+     perform public.ai_begin_job('wbpr.desk','$WBPR','interactive');
+   end \$\$;" "$as_jamie"
+
+# Below the sample size a single bad night would switch off a working feature,
+# and the cure would be worse than the fault.
+check "a handful of failures is not enough to trip it" ok \
+  "do \$\$ declare j uuid; c uuid; begin
+     $SU
+     update public.ai_features set quality_floor = 0.10 where key='wbpr.desk';
+     $DOWN
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive',0.5,30);
+     for i in 1..5 loop
+       c := public.ai_begin_call(j);
+       perform public.ai_end_call(c, 10, 10, 'fail', '[]'::jsonb);
+     end loop;
+     perform public.ai_end_job(j, 'done');
+     $SU
+     perform public.ai_enforce_quality_floors();
+     if (select auto_disabled_at from public.ai_features where key='wbpr.desk') is not null then
+       raise exception 'tripped on five calls'; end if;
+   end \$\$;" "$as_jamie"
+
+check "calls that pass their check leave the feature alone" ok \
+  "do \$\$ declare j uuid; c uuid; begin
+     $SU
+     update public.ai_features set quality_floor = 0.10 where key='wbpr.desk';
+     $DOWN
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive',0.5,30);
+     for i in 1..25 loop
+       c := public.ai_begin_call(j);
+       perform public.ai_end_call(c, 10, 10, 'pass');
+     end loop;
+     perform public.ai_end_job(j, 'done');
+     $SU
+     perform public.ai_enforce_quality_floors();
+     if (select auto_disabled_at from public.ai_features where key='wbpr.desk') is not null then
+       raise exception 'tripped on a clean run'; end if;
+   end \$\$;" "$as_jamie"
+
 echo "── who may see what"
 $PSQL -c "
   select public.ai_begin_job('wbpr.desk','$WBPR','interactive');

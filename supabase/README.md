@@ -65,6 +65,7 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `20260814100300_ai_functions` | `ai_begin_job` / `ai_begin_call` / `ai_end_call` / `ai_end_job`, the item claim, both reapers, `my_ai_usage()` |
 | `20260814100400_wbpr_metered` | `wbpr_agent_sessions.ai_job_id`, and the desk switched on for every WBPR project |
 | `20260814100500_ai_admin` | `ai_admin_spend()`, `ai_admin_queue()`, `ai_set_budget()` |
+| `20260814100600_ai_quality_floor` | `ai_enforce_quality_floors()`, and the reaper that calls it |
 
 **Not yet applied.** Two things to do first:
 

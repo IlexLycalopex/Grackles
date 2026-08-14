@@ -2,7 +2,7 @@
 
 The layer that has to exist before a second feature starts spending money.
 
-**Status.** Phases 0–4 are built and unapplied: `supabase/migrations/20260814*`,
+**Status.** Phases 0–4 are built and unapplied, apart from golden cases: `supabase/migrations/20260814*`,
 `src/lib/ai/`, `/settings/ai`, `/admin/ai`, and the AI panel on a project's
 settings page. WBPR runs through it. The migrations have not been applied to the
 live project — they want a hand on them, and the prices in `ai_models` are
@@ -995,6 +995,15 @@ budget refusal is a floor, enforced the same way:
 and a disabled-by-quality feature reports differently from one an admin turned
 off, because the two need different responses from whoever finds it.
 
+`ai_enforce_quality_floors()` is what reads them, folded into the reaper so
+there is one thing for cron to call — they run on the same cadence and for the
+same reason, both being the system noticing something without waiting for a
+person to look. Two numbers make it usable rather than infuriating: it looks at
+the most recent **fifty** checked calls rather than all of them, so a feature
+that was bad in March and has been fixed is not held down by March; and it
+refuses to act on fewer than **twenty**, because below that a single bad night
+switches off a working feature and the cure is worse than the fault.
+
 This is the part that makes the section governance rather than instrumentation.
 Everything before it produces numbers; this acts on them without waiting for
 somebody to look.
@@ -1317,10 +1326,10 @@ not a refinement:
   schema and nothing can produce one: a scheduled job has no `auth.uid()`, and
   giving the cron drain a way to say who it is without handing it service_role
   is phase 5's first problem, not an afterthought.
-- **The quality floor is not enforced at feature level.** A batch stops itself
-  at twenty bad items, which is built. The trailing average that switches a
-  feature off across the platform is a column, a threshold, and nothing that
-  reads them yet.
+- **Golden cases.** The table is specified and not built. Nothing currently
+  replays a frozen input before a prompt or model change ships, which means the
+  one defence against `minimax-m3` being revised behind a stable name is still
+  missing.
 - **Idempotency outside a batch.** `ai_job_items`' primary key covers the batch
   case completely. A double-submitted form on a `single` job is still two jobs,
   and needs a client-supplied key at admission.

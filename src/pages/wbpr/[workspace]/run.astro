@@ -132,7 +132,7 @@ const resumeState = (unfinished?.state ?? {}) as {
   const hint = $('hint');
 
   let sessionId = null;
-  let spent = { prompt: 0, completion: 0, calls: 0 };
+  let spent = { prompt: 0, completion: 0, calls: 0, usd: 0 };
   let busy = false;
   // Mirrors the server's view of the table. The buttons are driven from it
   // rather than left all live, because the sequence is the game: the first
@@ -218,14 +218,42 @@ const resumeState = (unfinished?.state ?? {}) as {
     el.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }
 
-  function bill(usage) {
+  function bill(usage, costUsd) {
     if (!usage) return;
     spent.prompt += usage.prompt_tokens ?? 0;
     spent.completion += usage.completion_tokens ?? 0;
     spent.calls += 1;
+    spent.usd += costUsd ?? 0;
+    // Money as well as tokens. Tokens are the fact and money is derived, but a
+    // meter that only shows the fact leaves the DJ converting in his head all
+    // night, which is another way of saying nobody looks at it.
+    const money = spent.usd < 0.01 ? `$${spent.usd.toFixed(4)}` : `$${spent.usd.toFixed(2)}`;
     meter.textContent =
       `${spent.calls} calls · ${spent.prompt} in · ${spent.completion} out · ` +
-      `${spent.prompt + spent.completion} tokens this sitting`;
+      `${spent.prompt + spent.completion} tokens · ${money} this sitting`;
+  }
+
+  /**
+   * The validator's verdict, where the DJ can see it.
+   *
+   * An invented card is a failure and says so plainly; music the model named
+   * itself is a warning, because detecting that is a heuristic and the reply is
+   * still usable. Neither stops the night — but a warning that never reaches
+   * the page is a warning nobody acts on, and the whole point of checking the
+   * rules was to stop them holding only because nobody was looking.
+   */
+  function flag(validation) {
+    if (!validation || validation.status === 'pass') return;
+    const findings = (validation.findings ?? [])
+      .map(f => f.detail)
+      .filter(Boolean)
+      .join(', ');
+    line(
+      'error',
+      validation.status === 'fail'
+        ? `The model used a card that was never drawn${findings ? `: ${findings}` : ''}. Do not log this turn as it stands.`
+        : `The model may have named music of its own${findings ? `: ${findings}` : ''}.`
+    );
   }
 
   async function post(path, body) {
@@ -269,7 +297,8 @@ const resumeState = (unfinished?.state ?? {}) as {
       // never saw the press.
       if (table.closed) closed = true;
     }
-    bill(data.usage);
+    bill(data.usage, data.cost_usd);
+    flag(data.validation);
     sync();
   }
 
