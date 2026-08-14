@@ -1209,6 +1209,52 @@ export type Database = {
       /** Returns the id of the version matching this body, inserting it if new. */
       ai_register_prompt: { Args: { p_feature: string; p_body: string }; Returns: number };
       /**
+       * The admin console's two questions.
+       *
+       * Spend is already readable — ai_calls_read includes platform admins —
+       * but names are not: profiles_read is "me, or somebody I share a
+       * workspace with", and workspaces_read hides a private project the admin
+       * is not in. Both raise 42501 for anyone who is not an admin.
+       */
+      ai_admin_spend: {
+        Args: { p_period?: string | null };
+        Returns: {
+          payer_id: string;
+          display_name: string | null;
+          email: string;
+          limit_usd: number;
+          committed_usd: number;
+          reserved_usd: number;
+          calls: number;
+          failures: number;
+          budget_enabled: boolean;
+        }[];
+      };
+      ai_admin_queue: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          feature: string;
+          class: string;
+          status: string;
+          workspace_name: string | null;
+          app: Database['public']['Enums']['app_slug'] | null;
+          payer_name: string | null;
+          actor_name: string | null;
+          spent_usd: number;
+          max_usd: number;
+          calls_made: number;
+          items_done: number;
+          items_total: number | null;
+          heartbeat_at: string | null;
+          created_at: string;
+        }[];
+      };
+      ai_set_budget: {
+        Args: { p_user: string; p_monthly_usd: number; p_enabled?: boolean };
+        Returns: void;
+      };
+      /**
        * A month's spend, grouped, for the caller — as payer and as actor both.
        * `role` says which: 'mine', 'on my bill' (somebody else ran it), or
        * 'on their bill' (I ran it, they paid).

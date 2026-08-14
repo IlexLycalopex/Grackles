@@ -1,0 +1,360 @@
+---
+import AppShell from '../../layouts/AppShell.astro';
+import { loadEntitlements } from '../../lib/grants';
+import { money } from '../../lib/ai/usage';
+
+export const prerender = false;
+
+/**
+ * Platform controls.
+ *
+ * 404 rather than 403 for everyone who is not an admin, matching how a private
+ * workspace behaves: a page that refuses differently from a page that does not
+ * exist is a page that confirms it exists.
+ *
+ * The two instruments at the top are deliberately separate. The kill switch
+ * stops everything, including the next call of a broadcast already on air.
+ * Pausing admissions lets running work drain and refuses new. An incident wants
+ * whichever fits, and having only one means arguing about it at the time.
+ */
+
+const { supabase, user } = Astro.locals;
+const notFound = new Response('Not found', { status: 404 });
+
+if (!user) return notFound;
+const { isPlatformAdmin } = await loadEntitlements(supabase, user.id);
+if (!isPlatformAdmin) return notFound;
+
+let error: string | null = null;
+let notice: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') ?? '');
+  const str = (k: string) => String(form.get(k) ?? '').trim();
+
+  if (action === 'platform') {
+    const { error: e } = await supabase
+      .from('ai_platform_settings')
+      .update({
+        enabled: form.get('enabled') !== null,
+        admissions_open: form.get('admissions_open') !== null,
+        default_monthly_usd: Number(str('default_monthly_usd')) || 0,
+        actor_rate_per_minute: Number(str('actor_rate_per_minute')) || 20,
+        anon_rate_per_hour: Number(str('anon_rate_per_hour')) || 6,
+      })
+      .eq('id', true);
+    error = e?.message ?? null;
+    if (!e) notice = 'Platform settings saved.';
+  }
+
+  if (action === 'feature') {
+    const { error: e } = await supabase
+      .from('ai_features')
+      .update({
+        enabled: form.get('enabled') !== null,
+        max_tokens: Number(str('max_tokens')) || 700,
+        min_role: str('min_role'),
+        model: str('model'),
+        // Re-enabling clears the mark rather than leaving a stale timestamp,
+        // which would make the next incident unreadable — an admin looking at
+        // a working feature should not find a date on it saying it broke.
+        auto_disabled_at: null,
+      })
+      .eq('key', str('key'));
+    error = e?.message ?? null;
+    if (!e) notice = `${str('key')} saved.`;
+  }
+
+  if (action === 'budget') {
+    const { error: e } = await supabase.rpc('ai_set_budget', {
+      p_user: str('user_id'),
+      p_monthly_usd: Number(str('monthly_usd')) || 0,
+      p_enabled: form.get('enabled') !== null,
+    });
+    error = e?.message ?? null;
+    if (!e) notice = 'Allowance saved.';
+  }
+}
+
+const [{ data: platform }, { data: features }, { data: models }, { data: spend }, { data: queue }] =
+  await Promise.all([
+    supabase.from('ai_platform_settings').select('*').maybeSingle(),
+    supabase.from('ai_features').select('*').order('key'),
+    supabase.from('ai_models').select('*').order('effective_from', { ascending: false }),
+    supabase.rpc('ai_admin_spend', { p_period: null }),
+    supabase.rpc('ai_admin_queue'),
+  ]);
+
+// The four things that mean something is wrong, as cheap queries over an
+// indexed ledger rather than a dashboard nobody reads.
+const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+const [{ data: released }, { data: failed }, { count: checked }, { count: checkFailed }] =
+  await Promise.all([
+    supabase.from('ai_calls').select('id, feature, created_at').eq('status', 'released').gte('created_at', since).limit(10),
+    supabase.from('ai_calls').select('id, feature, error, created_at').eq('status', 'failed').gte('created_at', since).limit(10),
+    supabase.from('ai_calls').select('id', { count: 'exact', head: true }).not('validator_status', 'is', null).gte('created_at', since),
+    supabase.from('ai_calls').select('id', { count: 'exact', head: true }).eq('validator_status', 'fail').gte('created_at', since),
+  ]);
+
+const totalSpend = (spend ?? []).reduce((s, r) => s + Number(r.committed_usd), 0);
+const stale = (queue ?? []).filter(
+  j => j.heartbeat_at && new Date(j.heartbeat_at).getTime() < Date.now() - 10 * 60 * 1000
+).length;
+
+const ROLES = ['anon', 'viewer', 'editor', 'owner'];
+const when = (iso: string) =>
+  new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+---
+
+<AppShell title="AI controls · Grackles">
+  <h1 class="page-title">AI controls</h1>
+  <p class="page-intro">Platform-wide. Everything here takes effect on the next call.</p>
+
+  {error && <p class="notice notice--error" role="alert">{error}</p>}
+  {notice && <p class="notice notice--ok">{notice}</p>}
+
+  {platform && !platform.enabled && (
+    <p class="notice notice--error" role="alert">
+      AI is switched off across the whole site. Running jobs will fail at their next call.
+    </p>
+  )}
+
+  <div class="ai-summary">
+    <div class="ai-stat">
+      <span class="ai-stat__value">{money(totalSpend)}</span>
+      <span class="ai-stat__label">spent this month, everyone</span>
+    </div>
+    <div class="ai-stat">
+      <span class="ai-stat__value">{(queue ?? []).length}</span>
+      <span class="ai-stat__label">jobs in the queue{stale > 0 ? `, ${stale} stalled` : ''}</span>
+    </div>
+    <div class="ai-stat">
+      <span class="ai-stat__value">
+        {checked ? `${Math.round(((checkFailed ?? 0) / checked) * 100)}%` : '—'}
+      </span>
+      <span class="ai-stat__label">of checked calls failed, 7 days</span>
+    </div>
+  </div>
+
+  <p class="section-label">The switches</p>
+  {platform && (
+    <form method="POST" class="ai-feature">
+      <input type="hidden" name="action" value="platform" />
+      <label class="grant-picker__option">
+        <input type="checkbox" name="enabled" checked={platform.enabled} />
+        AI is on
+      </label>
+      <label class="grant-picker__option">
+        <input type="checkbox" name="admissions_open" checked={platform.admissions_open} />
+        accepting new jobs
+      </label>
+      <label class="grant-picker__option">
+        default allowance $
+        <input class="field__input field__input--auto" type="number" step="0.01" min="0"
+               name="default_monthly_usd" value={platform.default_monthly_usd} />
+      </label>
+      <label class="grant-picker__option">
+        jobs/min
+        <input class="field__input field__input--auto" type="number" min="1"
+               name="actor_rate_per_minute" value={platform.actor_rate_per_minute} />
+      </label>
+      <label class="grant-picker__option">
+        anon/hour
+        <input class="field__input field__input--auto" type="number" min="1"
+               name="anon_rate_per_hour" value={platform.anon_rate_per_hour} />
+      </label>
+      <button class="button" type="submit">Save</button>
+    </form>
+  )}
+  <p class="page-intro">
+    Switching AI off stops everything, including the next call of a sitting already
+    running. Closing admissions lets what is running finish and refuses anything new.
+  </p>
+
+  <p class="section-label">Features</p>
+  {(features ?? []).map(f => (
+    <form method="POST" class="ai-feature">
+      <input type="hidden" name="action" value="feature" />
+      <input type="hidden" name="key" value={f.key} />
+      <div class="ai-feature__head">
+        <strong>{f.key}</strong>
+        <span class="page-intro">{f.name}</span>
+      </div>
+      <label class="grant-picker__option">
+        <input type="checkbox" name="enabled" checked={f.enabled} /> on
+      </label>
+      <label class="grant-picker__option">
+        max tokens
+        <input class="field__input field__input--auto" type="number" min="1" max="8000"
+               name="max_tokens" value={f.max_tokens} />
+      </label>
+      <label class="grant-picker__option">
+        from
+        <select class="field__input field__input--auto" name="min_role">
+          {ROLES.map(r => <option value={r} selected={f.min_role === r}>{r}</option>)}
+        </select>
+      </label>
+      <label class="grant-picker__option">
+        model
+        <input class="field__input field__input--auto" type="text" name="model" value={f.model} />
+      </label>
+      {f.auto_disabled_at && (
+        <span class="ai-bad">
+          switched itself off {when(f.auto_disabled_at)} — check the prompt before re-enabling
+        </span>
+      )}
+      <button class="button button--quiet" type="submit">Save</button>
+    </form>
+  ))}
+
+  <p class="section-label">The queue</p>
+  {(queue ?? []).length === 0 && <p class="empty">Nothing is running.</p>}
+  {(queue ?? []).length > 0 && (
+    <table class="ai-table">
+      <thead>
+        <tr><th>Started</th><th>Feature</th><th>Project</th><th>Who</th><th>Progress</th><th class="num">Spent</th><th></th></tr>
+      </thead>
+      <tbody>
+        {(queue ?? []).map(j => (
+          <tr>
+            <td>{when(j.created_at)}</td>
+            <td>{j.feature}</td>
+            <td>{j.workspace_name ?? <span class="ai-muted">gone</span>}</td>
+            <td>
+              {j.actor_name ?? <span class="ai-muted">—</span>}
+              {j.payer_name && j.payer_name !== j.actor_name && (
+                <span class="ai-muted"> · billed to {j.payer_name}</span>
+              )}
+            </td>
+            <td>
+              {j.items_total !== null ? `${j.items_done}/${j.items_total}` : `${j.calls_made} calls`}
+              {j.heartbeat_at && new Date(j.heartbeat_at).getTime() < Date.now() - 10 * 60 * 1000 && (
+                <span class="ai-bad"> stalled</span>
+              )}
+            </td>
+            <td class="num">{money(Number(j.spent_usd))} / {money(Number(j.max_usd))}</td>
+            <td>
+              <form method="POST" action="/api/ai/cancel" class="inline-form">
+                <input type="hidden" name="job_id" value={j.id} />
+                <input type="hidden" name="next" value="/admin/ai" />
+                <button class="button button--quiet" type="submit">Cancel</button>
+              </form>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )}
+
+  <p class="section-label">Allowances</p>
+  <p class="page-intro">
+    No row is a refusal, not an unlimited default — the same rule as a creation grant.
+    Platform admins are unmetered, but not exempt from the switch above.
+  </p>
+  <table class="ai-table">
+    <thead>
+      <tr><th>Who</th><th class="num">Allowance</th><th class="num">Spent</th><th class="num">Held</th><th class="num">Calls</th><th></th></tr>
+    </thead>
+    <tbody>
+      {(spend ?? []).map(row => (
+        <tr>
+          <td>
+            {row.display_name ?? row.email}
+            {!row.budget_enabled && <span class="ai-bad"> off</span>}
+          </td>
+          <td class="num">
+            <form method="POST" class="inline-form">
+              <input type="hidden" name="action" value="budget" />
+              <input type="hidden" name="user_id" value={row.payer_id} />
+              <input class="field__input field__input--auto" type="number" step="0.01" min="0"
+                     name="monthly_usd" value={row.limit_usd} />
+              <input type="checkbox" name="enabled" checked={row.budget_enabled} title="enabled" />
+              <button class="button button--quiet" type="submit">Set</button>
+            </form>
+          </td>
+          <td class="num">{money(Number(row.committed_usd))}</td>
+          <td class="num">{Number(row.reserved_usd) > 0 ? money(Number(row.reserved_usd)) : '—'}</td>
+          <td class="num">
+            {row.calls}
+            {Number(row.failures) > 0 && <span class="ai-bad"> ({row.failures} failed)</span>}
+          </td>
+          <td></td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+
+  <p class="section-label">Prices</p>
+  <p class="page-intro">
+    Every call snapshots the price that applied, so changing one here never restates
+    what a past month cost. Add a new row rather than editing an old one.
+  </p>
+  <table class="ai-table">
+    <thead><tr><th>Provider</th><th>Model</th><th class="num">Prompt /Mtok</th><th class="num">Completion /Mtok</th><th>From</th><th>Allowed</th></tr></thead>
+    <tbody>
+      {(models ?? []).map(m => (
+        <tr>
+          <td>{m.provider}</td>
+          <td>{m.model}</td>
+          <td class="num">${m.prompt_usd_per_mtok}</td>
+          <td class="num">${m.completion_usd_per_mtok}</td>
+          <td>{new Date(m.effective_from).toLocaleDateString('en-GB')}</td>
+          <td>{m.allowed ? 'yes' : <span class="ai-bad">no</span>}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+
+  <p class="section-label">Anomalies</p>
+  <p class="page-intro">
+    The four things that mean something is wrong. A reservation released by the reaper
+    is a call whose outcome was never seen — the provider may still have billed it.
+  </p>
+  <ul class="member-list">
+    <li class="member">
+      <div class="member__who">
+        <span class="member__name">{(released ?? []).length} reservations released</span>
+        <span class="member__email">
+          {(released ?? []).map(r => `${r.feature} ${when(r.created_at)}`).join(' · ') || 'none in seven days'}
+        </span>
+      </div>
+    </li>
+    <li class="member">
+      <div class="member__who">
+        <span class="member__name">{(failed ?? []).length} failed calls</span>
+        <span class="member__email">
+          {(failed ?? []).map(r => `${r.feature}: ${r.error ?? 'no reason'}`).join(' · ') || 'none in seven days'}
+        </span>
+      </div>
+    </li>
+  </ul>
+</AppShell>
+
+<style>
+  .ai-summary { display: flex; flex-wrap: wrap; gap: 2rem; margin: 1.5rem 0; }
+  .ai-stat { display: flex; flex-direction: column; }
+  .ai-stat__value { font-size: 1.75rem; font-weight: 600; line-height: 1.1; }
+  .ai-stat__label { font-size: 0.85rem; opacity: 0.7; }
+
+  .ai-feature {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;
+    padding: 0.6rem 0; border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  .ai-feature__head { display: flex; flex-direction: column; min-width: 12rem; }
+  .ai-feature__head .page-intro { margin: 0; font-size: 0.8rem; }
+  .ai-feature input[type="number"], .ai-feature input[type="text"] { width: 7rem; }
+
+  .ai-table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: 0.9rem; }
+  .ai-table th, .ai-table td {
+    text-align: left; padding: 0.4rem 0.6rem 0.4rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08); vertical-align: top;
+  }
+  .ai-table th { font-weight: 600; opacity: 0.7; font-size: 0.8rem; }
+  .ai-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ai-table .inline-form { margin: 0; display: flex; gap: 0.4rem; justify-content: flex-end; }
+  .ai-table input[type="number"] { width: 5.5rem; }
+
+  .ai-muted { opacity: 0.55; }
+  .ai-bad { color: #a4243b; font-weight: 600; }
+</style>

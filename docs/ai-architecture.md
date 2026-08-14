@@ -1,7 +1,15 @@
 # AI governance
 
-A specification, not a description: none of this is built yet. It is the layer
-that has to exist before a second feature starts spending money.
+The layer that has to exist before a second feature starts spending money.
+
+**Status.** Phases 0–4 are built and unapplied: `supabase/migrations/20260814*`,
+`src/lib/ai/`, `/settings/ai`, `/admin/ai`, and the AI panel on a project's
+settings page. WBPR runs through it. The migrations have not been applied to the
+live project — they want a hand on them, and the prices in `ai_models` are
+placeholders that must be checked against MiniMax's own list before phase 1's
+limits mean anything. Phase 5 (cron drain, scheduled jobs) and phase 6
+(anonymous features) are not built. What changed on the way is recorded under
+*What the build changed*, near the end.
 
 ## Why now
 
@@ -1272,6 +1280,31 @@ meter. They are not a threshold to be calibrated — they enforce rules the
 prompts already state, and a rule stated but unverified is a wish. Their
 *consequences* are what waits for phase 1.
 
+## What the build changed
+
+Five things the specification got wrong or left implicit, found by writing it.
+They are here rather than edited silently into the text above, because a spec
+that always agreed with its implementation would be one nobody checked.
+
+- **`ai_jobs` needed a `held_usd` column.** The envelope check has to know what
+  this job's in-flight calls are already holding, and summing reserved calls per
+  call would be a scan on the hot path. Spend and hold are two numbers, not one.
+- **Only batches get the share rule.** `GRK18` refuses a job larger than half of
+  what is left, which is right for a batch holding an envelope and wrong for a
+  single call: a `single` job at the end of a lean month would have been refused
+  for a ceiling it was never going to reach. Interactive and single jobs check
+  one call's worth instead.
+- **The per-turn budgets survived.** The spec implied `ai_features.max_tokens`
+  replaced the desk's per-turn ceilings. It does not — the reservation is taken
+  against the feature's maximum either way, so a close-down asking for 320
+  tokens costs a fifth of what a call costs and reserves the same. `maxTokens`
+  on a turn is clamped down to the registered ceiling, never up.
+- **A child job needs no admission.** Re-running gates 2–10 for a child would
+  refuse it out of an envelope with money in it. Only the depth check applies.
+- **The desk keeps its counters for now.** The spec said they stop being written
+  and become a view. They are dual-written instead: taking them away first would
+  mean discovering a discrepancy with nothing left to compare against.
+
 ## Still outstanding
 
 Named so they are not mistaken for decisions already taken. Each is a real gap,
@@ -1280,6 +1313,14 @@ not a refinement:
 - **Not calling at all.** Result caching keyed on an input hash, and recording a
   cache hit as a zero-cost row so hit rate is visible. Cheaper than every limit
   here combined, and unmodelled. This is now the largest gap.
+- **The scheduler has no identity.** `actor_kind = 'system'` exists in the
+  schema and nothing can produce one: a scheduled job has no `auth.uid()`, and
+  giving the cron drain a way to say who it is without handing it service_role
+  is phase 5's first problem, not an afterthought.
+- **The quality floor is not enforced at feature level.** A batch stops itself
+  at twenty bad items, which is built. The trailing average that switches a
+  feature off across the platform is a column, a threshold, and nothing that
+  reads them yet.
 - **Idempotency outside a batch.** `ai_job_items`' primary key covers the batch
   case completely. A double-submitted form on a `single` job is still two jobs,
   and needs a client-supplied key at admission.

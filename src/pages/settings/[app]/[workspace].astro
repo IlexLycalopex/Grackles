@@ -4,6 +4,8 @@ import { HOSTED_APPS, appByPath, appBySlug, projectHref } from '../../../lib/app
 import { resolveWorkspace } from '../../../lib/workspace';
 import { loadEntitlements } from '../../../lib/grants';
 import { sendInviteEmail } from '../../../lib/email';
+import { loadCalls, loadJobs, money, spentToday } from '../../../lib/ai/usage';
+import { FEATURES } from '../../../lib/ai/features';
 import type { AppSlug, MemberRole, Visibility } from '../../../lib/database.types';
 
 export const prerender = false;
@@ -199,6 +201,36 @@ if (Astro.request.method === 'POST') {
     }
   }
 
+  if (action === 'set-ai') {
+    // One row per feature, upserted. An absent row means the feature's own
+    // defaults apply, so saving a form that changes nothing still writes — that
+    // is the point at which "the default" becomes "a decision somebody made".
+    const feature = str('feature');
+    const daily = str('daily_usd');
+    const parsedDaily = daily === '' ? null : Number(daily);
+
+    if (parsedDaily !== null && (!Number.isFinite(parsedDaily) || parsedDaily < 0)) {
+      error = 'A daily limit has to be a number, or empty for none.';
+    } else {
+      const { error: e } = await supabase
+        .from('ai_workspace_features')
+        .upsert({
+          workspace_id: workspace.id,
+          feature,
+          enabled: form.get('enabled') !== null,
+          daily_usd: parsedDaily,
+          // Meaningless unless the project is public, and refused at admission
+          // in that case. The control below is disabled rather than hidden,
+          // because a switch that silently does nothing is worse than one that
+          // says why it cannot.
+          allow_anon: form.get('allow_anon') !== null && workspace.visibility === 'public',
+        }, { onConflict: 'workspace_id,feature' });
+
+      error = e?.message ?? null;
+      if (!e) notice = 'AI settings saved.';
+    }
+  }
+
   if (action === 'set-visibility') {
     const visibility = str('visibility') as Visibility;
     if (!VISIBILITIES.includes(visibility)) {
@@ -230,6 +262,33 @@ const { data: invites } = await supabase
 
 const origin = Astro.url.origin;
 const ownerCount = (members ?? []).filter(m => m.role === 'owner').length;
+
+// ── What AI has cost this project ────────────────────────────────────────
+// Only the features that belong to this app: a Cigar Lounge has no business
+// showing the desk's switches.
+const appFeatures = FEATURES.filter(f => f.app === app.slug);
+
+const { data: aiSwitches } = appFeatures.length
+  ? await supabase
+      .from('ai_workspace_features')
+      .select('feature, enabled, daily_usd, allow_anon')
+      .eq('workspace_id', workspace.id)
+  : { data: [] };
+
+const switchFor = (key: string) =>
+  (aiSwitches ?? []).find(s => s.feature === key);
+
+const [aiJobs, aiCalls, aiToday] = appFeatures.length
+  ? await Promise.all([
+      loadJobs(supabase, { workspaceId: workspace.id, limit: 10 }),
+      loadCalls(supabase, { workspaceId: workspace.id, limit: 10 }),
+      spentToday(supabase, workspace.id),
+    ])
+  : [[], [], 0];
+
+const aiMonth = aiJobs.reduce((sum, j) => sum + Number(j.spent_usd), 0);
+const aiChecked = aiCalls.filter(c => c.validator_status !== null);
+const aiFailedChecks = aiChecked.filter(c => c.validator_status === 'fail').length;
 ---
 
 <AppShell title={`${workspace.name} settings · Grackles`}>
@@ -427,4 +486,116 @@ const ownerCount = (members ?? []).filter(m => m.role === 'owner').length;
       </>
     )
   }
+  {
+    appFeatures.length > 0 && (
+      <>
+        <p class="section-label">AI</p>
+        <p class="page-intro">
+          What this project has spent, and the switches that bound it. The bill is
+          yours — every feature here is billed to you as the owner, whoever pressed
+          the button. <a href="/settings/ai">Your whole month is here.</a>
+        </p>
+
+        <div class="ai-panel">
+          <span><strong>{money(aiMonth)}</strong> across recent jobs</span>
+          <span><strong>{money(aiToday)}</strong> today</span>
+          <span>
+            {aiChecked.length > 0
+              ? <>{aiFailedChecks} of the last {aiChecked.length} checked calls failed their check</>
+              : <>nothing checked yet</>}
+          </span>
+        </div>
+
+        {appFeatures.map(feature => {
+          const current = switchFor(feature.key);
+          return (
+            <form method="POST" class="ai-feature">
+              <input type="hidden" name="action" value="set-ai" />
+              <input type="hidden" name="feature" value={feature.key} />
+              <div class="ai-feature__head">
+                <strong>{feature.key}</strong>
+                <span class="page-intro">{feature.what}</span>
+              </div>
+              <label class="grant-picker__option">
+                <input type="checkbox" name="enabled" checked={current?.enabled ?? true} />
+                on for this project
+              </label>
+              <label class="grant-picker__option">
+                daily limit $
+                <input
+                  class="field__input field__input--auto"
+                  type="number" step="0.01" min="0" name="daily_usd"
+                  value={current?.daily_usd ?? ''}
+                  placeholder="none"
+                />
+              </label>
+              <label class="grant-picker__option" title={
+                workspace.visibility === 'public'
+                  ? 'Anyone who can read this project may run it, at your expense.'
+                  : 'Only a public project can offer anything to strangers.'
+              }>
+                <input
+                  type="checkbox" name="allow_anon"
+                  checked={current?.allow_anon ?? false}
+                  disabled={workspace.visibility !== 'public'}
+                />
+                strangers may run it
+              </label>
+              <button class="button button--quiet" type="submit">Save</button>
+            </form>
+          );
+        })}
+
+        {aiJobs.length > 0 && (
+          <ul class="member-list">
+            {aiJobs.map(job => (
+              <li class="member">
+                <div class="member__who">
+                  <span class="member__name">{job.feature}</span>
+                  <span class="member__email">
+                    {new Date(job.created_at).toLocaleString('en-GB', {
+                      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                    })} · {job.status} · {job.calls_made} call{job.calls_made === 1 ? '' : 's'} · {money(Number(job.spent_usd))}
+                  </span>
+                </div>
+                {(job.status === 'running' || job.status === 'queued') && (
+                  <form method="POST" action="/api/ai/cancel" class="inline-form">
+                    <input type="hidden" name="job_id" value={job.id} />
+                    <input type="hidden" name="next" value={Astro.url.pathname} />
+                    <button class="button button--quiet" type="submit">Cancel</button>
+                  </form>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </>
+    )
+  }
+
 </AppShell>
+
+<style>
+  .ai-panel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+  }
+  .ai-feature {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  .ai-feature__head { display: flex; flex-direction: column; min-width: 14rem; }
+  .ai-feature__head .page-intro { margin: 0; font-size: 0.8rem; }
+  .ai-feature input[type="number"] { width: 6rem; }
+  /* A control that cannot apply says so by looking like it, rather than by
+     vanishing and leaving somebody wondering where the setting went. */
+  .ai-feature input:disabled { opacity: 0.4; }
+  .ai-feature input:disabled + * { opacity: 0.4; }
+</style>

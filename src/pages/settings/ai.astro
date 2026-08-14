@@ -1,0 +1,258 @@
+---
+import AppShell from '../../layouts/AppShell.astro';
+import { loadAllowance, loadCalls, loadJobs, loadMyUsage, money } from '../../lib/ai/usage';
+import { appBySlug } from '../../lib/apps';
+
+export const prerender = false;
+
+/**
+ * What AI has cost you, and what it was worth.
+ *
+ * Addressed to one signed-in person showing both of the things they are:
+ * somebody who pays, and somebody who spends. Those come apart the moment an
+ * editor runs a feature on a project they do not own, and a report that shows
+ * only one direction leaves one of the two people unable to see what happened.
+ *
+ * Read through my_ai_usage() rather than off ai_calls directly. The policy on
+ * that table is right for the table — payer, actor, or admin — but this page
+ * needs project names, and workspaces_read excludes a project that has since
+ * been made private. A month's spend would drop out of its own report.
+ */
+
+const { supabase, user } = Astro.locals;
+if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+
+const [allowance, usage, jobs, calls] = await Promise.all([
+  loadAllowance(supabase, user.id),
+  loadMyUsage(supabase),
+  loadJobs(supabase, { limit: 20 }),
+  loadCalls(supabase, { limit: 50 }),
+]);
+
+const spent = usage.reduce((sum, row) => sum + Number(row.cost_usd), 0);
+const totalCalls = usage.reduce((sum, row) => sum + Number(row.calls), 0);
+
+// Grouped the way somebody reads it: what I ran, what somebody else ran on my
+// bill, and what I ran on somebody else's.
+const byRole = {
+  mine: usage.filter(r => r.role === 'mine'),
+  onMyBill: usage.filter(r => r.role === 'on my bill'),
+  onTheirBill: usage.filter(r => r.role === 'on their bill'),
+};
+
+const pct = allowance.limitUsd > 0
+  ? Math.min(100, Math.round(((allowance.committedUsd + allowance.reservedUsd) / allowance.limitUsd) * 100))
+  : 0;
+
+const when = (iso: string) =>
+  new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+---
+
+<AppShell title="AI usage · Grackles">
+  <h1 class="page-title">AI usage</h1>
+  <p class="page-intro">This month, and what it was spent on.</p>
+
+  {!allowance.granted && (
+    <p class="notice notice--error" role="alert">
+      You have no AI allowance. Nothing will run until a platform admin grants one —
+      an absent allowance is a refusal, not an unlimited default.
+    </p>
+  )}
+  {allowance.granted && !allowance.enabled && (
+    <p class="notice notice--error" role="alert">Your AI allowance is switched off.</p>
+  )}
+
+  <div class="ai-summary">
+    <div class="ai-stat">
+      <span class="ai-stat__value">{money(spent)}</span>
+      <span class="ai-stat__label">spent this month</span>
+    </div>
+    <div class="ai-stat">
+      <span class="ai-stat__value">{money(allowance.remainingUsd)}</span>
+      <span class="ai-stat__label">left of {money(allowance.limitUsd)}</span>
+    </div>
+    <div class="ai-stat">
+      <span class="ai-stat__value">{totalCalls}</span>
+      <span class="ai-stat__label">calls</span>
+    </div>
+  </div>
+
+  <div class="ai-meter" role="img" aria-label={`${pct}% of this month's allowance used`}>
+    <span class="ai-meter__fill" style={`width:${pct}%`}></span>
+  </div>
+  <p class="page-intro">
+    Resets {allowance.resets}.
+    {allowance.reservedUsd > 0 && ` ${money(allowance.reservedUsd)} is held by work still running.`}
+  </p>
+
+  {usage.length === 0 && <p class="empty">Nothing has been run this month.</p>}
+
+  {(['mine', 'onMyBill', 'onTheirBill'] as const).map(key => {
+    const rows = byRole[key];
+    if (rows.length === 0) return null;
+    const heading = key === 'mine' ? 'What I ran'
+      : key === 'onMyBill' ? 'Run by somebody else, on my bill'
+      : "What I ran on somebody else's bill";
+    return (
+      <>
+        <p class="section-label">{heading}</p>
+        <table class="ai-table">
+          <thead>
+            <tr>
+              <th>Feature</th><th>Project</th><th class="num">Calls</th>
+              <th class="num">Tokens</th><th class="num">Cost</th><th class="num">Failed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(row => (
+              <tr>
+                <td>{row.feature_name}</td>
+                <td>
+                  {row.workspace_name ?? <span class="ai-muted">a deleted project</span>}
+                  {row.workspace_name && <span class="ai-muted"> · {appBySlug((row as any).app)?.name ?? ''}</span>}
+                </td>
+                <td class="num">{row.calls}</td>
+                <td class="num">{Number(row.prompt_tokens) + Number(row.completion_tokens)}</td>
+                <td class="num">{money(Number(row.cost_usd))}</td>
+                <td class="num">
+                  {row.failures > 0 && <span class="ai-bad">{row.failures}</span>}
+                  {row.validator_failures > 0 && <span class="ai-bad"> ⚠ {row.validator_failures}</span>}
+                  {row.failures === 0 && row.validator_failures === 0 && <span class="ai-muted">—</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </>
+    );
+  })}
+
+  {jobs.length > 0 && (
+    <>
+      <p class="section-label">Recent jobs</p>
+      <p class="page-intro">
+        A job is the thing that was asked for. The calls underneath it are the detail.
+      </p>
+      <table class="ai-table">
+        <thead>
+          <tr><th>When</th><th>Feature</th><th>Kind</th><th>Status</th><th class="num">Cost</th><th></th></tr>
+        </thead>
+        <tbody>
+          {jobs.map(job => (
+            <tr>
+              <td>{when(job.created_at)}</td>
+              <td>{job.feature}</td>
+              <td>{job.class}</td>
+              <td>
+                <span class={`ai-status ai-status--${job.status}`}>{job.status}</span>
+                {job.items_total !== null && (
+                  <span class="ai-muted"> {job.items_done}/{job.items_total}</span>
+                )}
+              </td>
+              <td class="num">{money(Number(job.spent_usd))}</td>
+              <td>
+                {(job.status === 'running' || job.status === 'queued') && (
+                  <form method="POST" action="/api/ai/cancel" class="inline-form">
+                    <input type="hidden" name="job_id" value={job.id} />
+                    <input type="hidden" name="next" value={Astro.url.pathname} />
+                    <button class="button button--quiet" type="submit">Cancel</button>
+                  </form>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  )}
+
+  {calls.length > 0 && (
+    <>
+      <p class="section-label">The last fifty calls</p>
+      <p class="page-intro">
+        Failed calls are here too, with what they cost. A page that hides them cannot explain a bill.
+      </p>
+      <table class="ai-table">
+        <thead>
+          <tr>
+            <th>When</th><th>Feature</th><th>Status</th><th>Check</th>
+            <th class="num">Tokens</th><th class="num">Cost</th><th>Prompt</th>
+          </tr>
+        </thead>
+        <tbody>
+          {calls.map(call => (
+            <tr>
+              <td>{when(call.created_at)}</td>
+              <td>{call.feature}</td>
+              <td>
+                <span class={`ai-status ai-status--${call.status}`}>{call.status}</span>
+                {call.error && <span class="ai-muted" title={call.error}> ?</span>}
+              </td>
+              <td>
+                {call.validator_status === 'fail' && <span class="ai-bad">fail</span>}
+                {call.validator_status === 'warn' && <span class="ai-warn">warn</span>}
+                {call.validator_status === 'pass' && <span class="ai-muted">pass</span>}
+                {!call.validator_status && <span class="ai-muted">—</span>}
+              </td>
+              <td class="num">
+                {(call.prompt_tokens ?? 0) + (call.completion_tokens ?? 0)}
+              </td>
+              <td class="num">{money(Number(call.cost_usd ?? 0))}</td>
+              <td class="ai-muted">{call.prompt_version ? `v${call.prompt_version}` : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  )}
+</AppShell>
+
+<style>
+  /* Scoped to this page. The three app stylesheets are the originals and have
+     no business growing a reporting table between them. */
+  .ai-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    margin: 1.5rem 0 0.75rem;
+  }
+  .ai-stat { display: flex; flex-direction: column; }
+  .ai-stat__value { font-size: 1.75rem; font-weight: 600; line-height: 1.1; }
+  .ai-stat__label { font-size: 0.85rem; opacity: 0.7; }
+
+  .ai-meter {
+    display: block;
+    height: 6px;
+    width: 100%;
+    max-width: 32rem;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .ai-meter__fill { display: block; height: 100%; background: currentColor; opacity: 0.55; }
+
+  .ai-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+  }
+  .ai-table th, .ai-table td {
+    text-align: left;
+    padding: 0.4rem 0.6rem 0.4rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    vertical-align: top;
+  }
+  .ai-table th { font-weight: 600; opacity: 0.7; font-size: 0.8rem; }
+  .ai-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .ai-muted { opacity: 0.55; }
+  .ai-bad { color: #a4243b; font-weight: 600; }
+  .ai-warn { color: #9a6a00; font-weight: 600; }
+
+  .ai-status--running, .ai-status--queued { font-weight: 600; }
+  .ai-status--failed, .ai-status--exhausted { color: #a4243b; }
+  .ai-status--cancelled, .ai-status--released { opacity: 0.6; }
+
+  .ai-table .inline-form { margin: 0; }
+</style>

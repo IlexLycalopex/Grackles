@@ -76,7 +76,7 @@ const shortDate = (iso: string) =>
 
 // What this account may start on its own, which is a different question from
 // what it is a member of — someone can have one, both, or neither.
-const { creatable } = await loadEntitlements(supabase, user.id);
+const { creatable, isPlatformAdmin } = await loadEntitlements(supabase, user.id);
 
 // Set by /invite/[token] when redemption failed, so the reason can be worded
 // here rather than in a redirect.
@@ -94,6 +94,7 @@ const inviteError = inviteFailed
   <h1 class="page-title">Your projects</h1>
   <p class="page-intro">
     Everything you own or have been invited to, across every app.
+    {' '}<a href="/settings/ai">What AI has cost you</a>{isPlatformAdmin && <> · <a href="/admin/ai">AI controls</a></>}.
   </p>
 
   {error && <p class="notice notice--error" role="alert">Could not load your projects: {error.message}</p>}

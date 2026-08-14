@@ -55,6 +55,47 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `GRK04` | That app/slug pair is taken |
 | `42501` | Not signed in |
 
+### AI governance (2026-08-14)
+
+| Migration | What it does |
+| --- | --- |
+| `20260814100000_ai_registry` | `ai_features`, `ai_platform_settings`, `ai_models`, `ai_prompt_versions`, `ai_register_prompt()`, and the desk seeded as it already behaves |
+| `20260814100100_ai_budgets` | `ai_budgets` (the `app_grants` analogue), `ai_periods`, `ai_workspace_features`, and a backfill so existing owners keep working |
+| `20260814100200_ai_jobs` | `ai_jobs`, `ai_calls`, `ai_job_items`, `ai_proposals`, and their policies |
+| `20260814100300_ai_functions` | `ai_begin_job` / `ai_begin_call` / `ai_end_call` / `ai_end_job`, the item claim, both reapers, `my_ai_usage()` |
+| `20260814100400_wbpr_metered` | `wbpr_agent_sessions.ai_job_id`, and the desk switched on for every WBPR project |
+| `20260814100500_ai_admin` | `ai_admin_spend()`, `ai_admin_queue()`, `ai_set_budget()` |
+
+**Not yet applied.** Two things to do first:
+
+1. **Check the prices.** `ai_models` is seeded with placeholders. Every refusal
+   downstream is computed from them, and a wrong price does not fail loudly — it
+   quietly makes every limit the wrong size.
+2. **Decide the default allowance.** `ai_platform_settings.default_monthly_usd`
+   is $5. Everyone who owns a workspace is backfilled with a null
+   `monthly_usd`, which means they get that default.
+
+Ordering matters within the set: `100300` alters the table `100000` creates and
+depends on the jobs from `100200`. Apply in filename order.
+
+New SQLSTATEs, continuing the GRK series:
+
+| Code | Meaning |
+| --- | --- |
+| `GRK10` | No such project, or not visible — deliberately indistinguishable |
+| `GRK11` | AI is switched off platform-wide |
+| `GRK12` | Feature off, for the platform or for this project |
+| `GRK13` | This actor may not run this feature here |
+| `GRK14` | Rate limited |
+| `GRK15` | The payer's monthly allowance is spent |
+| `GRK16` | The project's daily ceiling is reached |
+| `GRK17` | Fan-out went past `max_depth` |
+| `GRK18` | The job is larger than its share of what is left |
+| `GRK19` | The job has reached one of its own ceilings, or is finished |
+| `GRK1A` | Too many prompt versions for one feature |
+| `GRK1B` | Admissions are paused |
+| `GRK1C` | No allowed price for that model |
+
 ## Applied
 
 All seven are live on `ophmsvqtzffrjmyjyzza` as of 2026-08-05. The filenames here keep their original
@@ -115,7 +156,21 @@ createdb grackles
 psql -d grackles -f tests/baseline.sql
 for f in migrations/*.sql; do psql -d grackles -v ON_ERROR_STOP=1 --single-transaction -f "$f"; done
 tests/test.sh
+tests/ai.sh
 ```
+
+**Both suites want a fresh database, in that order.** `test.sh` writes rows
+outside its rolled-back transactions — grants for Rob, a second lounge — so a
+second run against the same cluster fails on its own leftovers. That is not new;
+it simply had no neighbour before to make it visible.
+
+`tests/harness.sh` holds `check()` and the role preambles, sourced by both.
+
+`tests/baseline.sql` previously had no `touch_updated_at()`, which meant every
+migration from `20260806170000` onwards failed to apply against the harness —
+the whole WBPR schema, its grants, the agent tables and the caller_roll
+backfill. The suite passed throughout, because it only ever ran the seven invite
+migrations. Anything added after them was untestable until this was noticed.
 
 The baseline seeds current production data (one profile, three workspaces, one
 pending invite) so the backfill is exercised against real shape. 37 assertions,

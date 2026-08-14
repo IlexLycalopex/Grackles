@@ -22,6 +22,7 @@ several people can share a project.
 | ✅ | The launcher reads from the database; all eight sites exist as workspaces |
 | ✅ | WBPR migrated off GitHub Pages — nine sessions, five tables, editable in place |
 | ✅ | The WBPR broadcast agent (MiniMax M3) — running; the one-click write-up is the last untested path |
+| 🟡 | AI governance — built, tested, **not applied**. See `docs/ai-architecture.md` and `supabase/README.md` |
 | ⬜ | WBPR's map and veil pages — left behind in the migration, see below |
 | ✅ | Custom SMTP — Supabase's own magic-link and confirmation emails go out through Resend, alongside the app's invitations |
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
@@ -98,6 +99,10 @@ every value of the enum — so this is the only thing stopping it being offered.
 /wbpr/:workspace/run               the desk — run a broadcast with the model (owner only)
 /api/wbpr/:workspace/chat          one turn at the desk
 /api/wbpr/:workspace/log           write the sitting up as a broadcast
+
+/settings/ai                       what AI has cost you, and what it was worth
+/admin/ai                          platform controls (platform admins; 404 otherwise)
+/api/ai/cancel                     stop a job
 ```
 
 Static segments beat dynamic ones in Astro's routing, so `pick/new` wins over
@@ -283,6 +288,12 @@ even when there is only ever going to be a single call. A sitting at the desk is
 already a job in everything but name; enriching a year of books is four hundred
 calls that would each pass a per-call check on the way to spending a month's
 allowance. One envelope, one call ceiling, one thing to cancel.
+
+All of that is now built — `supabase/migrations/20260814*`, `src/lib/ai/`,
+`/settings/ai` for a person, `/admin/ai` for the platform, and a panel on each
+project's settings page. The migrations are **not applied**: the prices seeded
+into `ai_models` are placeholders, and every limit downstream is computed from
+them.
 
 It also specifies the half that is not about money. The rules in the desk's
 system prompt — never name a track, never invent a card — are checkable against

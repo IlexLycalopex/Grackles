@@ -24,6 +24,9 @@ const onLoginPage = Astro.url.pathname === '/login';
             <>
               <span>{user.email}</span>
               <a href="/dashboard">Projects</a>
+              {/* Spend is only a real property if somebody can see it without
+                  being told the URL. */}
+              <a href="/settings/ai">AI</a>
               <form method="POST" action="/logout">
                 <button
                   type="submit"
