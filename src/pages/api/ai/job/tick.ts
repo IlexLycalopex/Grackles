@@ -67,6 +67,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   if (!job) return json({ error: 'Not found.' }, 404);
 
+  // A batch belongs to a project by construction — the work is that project's
+  // records. A job with no workspace is a platform-scope one, which is always a
+  // single call and never has items to tick through.
+  if (!job.workspace_id) return json({ error: 'That job does not run in batches.' }, 400);
+
   const run = await runnerFor(supabase, job.feature as FeatureKey, job.workspace_id);
   if (!run) return json({ error: 'That feature does not run in batches.' }, 400);
 

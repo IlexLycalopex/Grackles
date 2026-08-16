@@ -7,7 +7,10 @@ The layer that has to exist before a second feature starts spending money.
 `/admin/ai`, and the AI panel on a project's settings page. WBPR, the reading
 enrichment run and the cigar lookup all run through it. The prices in
 `ai_models` were checked against MiniMax's published rates before applying,
-because every limit downstream is computed from them. Phase 5 (cron drain,
+because every limit downstream is computed from them. `platform.search` — one
+question over everything you can see — added a *scope* to a feature, and is the
+first job that carries no workspace and is billed to the person rather than a
+project's owner. Phase 5 (cron drain,
 scheduled jobs) and phase 6 (anonymous features) are not built. What changed on the way is recorded under
 *What the build changed*, near the end.
 

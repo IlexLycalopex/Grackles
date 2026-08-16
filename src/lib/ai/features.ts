@@ -20,6 +20,7 @@ export const FEATURE_KEYS = [
   'wbpr.writeup',
   'reading.enrich',
   'cigars.lookup',
+  'platform.search',
   'platform.golden',
 ] as const;
 
@@ -29,7 +30,8 @@ export type JobClass = 'single' | 'interactive' | 'batch' | 'scheduled';
 
 export interface FeatureNote {
   key: FeatureKey;
-  app: AppSlug;
+  /** Null for a feature that is the person's rather than a project's. */
+  app: AppSlug | null;
   /** What kind of work it is, which decides how its budget is held. */
   class: JobClass;
   what: string;
@@ -47,6 +49,12 @@ export const FEATURES: FeatureNote[] = [
     app: 'wbpr',
     class: 'single',
     what: 'The one call that turns a finished sitting into a broadcast.',
+  },
+  {
+    key: 'platform.search',
+    app: null,
+    class: 'single',
+    what: 'One question about your own records, turned into a search the app runs. No row is sent anywhere.',
   },
   {
     key: 'platform.golden',

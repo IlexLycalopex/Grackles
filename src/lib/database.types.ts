@@ -861,8 +861,11 @@ export type Database = {
       ai_features: {
         Row: {
           key: string;
-          app: Database['public']['Enums']['app_slug'];
+          /** Null for a platform-scope feature, which belongs to no one app. */
+          app: Database['public']['Enums']['app_slug'] | null;
           name: string;
+          /** 'workspace' acts for a project and bills its owner; 'platform' acts for the person. */
+          scope: string;
           enabled: boolean;
           max_tokens: number;
           min_role: string;
@@ -882,8 +885,9 @@ export type Database = {
         };
         Insert: {
           key: string;
-          app: Database['public']['Enums']['app_slug'];
+          app?: Database['public']['Enums']['app_slug'] | null;
           name: string;
+          scope?: string;
           enabled?: boolean;
           max_tokens: number;
           min_role?: string;
@@ -1022,7 +1026,8 @@ export type Database = {
         Row: {
           id: string;
           feature: string;
-          workspace_id: string;
+          /** Null for a platform-scope job — the person's own work, not a project's. */
+          workspace_id: string | null;
           class: string;
           /** Null only where the account has since been deleted. */
           payer_id: string | null;
@@ -1405,7 +1410,8 @@ export type Database = {
       ai_begin_job: {
         Args: {
           p_feature: string;
-          p_workspace: string;
+          /** Null only for a platform-scope feature. Refused for any other. */
+          p_workspace: string | null;
           p_class?: string;
           p_max_usd?: number | null;
           p_max_calls?: number | null;

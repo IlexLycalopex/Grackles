@@ -90,6 +90,8 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `20260814101800_admin_console` | `admin_overview/projects/people/invites/members()` and the controls beside them — the platform console |
 | `20260814101900_cigar_lookup` | Registers `cigars.lookup`, bringing the reference desk onto the metered path |
 | `20260814102000_search_path` | Pins `search_path` on the four functions that did not, one of which this branch un-hardened by replacing production's `touch_updated_at` |
+| `20260814102100_ai_search` | `ai_features.scope`, a nullable `ai_jobs.workspace_id`, and `platform.search` — the first feature that is a person's rather than a project's |
+| `20260814102200_enrich_sends_records` | Marks `reading.enrich` as records-sending. It was registered before the column existed and had been exempt from the consent gate written for it |
 
 **Applied 2026-08-14**, as four migrations rather than twenty — the layer is not
 meaningful in halves, so the files were bundled and applied as units that each

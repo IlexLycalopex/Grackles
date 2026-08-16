@@ -383,6 +383,33 @@ check "consent is checked before the role is" GRK1E \
 check "a feature that sends nothing stored needs no consent" ok \
   "$open_desk" "$as_jamie"
 
+# The three above prove the mechanism using a feature this file invents, which
+# is how the real gap survived: `reading.enrich` was registered three migrations
+# before `sends_records` existed, took the column default of false, and was
+# exempt from a gate written with it in mind. A working mechanism that nothing
+# real is subject to passes every test you write about the mechanism.
+#
+# So this one is about the registry rather than the machinery. Enrichment sends
+# the book and then the reader's whole vocabulary — every genre, publisher and
+# tag they use — which is the shelf, and is the thing the column exists to mark.
+check "the feature that sends a shelf is registered as sending one" ok \
+  "do \$\$ begin
+     if not (select sends_records from public.ai_features where key='reading.enrich')
+       then raise exception 'enrichment is exempt from the consent gate'; end if;
+   end \$\$;" "$as_jamie"
+
+# The other side of the same line, so a later change cannot quietly make every
+# feature records-sending to make a refusal go away. What these send is a phrase
+# somebody typed, or a sitting they are in the middle of.
+check "features that send nothing stored are registered that way" ok \
+  "do \$\$ declare k text; begin
+     foreach k in array array['cigars.lookup','platform.search','wbpr.desk','wbpr.writeup']
+     loop
+       if (select sends_records from public.ai_features where key=k)
+         then raise exception '% is marked as sending records', k; end if;
+     end loop;
+   end \$\$;" "$as_jamie"
+
 check "transcripts are kept unless somebody sets a retention" ok \
   "do \$\$ begin
      $SU
@@ -943,6 +970,108 @@ check "the actor sees what they ran on somebody else's bill" ok \
      select count(*) into n from public.my_ai_usage() where role = 'on their bill';
      if n < 1 then raise exception 'editor cannot see their own spending'; end if;
    end \$\$;" "$as_rob"
+
+# ── Platform scope ───────────────────────────────────────────────────────────
+#
+# The first feature that is the person's rather than a project's. What matters
+# here is that dropping the per-project controls did not drop the rest: a
+# platform job still answers to the master switch, the rate limit, the breaker
+# and the asker's own allowance, and it must not become a way to open a job
+# against a project you cannot read.
+#
+# Rob has no allowance on purpose everywhere else in this file, so the tests
+# that need a funded asker say so in their preamble. The insert runs before the
+# role switch, while the session is still the owner, and check() rolls it back.
+as_rob_funded="insert into public.ai_budgets (user_id,monthly_usd,enabled)
+  values ('$ROB',5,true)
+  on conflict (user_id) do update set monthly_usd=5, enabled=true; $as_rob"
+
+echo "── platform scope"
+check "a platform job opens with no workspace at all" ok \
+  "do \$\$ declare j uuid; w uuid; begin
+     j := public.ai_begin_job('platform.search', null, 'single');
+     select workspace_id into w from public.ai_jobs where id = j;
+     if w is not null then raise exception 'a platform job took a workspace'; end if;
+   end \$\$;" "$as_jamie"
+
+# The reason the scope exists at all. Billing a sitewide question to whichever
+# project happened to be named would put one owner on the hook for a search
+# that ranged across nine.
+check "a platform job is billed to the person asking, not a project owner" ok \
+  "do \$\$ declare j uuid; p uuid; begin
+     j := public.ai_begin_job('platform.search', null, 'single');
+     select payer_id into p from public.ai_jobs where id = j;
+     if p <> '$ROB' then raise exception 'payer was % rather than the asker', p; end if;
+   end \$\$;" "$as_rob_funded"
+
+check "a platform job still needs the asker to have an allowance" GRK15 \
+  "select public.ai_begin_job('platform.search', null, 'single');" "$as_rob"
+
+check "anonymous callers get no platform job" GRK13 \
+  "select public.ai_begin_job('platform.search', null, 'single');" "$as_anon"
+
+check "the master switch stops a platform job like any other" GRK11 \
+  "do \$\$ begin
+     $SU
+     update public.ai_platform_settings set enabled = false;
+     $DOWN
+     perform public.ai_begin_job('platform.search', null, 'single');
+   end \$\$;" "$as_jamie"
+
+check "a closed door stops a platform job like any other" GRK1B \
+  "do \$\$ begin
+     $SU
+     update public.ai_platform_settings set admissions_open = false;
+     $DOWN
+     perform public.ai_begin_job('platform.search', null, 'single');
+   end \$\$;" "$as_jamie"
+
+check "a workspace feature still refuses a null workspace" GRK10 \
+  "select public.ai_begin_job('wbpr.desk', null, 'interactive');" "$as_jamie"
+
+# A platform feature has no project to ask for consent, so it may not be the
+# kind of feature that would need one. A constraint rather than a note, because
+# the person who adds the next platform feature will not read the note.
+check "a platform feature cannot be made to send records" "ai_features_platform_sends_nothing" \
+  "do \$\$ begin
+     $SU
+     update public.ai_features set sends_records = true where key = 'platform.search';
+   end \$\$;" "$as_jamie"
+
+check "a workspace feature cannot lose its app" "ai_features_workspace_has_app" \
+  "do \$\$ begin
+     $SU
+     update public.ai_features set app = null where key = 'wbpr.desk';
+   end \$\$;" "$as_jamie"
+
+# The cache is keyed on workspace, and a platform job has none, so it keys on
+# the payer. Two people asking the same words must not share an answer: what a
+# plan reaches depends on who is asking, and a shared entry would hand one
+# person a resolved version of the other's question.
+check "two people asking the same thing do not share a cached answer" ok \
+  "do \$\$ declare j uuid; hit record; begin
+     j := public.ai_begin_job('platform.search', null, 'single');
+     perform public.ai_cache_put(j, 'same question', '{\"source\":\"books\"}');
+     perform public.ai_end_job(j, 'done');
+     $SU
+     perform set_config('request.jwt.claims', '{\"sub\":\"$JAMIE\"}', true);
+     $DOWN
+     j := public.ai_begin_job('platform.search', null, 'single');
+     select * into hit from public.ai_cache_take(j, 'same question');
+     if found then raise exception 'one person got the other person''s answer'; end if;
+   end \$\$;" "$as_rob_funded"
+
+check "the same person asking twice pays once" ok \
+  "do \$\$ declare j uuid; hit record; begin
+     j := public.ai_begin_job('platform.search', null, 'single');
+     perform public.ai_cache_put(j, 'my question', '{\"source\":\"books\"}');
+     perform public.ai_end_job(j, 'done');
+
+     j := public.ai_begin_job('platform.search', null, 'single');
+     select * into hit from public.ai_cache_take(j, 'my question');
+     if not found then raise exception 'the second ask was not free'; end if;
+     if hit.content is null then raise exception 'the hit carried no answer'; end if;
+   end \$\$;" "$as_jamie"
 
 echo
 echo "passed: $pass   failed: $fail"

@@ -27,6 +27,7 @@ several people can share a project.
 | ✅ | Album covers looked up on save — the build step the migration dropped, moved to the write |
 | ✅ | AI governance — applied and live. See `docs/ai-architecture.md` and `supabase/README.md` |
 | ✅ | The platform console at `/admin` — applied and live (same migrations) |
+| ✅ | Ask the archive at `/search` — one question, across every project you can see |
 | ⬜ | WBPR's map and veil pages — left behind in the migration, see below |
 | ✅ | Custom SMTP — Supabase's own magic-link and confirmation emails go out through Resend, alongside the app's invitations |
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
@@ -537,6 +538,47 @@ Two properties are the whole design:
 `src/lib/artwork.test.mjs` pins that matcher against fixture responses
 (`node --experimental-strip-types src/lib/artwork.test.mjs`). It stubs `fetch`;
 it is not a check that Apple still answers.
+
+## Ask the archive
+
+`/search` is one box over everything you are allowed to read, and the design is
+a single sentence: **the model says how to look, and the app looks.**
+
+A question goes out with a description of the columns — never a row — and a
+*plan* comes back: a table, some comparisons, an ordering. The plan is checked
+against an allowlist and then run through the caller's own Supabase client, so
+`workspaces_read` decides what comes back exactly as it does on every other
+page. Nothing is generated as SQL and nothing is interpolated into a query.
+
+Three things follow, and they are the reasons for the shape rather than
+consequences of it:
+
+- **No row reaches the model**, so `platform.search` is registered as sending
+  nothing and needs no project's consent. That is also why results are
+  *rendered* rather than narrated. A second call summarising the rows would read
+  better and be a worse feature: it would put every project behind a consent
+  gate, double the cost, and introduce the one thing this design otherwise has
+  none of — a model asserting something about your records that you then have to
+  check.
+- **A wrong plan cannot widen.** It carries no workspace and cannot name a
+  person, so the worst it can do is show you your own rows in a strange order.
+- **A plan is a pure function of the question**, so it is cached. Asking the
+  same thing twice costs once.
+
+A plan that names a column which does not exist is refused whole rather than
+repaired. A repaired plan answers a different question silently, and the results
+look right, which is the worst way to be wrong. The plan is printed above the
+results for the same reason: you can see that "unfinished" became
+`date_finished is null`, and disagree.
+
+It is also the first feature that is not a project's. Every other one acts on a
+project's behalf and is billed to that project's owner; a sitewide question is
+the asker's, and billing it to whichever project happened to be named would put
+one owner on the hook for a search that ranged across nine. So a feature now has
+a *scope*, and a platform-scope job carries no workspace, bills the actor, and
+keeps every control that is not per-project — the master switch, admissions, the
+rate limit, the breaker, the quality floor and the person's own allowance. It
+may not send records, and that is a check constraint rather than a note.
 
 ## Photographs
 

@@ -37,7 +37,12 @@ function environment(): 'production' | 'preview' | 'development' {
 export interface JobContext {
   supabase: Client;
   feature: FeatureKey;
-  workspaceId: string;
+  /**
+   * The project this is for. Null only for a platform-scope feature — work that
+   * is the person's rather than a project's, billed to them, with no project to
+   * switch it off for. `ai_begin_job` refuses a null here for anything else.
+   */
+  workspaceId: string | null;
   class?: JobClass;
   /** The worst this job may cost. Null takes the feature's registered default. */
   maxUsd?: number | null;
