@@ -92,6 +92,7 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `20260814102000_search_path` | Pins `search_path` on the four functions that did not, one of which this branch un-hardened by replacing production's `touch_updated_at` |
 | `20260814102100_ai_search` | `ai_features.scope`, a nullable `ai_jobs.workspace_id`, and `platform.search` — the first feature that is a person's rather than a project's |
 | `20260814102200_enrich_sends_records` | Marks `reading.enrich` as records-sending. It was registered before the column existed and had been exempt from the consent gate written for it |
+| `20260814102300_budgets_for_everyone` | An `ai_budgets` row for every profile, and a trigger so every future one gets it. The original backfill covered workspace owners, which stopped being the right set the moment a feature was billed to the asker |
 
 **Applied 2026-08-14**, as four migrations rather than twenty — the layer is not
 meaningful in halves, so the files were bundled and applied as units that each
@@ -110,9 +111,14 @@ Two things were settled before applying:
    512K, which is why one row is enough when the largest prompt allowance on the
    site is 12,000 tokens; and they are presented as a permanent 50% discount on
    a $0.60/$2.40 list, which is what `effective_from` exists to survive.
-2. **The default allowance.** `ai_platform_settings.default_monthly_usd` is $5.
-   Everyone who owns a workspace is backfilled with a null `monthly_usd`, which
-   means they get that default.
+2. **The default allowance.** `ai_platform_settings.default_monthly_usd` is $5,
+   and **every profile** now carries an `ai_budgets` row with a null
+   `monthly_usd`, so that one figure is the ceiling for everybody who has not
+   been given a specific one. A trigger on `profiles` grants a row to each new
+   account, which is safe because `login.astro` sets `shouldCreateUser: false`:
+   an account exists only because somebody was invited, and the invitation is
+   the gate on who may spend. The row is a ceiling, not credit — an admin who
+   wants somebody at zero sets it in `/admin`, and nothing here overwrites it.
 
 Ordering matters within the set: `100300` alters the table `100000` creates and
 depends on the jobs from `100200`. Apply in filename order.

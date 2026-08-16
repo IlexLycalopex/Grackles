@@ -27,8 +27,11 @@ $PSQL -c "
   insert into public.workspace_members (workspace_id,user_id,role)
     values ('$WBPR','$ROB','editor') on conflict (workspace_id,user_id) do update set role='editor';
 
-  -- Rob deliberately has no ai_budgets row. The backfill ran before his
-  -- workspace existed, which is exactly the state a new owner arrives in.
+  -- Rob deliberately has no ai_budgets row, so the refusals below have somebody
+  -- to refuse. This is no longer the state a new account arrives in — a trigger
+  -- gives every profile one, and the test below says so — but it is still
+  -- reachable, because an admin can take a row away. The delete comes last on
+  -- purpose: the trigger fires on the profile insert above.
   delete from public.ai_budgets where user_id='$ROB';
 " >/dev/null
 
@@ -392,6 +395,37 @@ check "a feature that sends nothing stored needs no consent" ok \
 # So this one is about the registry rather than the machinery. Enrichment sends
 # the book and then the reader's whole vocabulary — every genre, publisher and
 # tag they use — which is the shelf, and is the thing the column exists to mark.
+# An invited account that cannot search is a paper cut with nothing behind it:
+# the invitation was already the decision about who may spend, and login refuses
+# to create an account without one. What a new profile gets is a ceiling, not
+# credit — the same limit everybody else had.
+check "a new account arrives with an allowance" ok \
+  "do \$\$ declare u uuid := gen_random_uuid(); begin
+     -- Escalated throughout, and deliberately: this is a database trigger, not
+     -- a caller's permissions. Asserting through RLS would read ai_budgets as
+     -- Jamie, who can only see their own row, so the check would pass whether
+     -- or not the trigger had fired.
+     $SU
+     insert into auth.users (id,email) values (u, 'new@example.com');
+     insert into public.profiles (id,email,display_name) values (u,'new@example.com','New');
+     if not exists (select 1 from public.ai_budgets where user_id = u and enabled)
+       then raise exception 'a new account cannot spend anything'; end if;
+     if (select monthly_usd from public.ai_budgets where user_id = u) is not null
+       then raise exception 'a figure was frozen in rather than left to the default'; end if;
+   end \$\$;" "$as_jamie"
+
+# Granting a ceiling is not the same as granting it twice. An admin who has set
+# somebody to zero must not have that undone by anything that re-runs.
+check "an existing allowance is never overwritten by the grant" ok \
+  "do \$\$ begin
+     $SU
+     update public.ai_budgets set monthly_usd = 0, enabled = false where user_id = '$JAMIE';
+     perform public.ai_budget_for_new_profile();
+   exception when others then
+     if (select monthly_usd from public.ai_budgets where user_id='$JAMIE') <> 0
+       then raise exception 'a deliberate zero was overwritten'; end if;
+   end \$\$;" "$as_jamie"
+
 check "the feature that sends a shelf is registered as sending one" ok \
   "do \$\$ begin
      if not (select sends_records from public.ai_features where key='reading.enrich')
