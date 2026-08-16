@@ -1,11 +1,12 @@
 import type { APIRoute } from 'astro';
 import { resolveWorkspace } from '../../../../lib/workspace';
 import type { Json } from '../../../../lib/database.types';
-import { chat } from '../../../../lib/minimax';
+import { closeJob, jobHandle, openJob } from '../../../../lib/ai/job';
+import { validateDeskReply } from '../../../../lib/ai/validators/wbpr';
 import { loadPhenomenaCatalogue } from '../../../../lib/wbpr';
 import {
   buildMessages, closeBroadcast, openBroadcast, rollForCaller, sayAtTable, startBlock,
-  type AgentState,
+  SYSTEM, type AgentState,
 } from '../../../../lib/wbpr-agent';
 
 export const prerender = false;
@@ -20,7 +21,14 @@ export const prerender = false;
  *
  * The gate is owner-only and it is checked here rather than trusted from the
  * page, because this is the URL that spends money and a page check protects
- * only the button.
+ * only the button. It is now checked a third time, in ai_begin_job, from
+ * `min_role` on the feature row — the same rule expressed where the money
+ * actually moves. All three holding is not redundancy worth removing.
+ *
+ * The sitting is an `interactive` job: opened when the night opens, drawn
+ * against turn by turn, and closed when it is written up or abandoned. Every
+ * turn re-asks the cheap questions, which is what makes the kill switch reach
+ * a broadcast already on air.
  */
 
 const json = (body: unknown, status = 200) =>
@@ -29,7 +37,15 @@ const json = (body: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json' },
   });
 
-/** How long a reply may run, per kind of turn. A ceiling on cost, not just length. */
+/**
+ * How long a reply may run, per kind of turn.
+ *
+ * These are now a floor under the feature's registered ceiling rather than the
+ * ceiling itself: `ai_features.max_tokens` is what the reservation is taken
+ * against, and lib/ai clamps every request to it. Keeping them means a close-
+ * down still costs a fifth of what a call costs, which the platform ceiling
+ * alone would not express.
+ */
 const BUDGET: Record<string, number> = {
   open: 320,
   block: 220,
@@ -61,17 +77,37 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       return json({ error: 'A broadcast needs a session number and a date.' }, 400);
     }
 
+    // Admission before anything else exists. A refused night leaves no sitting
+    // behind to be resumed, and the refusal is a sentence rather than a 500.
+    const opened = await openJob({
+      supabase,
+      feature: 'wbpr.desk',
+      workspaceId: workspace.id,
+      class: 'interactive',
+    });
+
+    if (!opened.ok) {
+      return json({ error: opened.error }, opened.code === 'GRK15' || opened.code === 'GRK16' ? 402 : 403);
+    }
+
     const { data: created, error } = await supabase
       .from('wbpr_agent_sessions')
       .insert({
         workspace_id: workspace.id,
         created_by: user.id,
+        ai_job_id: opened.jobId,
         state: { session, date, block: 0, cards: [], caller: null },
       })
       .select('id')
       .single();
 
-    if (error || !created) return json({ error: 'Could not start a sitting.' }, 500);
+    if (error || !created) {
+      // The job was admitted and is now holding nothing useful. Closing it here
+      // rather than leaving it to the reaper keeps the queue honest about what
+      // is actually running.
+      await closeJob(supabase, opened.jobId, 'failed', 'the sitting could not be created');
+      return json({ error: 'Could not start a sitting.' }, 500);
+    }
 
     // The catalogue, so the night can say "the frost is back" rather than
     // naming it something new. Derived from the log the same way the phenomena
@@ -79,7 +115,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     const catalogue = await loadPhenomenaCatalogue(supabase, workspace.id);
     const known = catalogue.map(p => ({ name: p.name, status: p.status }));
 
-    return turn(supabase, workspace.id, created.id, openBroadcast(session, date, known), 'open');
+    return turn(supabase, workspace.id, created.id, opened.jobId, openBroadcast(session, date, known), 'open');
   }
 
   if (!sessionId) return json({ error: 'No sitting in progress.' }, 400);
@@ -88,7 +124,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   // confirmed they own it — there is no second ownership check to write here.
   const { data: sitting } = await supabase
     .from('wbpr_agent_sessions')
-    .select('id, block, state, status')
+    .select('id, block, state, status, ai_job_id')
     .eq('id', sessionId)
     .maybeSingle();
 
@@ -112,30 +148,38 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       .select('id');
 
     if (!killed?.length) return json({ error: 'That sitting could not be closed.' }, 500);
+
+    // Abandoning is a normal ending, so the job is closed rather than
+    // cancelled: nothing went wrong, the night simply stopped. Whatever the
+    // envelope did not spend goes back either way.
+    if (sitting.ai_job_id) await closeJob(supabase, sitting.ai_job_id, 'done');
+
     return json({ abandoned: true });
   }
+
+  const jobId = sitting.ai_job_id;
 
   if (action === 'block') {
     const next = (sitting.block ?? 0) + 1;
     if (next > 4) return json({ error: 'Four blocks is the night. Close it out.' }, 400);
-    return turn(supabase, workspace.id, sitting.id, startBlock(next, state), 'block', next);
+    return turn(supabase, workspace.id, sitting.id, jobId, startBlock(next, state), 'block', next);
   }
 
   if (action === 'roll') {
-    return turn(supabase, workspace.id, sitting.id, rollForCaller(state), 'roll');
+    return turn(supabase, workspace.id, sitting.id, jobId, rollForCaller(state), 'roll');
   }
 
   if (action === 'close') {
-    return turn(supabase, workspace.id, sitting.id, closeBroadcast(state), 'close');
+    return turn(supabase, workspace.id, sitting.id, jobId, closeBroadcast(state), 'close');
   }
 
   if (action === 'say') {
     const said = String(body?.text ?? '').trim();
     if (!said) return json({ error: 'Nothing to say.' }, 400);
     return turn(
-      supabase, workspace.id, sitting.id,
+      supabase, workspace.id, sitting.id, jobId,
       { prompt: sayAtTable(said, state), table: '', state },
-      'say'
+      'say', undefined, said
     );
   }
 
@@ -154,10 +198,20 @@ async function turn(
   supabase: App.Locals['supabase'],
   workspaceId: string,
   sessionId: string,
+  jobId: string | null,
   step: { prompt: string; table: string; state: AgentState },
   kind: string,
-  block?: number
+  block?: number,
+  /** What the DJ typed, if anything. Music he named himself is his to name. */
+  said = ''
 ) {
+  if (!jobId) {
+    // A sitting from before the ledger existed. Rather than quietly spending
+    // unmetered, it is refused and says why — there are nine of them and they
+    // are all finished.
+    return json({ error: 'That sitting predates AI metering. Start a new one.' }, 409);
+  }
+
   const { data: history } = await supabase
     .from('wbpr_agent_messages')
     .select('role, content')
@@ -167,17 +221,26 @@ async function turn(
   const prior = (history ?? []) as { role: 'user' | 'assistant'; content: string }[];
   const messages = buildMessages(prior, step.prompt);
 
-  const result = await chat(messages, { maxTokens: BUDGET[kind] ?? 700 });
+  const result = await jobHandle(supabase, jobId, 'wbpr.desk').chat({
+    messages,
+    systemPrompt: SYSTEM,
+    // Under the feature's ceiling, never above it. The reservation is taken
+    // against the ceiling either way, so asking for less here does not buy more
+    // headroom — it just costs less, which is the point.
+    maxTokens: BUDGET[kind] ?? 700,
+    // Checked before Jamie sees it, and recorded either way. The cards are a
+    // hard fail because the app dealt them and knows; music is a warning,
+    // because there is no list of every song to check against and a false
+    // positive that blocked a broadcast would be worse than the thing it
+    // guards.
+    validate: content => validateDeskReply(content, step.state, said),
+  });
 
   if (!result.ok) {
-    return json(
-      {
-        error: result.reason === 'unconfigured'
-          ? 'The model is not configured — MINIMAX_API_KEY is unset.'
-          : `Nothing came back: ${result.reason}.`,
-      },
-      result.reason === 'unconfigured' ? 503 : 502
-    );
+    // A refusal from the gates and a refusal from the provider read
+    // differently: one is a limit doing its job, the other is something broken.
+    const gated = result.code?.startsWith('GRK') ?? false;
+    return json({ error: result.error }, gated ? 402 : 502);
   }
 
   const at = prior.length;
@@ -197,6 +260,11 @@ async function turn(
   // Read-modify-write on the counters. Two people cannot be at one desk — the
   // gate is owner-only and a sitting is one browser tab — so there is no race
   // worth an RPC here.
+  //
+  // These are now dual-written with the ledger rather than being the only
+  // record. They stay until a full night has been through both and the totals
+  // agree: taking them away first would mean discovering a discrepancy with
+  // nothing left to compare against.
   const { data: totals } = await supabase
     .from('wbpr_agent_sessions')
     .select('prompt_tokens, completion_tokens, calls')
@@ -223,5 +291,11 @@ async function turn(
     table: step.table,
     state: step.state,
     usage: result.usage,
+    // What that turn actually cost, and whether it broke a rule. The desk shows
+    // both: a running total nobody can see is the thing this layer exists to
+    // stop, and a warning that never reaches the page is a warning nobody acts
+    // on.
+    cost_usd: result.costUsd,
+    validation: result.validation,
   });
 }

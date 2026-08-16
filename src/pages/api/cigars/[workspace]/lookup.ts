@@ -1,8 +1,9 @@
 import type { APIRoute } from 'astro';
 import { resolveWorkspace } from '../../../../lib/workspace';
-import { chat, MODEL } from '../../../../lib/minimax';
+import { withJob } from '../../../../lib/ai/job';
+import { describeAiError } from '../../../../lib/ai/features';
 import {
-  bestCached, LOOKUP_BUDGET, LOOKUP_TEMPERATURE, lookupMessages, narrowingTerms,
+  bestCached, LOOKUP_BUDGET, LOOKUP_SYSTEM, LOOKUP_TEMPERATURE, lookupMessages, narrowingTerms,
   parseQuery, readLookup, referenceKey,
   type CachedRow, type CigarReference,
 } from '../../../../lib/cigar-lookup';
@@ -157,20 +158,45 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     );
   }
 
-  const result = await chat(lookupMessages(asked), {
-    maxTokens: LOOKUP_BUDGET,
-    temperature: LOOKUP_TEMPERATURE,
-  });
+  // One call, and so one job — the same shape the write-up uses. A job with a
+  // single call in it looks like ceremony until you want the thing a job gives
+  // you: a ledger row naming the payer, an envelope the spend is drawn from, a
+  // feature switch an admin can throw without a deploy, and a breaker that
+  // stops a provider having a bad afternoon from being charged for fifty times.
+  //
+  // Deliberately no `cacheKey`. `cl_cigar_reference` is already a cache and a
+  // better one — keyed on what the answer turned out to be rather than on the
+  // words that were typed, so two spellings of one Partagás share a row. The
+  // only thing a literal cache would add is remembering the replies that
+  // identified nothing, and not remembering those is the point: a second ask
+  // gets a second chance instead of the same nothing for thirty days.
+  const ran = await withJob(
+    { supabase, feature: 'cigars.lookup', workspaceId: workspace.id, class: 'single' },
+    job =>
+      job.chat({
+        messages: lookupMessages(asked),
+        systemPrompt: LOOKUP_SYSTEM,
+        maxTokens: LOOKUP_BUDGET,
+        temperature: LOOKUP_TEMPERATURE,
+      })
+  );
+
+  if (!ran.ok) {
+    // Refused before anything was sent — no allowance, feature off, breaker
+    // open. 402 where the answer is "there is no money", 403 where it is "not
+    // here, not you, not now", matching the desk and the enrichment run.
+    return json(
+      { error: describeAiError({ code: ran.code, message: ran.error }) },
+      ran.code === 'GRK15' || ran.code === 'GRK16' || ran.code === 'GRK18' ? 402 : 403
+    );
+  }
+
+  const result = ran.value;
 
   if (!result.ok) {
-    return json(
-      {
-        error: result.reason === 'unconfigured'
-          ? 'Lookups are not configured — MINIMAX_API_KEY is unset.'
-          : `Nothing came back: ${result.reason}.`,
-      },
-      result.reason === 'unconfigured' ? 503 : 502
-    );
+    // The call happened, or tried to. It is already settled and already in the
+    // ledger with its reason, so this is only how it reads on the page.
+    return json({ error: result.error }, result.error.includes('not configured') ? 503 : 502);
   }
 
   const reference = readLookup(result.content);
@@ -194,7 +220,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       key,
       query: asked,
       ...reference,
-      model: MODEL,
+      model: result.model,
       prompt_tokens: result.usage.prompt_tokens,
       completion_tokens: result.usage.completion_tokens,
       workspace_id: workspace.id,

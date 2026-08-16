@@ -10,10 +10,18 @@
  * Lifted out of the WBPR write-up, which had the only copy, because the cigar
  * lookup needs exactly the same thing and a second copy would be a second
  * chance to fix a bug once.
+ *
+ * The brace-span itself lives in `ai/json.ts`, which grew the same rule
+ * independently while the governance layer was being built. This module is the
+ * tolerant, guardless reading of it — "give me the object or give me null" —
+ * and `ai/json.ts` is the one that says why it failed. Two questions, one
+ * answer about where the JSON starts.
  */
 
+import { extractJson } from './ai/json';
+
 /**
- * The first `{` to the last `}`.
+ * The object a model meant to send, or null.
  *
  * A model told to answer with JSON and nothing else will sometimes wrap it in a
  * fence or introduce it with a sentence anyway. Taking the span between the
@@ -21,11 +29,10 @@
  * it to try again costs a whole call and might not.
  */
 export function parseJsonObject<T>(text: string): T | null {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end <= start) return null;
+  const span = extractJson(text);
+  if (span === null) return null;
   try {
-    return JSON.parse(text.slice(start, end + 1)) as T;
+    return JSON.parse(span) as T;
   } catch {
     return null;
   }

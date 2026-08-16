@@ -1,8 +1,9 @@
 import type { APIRoute } from 'astro';
 import { resolveWorkspace } from '../../../../lib/workspace';
-import { chat } from '../../../../lib/minimax';
+import { closeJob, withJob, type Turn } from '../../../../lib/ai/job';
+import { validateWriteup } from '../../../../lib/ai/validators/wbpr';
 import { oneOf, parseJsonObject } from '../../../../lib/json';
-import { buildMessages, LOG_INSTRUCTION, type AgentState } from '../../../../lib/wbpr-agent';
+import { buildMessages, LOG_INSTRUCTION, SYSTEM, type AgentState } from '../../../../lib/wbpr-agent';
 import { broadcastSlug, PHENOMENON_STATUSES, CONFIDENCES, VEIL_STATUSES } from '../../../../lib/wbpr';
 
 export const prerender = false;
@@ -77,7 +78,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
 
   const { data: sitting } = await supabase
     .from('wbpr_agent_sessions')
-    .select('id, status, state, prompt_tokens, completion_tokens, calls')
+    .select('id, status, state, prompt_tokens, completion_tokens, calls, ai_job_id')
     .eq('id', sessionId)
     .maybeSingle();
 
@@ -98,27 +99,45 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   const prior = (history ?? []) as { role: 'user' | 'assistant'; content: string }[];
   if (prior.length === 0) return json({ error: 'Nothing was broadcast.' }, 400);
 
-  // The one turn worth a large budget: it is writing the whole night up, and a
-  // truncated JSON object is a failed write-up rather than a short one.
-  const result = await chat(buildMessages(prior, LOG_INSTRUCTION), { maxTokens: 2000, temperature: 0.6 });
+  // A job of its own rather than another turn of the sitting's. It is a
+  // different feature with a different ceiling — the one turn worth a large
+  // budget, because a truncated JSON object is a failed write-up rather than a
+  // short one — and giving it its own envelope means a night that spent its
+  // desk allowance can still be written up.
+  // Handed back out of the job rather than captured from it. A variable
+  // assigned inside a callback is a variable TypeScript cannot see being
+  // assigned, and every read of it afterwards needs a cast that quietly stops
+  // checking anything.
+  const ran = await withJob(
+    { supabase, feature: 'wbpr.writeup', workspaceId: workspace.id, class: 'single' },
+    async job => {
+      const written = await job.chat({
+        messages: buildMessages(prior, LOG_INSTRUCTION),
+        systemPrompt: SYSTEM,
+        temperature: 0.6,
+        // Parsed inside the validator so that a parse failure is recorded as
+        // one. It is the cheapest quality metric there is and the first thing
+        // to move when a prompt or a model changes.
+        validate: content => validateWriteup(parseLog(content), state),
+      });
+      return { turn: written, log: written.ok ? parseLog(written.content) : null };
+    }
+  );
 
-  if (!result.ok) {
-    return json(
-      {
-        error: result.reason === 'unconfigured'
-          ? 'The model is not configured — MINIMAX_API_KEY is unset.'
-          : `The write-up failed: ${result.reason}.`,
-      },
-      result.reason === 'unconfigured' ? 503 : 502
-    );
+  if (!ran.ok) {
+    return json({ error: ran.error }, ran.code?.startsWith('GRK') ? 402 : 502);
   }
 
-  const log = parseLog(result.content);
+  const { turn, log } = ran.value;
+  if (!turn.ok) {
+    return json({ error: turn.error }, turn.code?.startsWith('GRK') ? 402 : 502);
+  }
   if (!log) {
     // The transcript survives, so this is retryable rather than fatal — and the
-    // tokens are recorded either way, because they were spent either way.
-    console.error('wbpr log: unparseable write-up', { sample: result.content.slice(0, 400) });
-    await billed(supabase, sessionId, sitting, result.usage);
+    // tokens were recorded by ai_end_call either way, because they were spent
+    // either way.
+    console.error('wbpr log: unparseable write-up');
+    await billed(supabase, sessionId, sitting, usageOf(turn));
     return json({ error: 'The write-up came back unreadable. Try again.' }, 502);
   }
 
@@ -145,7 +164,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     .single();
 
   if (broadcastError || !broadcast) {
-    await billed(supabase, sessionId, sitting, result.usage);
+    await billed(supabase, sessionId, sitting, usageOf(turn));
     return json(
       {
         error: broadcastError?.code === '23505'
@@ -271,11 +290,16 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     .update({
       status: 'logged',
       broadcast_id: broadcast.id,
-      prompt_tokens: (sitting.prompt_tokens ?? 0) + result.usage.prompt_tokens,
-      completion_tokens: (sitting.completion_tokens ?? 0) + result.usage.completion_tokens,
+      prompt_tokens: (sitting.prompt_tokens ?? 0) + usageOf(turn).prompt_tokens,
+      completion_tokens: (sitting.completion_tokens ?? 0) + usageOf(turn).completion_tokens,
       calls: (sitting.calls ?? 0) + 1,
     })
     .eq('id', sessionId);
+
+  // The night is over and written up, so the sitting's own job is closed too.
+  // Left open it would hold nothing — an interactive job reserves per call —
+  // but it would sit in the queue view looking like work in progress.
+  if (sitting.ai_job_id) await closeJob(supabase, sitting.ai_job_id, 'done');
 
   return json({
     slug: broadcast.slug,
@@ -285,7 +309,22 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   });
 };
 
-/** Record what a failed write-up cost. The tokens went either way. */
+/**
+ * The usage off a turn, narrowed.
+ *
+ * `turn` is assigned inside the withJob callback, which TypeScript cannot see
+ * happening, so every read of it needs the narrowing repeated. Once, here.
+ */
+function usageOf(turn: Turn | null): { prompt_tokens: number; completion_tokens: number } {
+  return turn?.ok ? turn.usage : { prompt_tokens: 0, completion_tokens: 0 };
+}
+
+/**
+ * The sitting's own counters, still dual-written with the ledger.
+ *
+ * ai_end_call has already recorded the real figures; this keeps the columns the
+ * desk page reads in step until the two have been compared over a full night.
+ */
 async function billed(
   supabase: App.Locals['supabase'],
   sessionId: string,

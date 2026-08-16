@@ -25,6 +25,9 @@ several people can share a project.
 | ✅ | Cigar Lounge search — a filter box on the log and the humidor, matching words, wrappers and sizes |
 | ✅ | Cigar lookup — schema applied, the reference desk, the panel on the add form, and an entry showing what a lookup said about it |
 | ✅ | Album covers looked up on save — the build step the migration dropped, moved to the write |
+| ✅ | AI governance — applied and live. See `docs/ai-architecture.md` and `supabase/README.md` |
+| ✅ | The platform console at `/admin` — applied and live (same migrations) |
+| ✅ | Ask the archive at `/search` — one question, across every project you can see |
 | ⬜ | WBPR's map and veil pages — left behind in the migration, see below |
 | ✅ | Custom SMTP — Supabase's own magic-link and confirmation emails go out through Resend, alongside the app's invitations |
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
@@ -84,6 +87,7 @@ every value of the enum — so this is the only thing stopping it being offered.
 /reading/:workspace/book/:id       edit a book
 /reading/:workspace/year/new       add a year
 /reading/:workspace/year/:year     year status and target
+/reading/:workspace/enrich         fill in missing details (editor+)
 
 /cigars/:workspace                 Cedarhouse — the log
 /cigars/:workspace/humidor         what is resting
@@ -108,6 +112,15 @@ every value of the enum — so this is the only thing stopping it being offered.
 /wbpr/:workspace/run               the desk — run a broadcast with the model (owner only)
 /api/wbpr/:workspace/chat          one turn at the desk
 /api/wbpr/:workspace/log           write the sitting up as a broadcast
+
+/settings/ai                       what AI has cost you, and what it was worth
+/admin                             the platform console (platform admins; 404 otherwise)
+/admin/ai                          AI controls (platform admins; 404 otherwise)
+/api/ai/cancel                     stop a job
+/api/ai/decide                     accept or discard a proposal
+/api/ai/job/tick                   run one slice of a batch
+/api/reading/:workspace/enrich     start an enrichment run
+/api/ai/golden/curate              freeze a sitting as a golden case (admins)
 ```
 
 Static segments beat dynamic ones in Astro's routing, so `pick/new` wins over
@@ -411,6 +424,90 @@ Token counts are columns on the session rather than something inferred
 afterwards. Protecting token usage is only a real property if somebody can see
 what was spent.
 
+That much is per-sitting, which is the right amount of machinery for one feature
+and the wrong amount for two. `docs/ai-architecture.md` specifies what replaces
+it: a metered path to the model, per-person allowances in the shape `app_grants`
+already uses, a spend ledger both the payer and the actor can read, and a
+platform admin who can turn a feature — or all of them — off without a deploy.
+
+The unit it governs is a *job* rather than a call, and every call belongs to one
+even when there is only ever going to be a single call. A sitting at the desk is
+already a job in everything but name; enriching a year of books is four hundred
+calls that would each pass a per-call check on the way to spending a month's
+allowance. One envelope, one call ceiling, one thing to cancel.
+
+All of that is now built — `supabase/migrations/20260814*`, `src/lib/ai/`,
+`/settings/ai` for a person, `/admin/ai` for the platform, and a panel on each
+project's settings page. The migrations are applied: the prices in `ai_models`
+were checked against MiniMax's published rates before they were, because every
+limit downstream is computed from them and a wrong one does not fail loudly.
+
+It also specifies the half that is not about money. The rules in the desk's
+system prompt — never name a track, never invent a card — are checkable against
+state this app is already holding, and checking them turns "the model
+misbehaved" into a number that can regress. Whether a proposal was accepted,
+edited or thrown away is the other free measurement, and cost per accepted
+answer is the figure that decides whether a feature earns its tokens. None of it
+is built.
+
+## The platform console
+
+`/admin` is the page for whoever runs the site rather than whoever owns a
+project. It answers two questions nothing else did: what exists here, and what
+has been granted to whom.
+
+Every read goes through a `SECURITY DEFINER` function gated on
+`app.is_platform_admin()`, never a widened policy. `workspaces_read` hiding a
+private project from an admin who is not a member is *correct* for every other
+page on this site; the console needs a different question asked by somebody
+entitled to ask it, and that is what those functions are. The same reasoning as
+`my_pending_invites()`, one privilege level up.
+
+**It shows metadata and counts, never contents.** An admin can see that a
+private Cigar Lounge holds forty entries, who owns it and who may read it. They
+cannot read the entries. Being able to administer a project is not the same as
+being able to read it, and collapsing the two would make every private project
+on the site private only by courtesy.
+
+Two things it refuses to do, because both leave a state only the service-role
+key can recover from: remove the last platform admin, and leave a project with
+no owner.
+
+The four facts that decide what somebody may do here — platform admin, what
+they may create, what they may spend, what they belong to — live in four tables
+and had never been visible together. Handing them out one screen at a time is
+how somebody ends up with an AI allowance and nothing to spend it on.
+
+## Filling in a book's details
+
+`/reading/:workspace/enrich` is the first feature that runs as a *batch*, and it
+is the shape the rest should follow.
+
+**The facts are not the model's.** OpenLibrary supplies the page count, the year,
+the ISBN and the cover; the model is handed up to three candidate editions and
+asked two questions only — which of them is the book on your shelf, and where it
+sits in the genres, publishers and tags *you already use*. It is told not to
+repeat a fact back, and if it does anyway the validator rejects the whole answer
+by comparing every factual field to the edition it picked. A model asked for an
+ISBN returns a plausible one.
+
+**Nothing is written.** A run produces `ai_proposals`, and the page is where a
+person ticks what to keep. That is what makes a wrong answer a row somebody
+declines rather than a shelf somebody has to repair — and it is also free
+telemetry: accepted, accepted-after-editing, discarded and never-decided are
+four different facts about whether the feature is worth its tokens.
+
+**The vocabulary is read once per run, not once per book.** It is the same for
+all four hundred, and it is what stops the model minting "Science Fiction",
+"Sci-Fi" and "SF" across one afternoon.
+
+Execution is a browser pump: the page posts to `/api/ai/job/tick` until the job
+reports done. No queue, no worker service, no new dependency. Close the tab and
+the job stops ticking, the reaper returns the envelope, and every book already
+looked up stays looked up — each item is committed as it lands. When something
+genuinely unattended needs running, a cron drain calls the same endpoint for the
+same jobs with the same worker.
+
 ## Album covers
 
 A pick's cover is `lp_selections.artwork_url`, and nothing about it changed in
@@ -441,6 +538,47 @@ Two properties are the whole design:
 `src/lib/artwork.test.mjs` pins that matcher against fixture responses
 (`node --experimental-strip-types src/lib/artwork.test.mjs`). It stubs `fetch`;
 it is not a check that Apple still answers.
+
+## Ask the archive
+
+`/search` is one box over everything you are allowed to read, and the design is
+a single sentence: **the model says how to look, and the app looks.**
+
+A question goes out with a description of the columns — never a row — and a
+*plan* comes back: a table, some comparisons, an ordering. The plan is checked
+against an allowlist and then run through the caller's own Supabase client, so
+`workspaces_read` decides what comes back exactly as it does on every other
+page. Nothing is generated as SQL and nothing is interpolated into a query.
+
+Three things follow, and they are the reasons for the shape rather than
+consequences of it:
+
+- **No row reaches the model**, so `platform.search` is registered as sending
+  nothing and needs no project's consent. That is also why results are
+  *rendered* rather than narrated. A second call summarising the rows would read
+  better and be a worse feature: it would put every project behind a consent
+  gate, double the cost, and introduce the one thing this design otherwise has
+  none of — a model asserting something about your records that you then have to
+  check.
+- **A wrong plan cannot widen.** It carries no workspace and cannot name a
+  person, so the worst it can do is show you your own rows in a strange order.
+- **A plan is a pure function of the question**, so it is cached. Asking the
+  same thing twice costs once.
+
+A plan that names a column which does not exist is refused whole rather than
+repaired. A repaired plan answers a different question silently, and the results
+look right, which is the worst way to be wrong. The plan is printed above the
+results for the same reason: you can see that "unfinished" became
+`date_finished is null`, and disagree.
+
+It is also the first feature that is not a project's. Every other one acts on a
+project's behalf and is billed to that project's owner; a sitewide question is
+the asker's, and billing it to whichever project happened to be named would put
+one owner on the hook for a search that ranged across nine. So a feature now has
+a *scope*, and a platform-scope job carries no workspace, bills the actor, and
+keeps every control that is not per-project — the master switch, admissions, the
+rate limit, the breaker, the quality floor and the person's own allowance. It
+may not send records, and that is a check constraint rather than a note.
 
 ## Photographs
 

@@ -1,0 +1,228 @@
+---
+import AppShell from '../layouts/AppShell.astro';
+import { SOURCES } from '../lib/ai/search';
+
+export const prerender = false;
+
+/**
+ * Ask the archive.
+ *
+ * One box, everything you can see. The page is deliberately thin: it posts a
+ * question, gets back rows, and draws them. It knows nothing about models,
+ * budgets or plans — all of that is behind `/api/search`, which is the only
+ * place a provider is ever reached from.
+ *
+ * The plan is shown alongside the results, and that is not a debugging leftover.
+ * A search that quietly reinterprets a question is worse than one that refuses,
+ * so the reinterpretation is on the page: you can see that "unfinished" became
+ * `date_finished is null` and disagree with it.
+ */
+
+const { user } = Astro.locals;
+if (!user) return Astro.redirect('/login?next=/search');
+
+// From the same array the validator uses, so the examples cannot suggest
+// something the allowlist would refuse.
+const examples = [
+  'books I never finished',
+  'cigars still in the humidor rated over 8',
+  'albums picked in 2024',
+  'nights when the veil was torn',
+];
+---
+
+<AppShell title="Ask the archive" description="A question about your own records, across every project you can see.">
+  <main class="ask">
+    <header>
+      <h1>Ask the archive</h1>
+      <p class="lede">
+        A question about your own records, across every project you can see.
+        Nothing you have written is sent anywhere — the question goes out, and
+        what comes back is a way of looking, which this site then does itself.
+      </p>
+    </header>
+
+    <form id="ask">
+      <label class="visually-hidden" for="question">Your question</label>
+      <div class="row">
+        <input
+          id="question"
+          name="question"
+          type="text"
+          maxlength="300"
+          autocomplete="off"
+          placeholder="which books did I abandon in 2023?"
+          required
+        />
+        <button type="submit">Ask</button>
+      </div>
+      <ul class="examples">
+        {examples.map(e => (
+          <li><button type="button" class="example">{e}</button></li>
+        ))}
+      </ul>
+    </form>
+
+    <div id="status" role="status" aria-live="polite"></div>
+    <div id="results"></div>
+
+    <section class="what">
+      <h2>What can be asked about</h2>
+      <dl>
+        {SOURCES.map(s => (
+          <div>
+            <dt>{s.label}</dt>
+            <dd>{s.what}</dd>
+          </div>
+        ))}
+      </dl>
+      <p class="note">
+        Only what you are already allowed to read. A search cannot reach a
+        project you are not in, because it runs as you.
+      </p>
+    </section>
+  </main>
+</AppShell>
+
+<script>
+  const form = document.getElementById('ask') as HTMLFormElement;
+  const input = document.getElementById('question') as HTMLInputElement;
+  const status = document.getElementById('status')!;
+  const results = document.getElementById('results')!;
+  const button = form.querySelector('button[type=submit]') as HTMLButtonElement;
+
+  const escape = (s: string) =>
+    s.replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!
+    );
+
+  document.querySelectorAll<HTMLButtonElement>('.example').forEach(b => {
+    b.addEventListener('click', () => {
+      input.value = b.textContent!.trim();
+      form.requestSubmit();
+    });
+  });
+
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const question = input.value.trim();
+    if (!question) return;
+
+    button.disabled = true;
+    status.textContent = 'Working out how to look…';
+    results.innerHTML = '';
+
+    try {
+      const response = await fetch('/api/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        status.textContent = data.error ?? 'That did not work.';
+        return;
+      }
+
+      const { hits, label, plan, cached } = data;
+
+      if (!hits.length) {
+        status.textContent = `No ${label} match that.`;
+      } else {
+        status.textContent =
+          `${hits.length} ${hits.length === 1 ? label.replace(/s$/, '') : label}` +
+          (cached ? ' — asked before, so this one was free.' : '');
+      }
+
+      const conditions = plan.filters.length
+        ? plan.filters
+            .map((f: { column: string; op: string; value?: unknown }) =>
+              f.op === 'is_null'
+                ? `${f.column} is empty`
+                : f.op === 'not_null'
+                  ? `${f.column} is set`
+                  : `${f.column} ${f.op} ${f.value}`
+            )
+            .join(', ')
+        : 'everything';
+
+      results.innerHTML =
+        `<p class="plan">Looked in <strong>${escape(label)}</strong> for ${escape(conditions)}.</p>` +
+        (hits.length
+          ? `<ul class="hits">${hits
+              .map(
+                (h: {
+                  href: string; title: string; subtitle: string; project: string;
+                  matched: { label: string; value: string }[];
+                }) => `
+              <li>
+                <a href="${escape(h.href)}">
+                  <span class="title">${escape(h.title)}</span>
+                  ${h.subtitle ? `<span class="sub">${escape(h.subtitle)}</span>` : ''}
+                </a>
+                <span class="project">${escape(h.project)}</span>
+                ${
+                  h.matched.length
+                    ? `<dl class="matched">${h.matched
+                        .map(
+                          m =>
+                            `<div><dt>${escape(m.label)}</dt><dd>${escape(m.value)}</dd></div>`
+                        )
+                        .join('')}</dl>`
+                    : ''
+                }
+              </li>`
+              )
+              .join('')}</ul>`
+          : '');
+    } catch {
+      status.textContent = 'That did not work.';
+    } finally {
+      button.disabled = false;
+    }
+  });
+</script>
+
+<style>
+  .ask { max-width: 60rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  .lede { max-width: 46rem; opacity: 0.85; }
+
+  .row { display: flex; gap: 0.5rem; margin: 1.5rem 0 0.75rem; }
+  .row input { flex: 1; padding: 0.7rem 0.9rem; font: inherit; }
+  .row button { padding: 0.7rem 1.4rem; font: inherit; cursor: pointer; }
+  .row button[disabled] { opacity: 0.5; cursor: default; }
+
+  .examples { list-style: none; display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0; margin: 0 0 1.5rem; }
+  .examples button {
+    font: inherit; font-size: 0.85rem; padding: 0.25rem 0.7rem;
+    border-radius: 999px; cursor: pointer; opacity: 0.8;
+  }
+
+  #status { min-height: 1.5rem; font-size: 0.95rem; opacity: 0.9; }
+
+  .plan { font-size: 0.9rem; opacity: 0.7; margin: 0.5rem 0 1rem; }
+
+  .hits { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.75rem; }
+  .hits li { padding: 0.9rem 1rem; border: 1px solid currentColor; border-radius: 0.4rem; }
+  .hits .title { font-weight: 600; }
+  .hits .sub { opacity: 0.75; margin-left: 0.5ch; }
+  .hits .project { display: block; font-size: 0.8rem; opacity: 0.6; margin-top: 0.15rem; }
+
+  .matched { margin: 0.6rem 0 0; font-size: 0.85rem; display: grid; gap: 0.15rem; }
+  .matched div { display: flex; gap: 0.5ch; }
+  .matched dt { opacity: 0.6; }
+  .matched dd { margin: 0; }
+
+  .what { margin-top: 3rem; font-size: 0.9rem; }
+  .what dl { display: grid; gap: 0.4rem; }
+  .what div { display: flex; gap: 0.75ch; }
+  .what dt { font-weight: 600; min-width: 7rem; }
+  .what dd { margin: 0; opacity: 0.8; }
+  .note { opacity: 0.7; margin-top: 1rem; }
+
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+</style>

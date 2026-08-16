@@ -65,6 +65,103 @@ Custom SQLSTATEs, so callers branch on cause rather than message text:
 | `GRK07` | That game is finished, or has no attempts left |
 | `42501` | Not signed in |
 
+### AI governance (2026-08-14)
+
+| Migration | What it does |
+| --- | --- |
+| `20260814100000_ai_registry` | `ai_features`, `ai_platform_settings`, `ai_models`, `ai_prompt_versions`, `ai_register_prompt()`, and the desk seeded as it already behaves |
+| `20260814100100_ai_budgets` | `ai_budgets` (the `app_grants` analogue), `ai_periods`, `ai_workspace_features`, and a backfill so existing owners keep working |
+| `20260814100200_ai_jobs` | `ai_jobs`, `ai_calls`, `ai_job_items`, `ai_proposals`, and their policies |
+| `20260814100300_ai_functions` | `ai_begin_job` / `ai_begin_call` / `ai_end_call` / `ai_end_job`, the item claim, both reapers, `my_ai_usage()` |
+| `20260814100400_wbpr_metered` | `wbpr_agent_sessions.ai_job_id`, and the desk switched on for every WBPR project |
+| `20260814100500_ai_admin` | `ai_admin_spend()`, `ai_admin_queue()`, `ai_set_budget()` |
+| `20260814100600_ai_quality_floor` | `ai_enforce_quality_floors()`, and the reaper that calls it |
+| `20260814100700_ai_environment` | `ai_jobs.environment` and `idempotency_key`; `ai_begin_job` rebuilt around both |
+| `20260814100800_ai_cache` | `ai_cache`, `ai_calls.cache_hit`, and the take/put/sweep functions |
+| `20260814100900_reading_enrich` | `ai_features.prompt_allowance_tokens`, and the `reading.enrich` feature |
+| `20260814101000_ai_notices` | `ai_notices`, `ai_check_budgets()`, `ai_housekeeping()` and its admin-callable twin |
+| `20260814101100_ai_golden` | `ai_golden_cases`, `ai_golden_runs`, `ai_golden_status()`, and the `platform.golden` feature |
+| `20260814101200_ai_consent` | `ai_features.sends_records`, per-project consent, transcript retention, and `ai_begin_job` rebuilt around the new clause |
+| `20260814101300_ai_fixes` | The root's call ceiling counting its children, and `ai_cache_take` returning the call it records |
+| `20260814101400_ai_breaker` | `ai_provider_health`, and the breaker wired into `ai_begin_call` and `ai_end_call` |
+| `20260814101500_ai_curate` | `ai_curate_desk_case()` — freezing a real sitting as a golden case |
+| `20260814101600_ai_deletion` | `on delete set null` on every AI reference to `profiles`, so using a feature no longer makes an account undeletable |
+| `20260814101700_ai_statements` | `ai_statements` and `ai_reconciliation()` — the ledger checked against the provider's own figure |
+| `20260814101800_admin_console` | `admin_overview/projects/people/invites/members()` and the controls beside them — the platform console |
+| `20260814101900_cigar_lookup` | Registers `cigars.lookup`, bringing the reference desk onto the metered path |
+| `20260814102000_search_path` | Pins `search_path` on the four functions that did not, one of which this branch un-hardened by replacing production's `touch_updated_at` |
+| `20260814102100_ai_search` | `ai_features.scope`, a nullable `ai_jobs.workspace_id`, and `platform.search` — the first feature that is a person's rather than a project's |
+| `20260814102200_enrich_sends_records` | Marks `reading.enrich` as records-sending. It was registered before the column existed and had been exempt from the consent gate written for it |
+| `20260814102300_budgets_for_everyone` | An `ai_budgets` row for every profile, and a trigger so every future one gets it. The original backfill covered workspace owners, which stopped being the right set the moment a feature was billed to the asker |
+
+**Applied 2026-08-14**, as four migrations rather than twenty — the layer is not
+meaningful in halves, so the files were bundled and applied as units that each
+either land or do not. The applied SQL is the files with the prose stripped;
+equivalence was checked by comparing a schema fingerprint (columns, defaults,
+comment-normalised function bodies, policies, indexes, grants, constraints)
+between a database built from the files and one built from the bundle, and then
+again between that and production. 360 objects, same digest, across PostgreSQL
+16 locally and 17 live.
+
+Two things were settled before applying:
+
+1. **The prices.** `ai_models` is seeded with $0.30/$1.20 per million tokens,
+   checked against MiniMax's published rates rather than assumed. Two facts
+   about them are on the migration: they are the standard tier for inputs up to
+   512K, which is why one row is enough when the largest prompt allowance on the
+   site is 12,000 tokens; and they are presented as a permanent 50% discount on
+   a $0.60/$2.40 list, which is what `effective_from` exists to survive.
+2. **The default allowance.** `ai_platform_settings.default_monthly_usd` is $5,
+   and **every profile** now carries an `ai_budgets` row with a null
+   `monthly_usd`, so that one figure is the ceiling for everybody who has not
+   been given a specific one. A trigger on `profiles` grants a row to each new
+   account, which is safe because `login.astro` sets `shouldCreateUser: false`:
+   an account exists only because somebody was invited, and the invitation is
+   the gate on who may spend. The row is a ceiling, not credit — an admin who
+   wants somebody at zero sets it in `/admin`, and nothing here overwrites it.
+
+Ordering matters within the set: `100300` alters the table `100000` creates and
+depends on the jobs from `100200`. Apply in filename order.
+
+New SQLSTATEs, continuing the GRK series:
+
+| Code | Meaning |
+| --- | --- |
+| `GRK10` | No such project, or not visible — deliberately indistinguishable |
+| `GRK11` | AI is switched off platform-wide |
+| `GRK12` | Feature off, for the platform or for this project |
+| `GRK13` | This actor may not run this feature here |
+| `GRK14` | Rate limited |
+| `GRK15` | The payer's monthly allowance is spent |
+| `GRK16` | The project's daily ceiling is reached |
+| `GRK17` | Fan-out went past `max_depth` |
+| `GRK18` | The job is larger than its share of what is left |
+| `GRK19` | The job has reached one of its own ceilings, or is finished |
+| `GRK1A` | Too many prompt versions for one feature |
+| `GRK1B` | Admissions are paused |
+| `GRK1C` | No allowed price for that model |
+| `GRK1D` | A preview deployment tried to spend |
+| `GRK1E` | The project has not consented to its records being sent |
+| `GRK1F` | The provider's breaker is open — nothing was sent |
+| `GRK20` | That would remove the last platform admin |
+| `GRK21` | That would leave a project with no owner |
+
+### Housekeeping
+
+`ai_housekeeping()` is the one thing that wants scheduling: it releases
+reservations whose calls were never settled, reaps jobs whose worker stopped
+ticking, sweeps expired cache entries, checks the quality floors and raises a
+notice for anyone most of the way through their allowance.
+
+It is granted to `service_role` only, because cron has no session and
+`app.is_platform_admin()` is false without one. Until something schedules it,
+`ai_housekeeping_now()` — the admin-callable twin, behind a button on
+`/admin/ai` — is the only thing that runs it. **A stale reservation holds budget
+until one of the two is called**, so this is not a nicety.
+
+Scheduling it needs a service-role key, and this repo deliberately has none.
+That is a decision to take deliberately rather than a gap to close quietly.
+
 ## Applied
 
 All seven of the 2026-08-05 migrations are live on `ophmsvqtzffrjmyjyzza` as of that date. The
@@ -226,13 +323,28 @@ for f in migrations/*.sql; do psql -d grackles -v ON_ERROR_STOP=1 --single-trans
 psql -d grackles -f seed/blackletter-words.sql   # bl_words, for tests/blackletter.sh
 tests/test.sh
 tests/blackletter.sh
+tests/ai.sh
+tests/admin.sh
 ```
+
+**All four suites want a fresh database, in that order.** `test.sh` writes rows
+outside its rolled-back transactions — grants for Rob, a second lounge — so a
+second run against the same cluster fails on its own leftovers. That is not new;
+it simply had no neighbour before to make it visible.
+
+`tests/harness.sh` holds `check()` and the role preambles, sourced by all four.
+
+`tests/baseline.sql` previously had no `touch_updated_at()`, which meant every
+migration from `20260806170000` onwards failed to apply against the harness —
+the whole WBPR schema, its grants, the agent tables and the caller_roll
+backfill. The suite passed throughout, because it only ever ran the seven invite
+migrations. Anything added after them was untestable until this was noticed.
 
 The baseline seeds current production data (one profile, three workspaces, one
 pending invite) so the backfill is exercised against real shape. 41 assertions,
 all passing as of `20260809120000`, plus 20 in `tests/blackletter.sh`.
 
-The two suites share a database and must not disturb each other. `test.sh`
+The suites share a database and must not disturb each other. `test.sh`
 asserts Jamie holds a grant for exactly three apps, so `blackletter.sh` inserts
 its workspace directly rather than through `create_workspace()` — seeding a
 fourth grant to get an entitlement broke that assertion, which is the sort of

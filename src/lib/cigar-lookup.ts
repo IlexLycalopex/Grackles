@@ -1,4 +1,4 @@
-import type { ChatMessage } from './minimax';
+import type { ChatMessage } from './ai/provider';
 import { oneOf, oneOfOrNull, parseJsonObject } from './json';
 import { fold, lengthInches, matches, parseQuery, type Query } from './cigar-search';
 import { STRENGTHS, type Strength } from './records/cigar';
@@ -44,7 +44,7 @@ export type Confidence = (typeof CONFIDENCES)[number];
  * lookup is one system message and one user message, and unlike a night at the
  * desk there is no history worth paying to carry.
  */
-const SYSTEM = `You identify cigars. The user gives a brand, a name, a size, or a fragment of one. You answer with JSON and nothing else — no prose, no code fence, no explanation.
+export const LOOKUP_SYSTEM = `You identify cigars. The user gives a brand, a name, a size, or a fragment of one. You answer with JSON and nothing else — no prose, no code fence, no explanation.
 
 {
   "brand": "Partagás",
@@ -87,7 +87,7 @@ Never give a rating, a score, a number out of 100, a price, or an award, and nev
 /** What the model is asked, in full. One system message, one user message. */
 export function lookupMessages(query: string): ChatMessage[] {
   return [
-    { role: 'system', content: SYSTEM },
+    { role: 'system', content: LOOKUP_SYSTEM },
     { role: 'user', content: query },
   ];
 }

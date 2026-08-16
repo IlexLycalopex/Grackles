@@ -1,0 +1,441 @@
+---
+import AppShell from '../../layouts/AppShell.astro';
+import { loadEntitlements } from '../../lib/grants';
+import { appBySlug, HOSTED_APPS, projectHref } from '../../lib/apps';
+import { money } from '../../lib/ai/usage';
+import type { AppSlug, MemberRole, Visibility } from '../../lib/database.types';
+
+export const prerender = false;
+
+/**
+ * Everything on the site, for whoever runs it.
+ *
+ * 404 rather than 403 for everyone else, matching how a private workspace
+ * behaves: a page that refuses differently from a page that does not exist is a
+ * page that confirms it exists.
+ *
+ * Every read here goes through a SECURITY DEFINER function rather than a
+ * widened policy, for the reason ai_admin_spend() already established — the
+ * policies are right for every other page on the site, and this one needs a
+ * different question asked by somebody entitled to ask it.
+ *
+ * Metadata and counts, never contents. An admin can see that a private Cigar
+ * Lounge holds forty entries and who may read it; they cannot read the entries.
+ * Being able to administer a project is not the same as being able to read it.
+ */
+
+const { supabase, user } = Astro.locals;
+const notFound = new Response('Not found', { status: 404 });
+
+if (!user) return notFound;
+const { isPlatformAdmin } = await loadEntitlements(supabase, user.id);
+if (!isPlatformAdmin) return notFound;
+
+let error: string | null = null;
+let notice: string | null = null;
+
+const SAYS: Record<string, string> = {
+  GRK20: 'That is the last platform admin — somebody has to be able to hand out entitlements.',
+  GRK21: 'That is the last owner of that project, and a project with no owner cannot be administered.',
+};
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') ?? '');
+  const str = (k: string) => String(form.get(k) ?? '').trim();
+
+  // PromiseLike rather than Promise: PostgREST's builder is thenable but is not
+  // a Promise, and awaiting it is the only thing this needs of it.
+  const call = async (
+    fn: () => PromiseLike<{ error: { code?: string; message: string } | null }>,
+    said: string
+  ) => {
+    const { error: e } = await fn();
+    // The custom SQLSTATEs carry messages that name columns and thresholds —
+    // right in a log, wrong on a page. Same table-of-sentences approach as
+    // describeGrantError, which is where these codes' siblings live.
+    error = e ? (SAYS[e.code ?? ''] ?? e.message) : null;
+    if (!e) notice = said;
+  };
+
+  if (action === 'admin') {
+    await call(
+      () => supabase.rpc('admin_set_platform_admin', {
+        p_user: str('user_id'),
+        p_is_admin: form.get('is_admin') !== null,
+      }),
+      'Platform admins updated.'
+    );
+  }
+
+  if (action === 'grant') {
+    await call(
+      () => supabase.rpc('admin_set_grant', {
+        p_user: str('user_id'),
+        p_app: str('app') as AppSlug,
+        p_max: Number(str('max')) || 0,
+      }),
+      Number(str('max')) > 0 ? 'Granted.' : 'Withdrawn.'
+    );
+  }
+
+  if (action === 'visibility') {
+    await call(
+      () => supabase.rpc('admin_set_visibility', {
+        p_workspace: str('workspace_id'),
+        p_visibility: str('visibility') as Visibility,
+      }),
+      'Visibility changed.'
+    );
+  }
+
+  if (action === 'member-role') {
+    await call(
+      () => supabase.rpc('admin_set_member_role', {
+        p_workspace: str('workspace_id'),
+        p_user: str('user_id'),
+        p_role: str('role') as MemberRole,
+      }),
+      'Role changed.'
+    );
+  }
+
+  if (action === 'member-remove') {
+    await call(
+      () => supabase.rpc('admin_remove_member', {
+        p_workspace: str('workspace_id'),
+        p_user: str('user_id'),
+      }),
+      'Member removed.'
+    );
+  }
+
+  if (action === 'revoke-invite') {
+    await call(() => supabase.rpc('admin_revoke_invite', { p_invite: str('invite_id') }), 'Invitation revoked.');
+  }
+}
+
+const [{ data: overview }, { data: projects }, { data: people }, { data: invites }] =
+  await Promise.all([
+    supabase.rpc('admin_overview'),
+    supabase.rpc('admin_projects'),
+    supabase.rpc('admin_people'),
+    supabase.rpc('admin_invites'),
+  ]);
+
+const totals = overview?.[0];
+
+// Every roster up front rather than on open. A site this size is a handful of
+// queries; a disclosure that has to round-trip before it shows anything is one
+// nobody opens twice, and progressive enhancement for eight projects would be
+// more machinery than the thing it enhances.
+const rosters = new Map(
+  await Promise.all(
+    (projects ?? []).map(async p => {
+      const { data } = await supabase.rpc('admin_members', { p_workspace: p.id });
+      return [p.id, data ?? []] as const;
+    })
+  )
+);
+
+const VISIBILITIES: Visibility[] = ['private', 'unlisted', 'public'];
+const ROLES: MemberRole[] = ['owner', 'editor', 'viewer'];
+
+const when = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+// Grouped by app, because that is how somebody thinks about this site — eight
+// sites, some of which have moved in.
+const byApp = new Map<AppSlug, typeof projects>();
+for (const p of projects ?? []) {
+  byApp.set(p.app, [...(byApp.get(p.app) ?? []), p]);
+}
+---
+
+<AppShell title="Platform · Grackles">
+  <h1 class="page-title">Platform</h1>
+  <p class="page-intro">
+    Everything on the site. <a href="/admin/ai">AI controls</a> are separate, because
+    they are the only part that spends money and wants watching on its own.
+  </p>
+
+  {error && <p class="notice notice--error" role="alert">{error}</p>}
+  {notice && <p class="notice notice--ok">{notice}</p>}
+
+  {totals && (
+    <div class="adm-summary">
+      <div class="adm-stat">
+        <span class="adm-stat__value">{totals.projects}</span>
+        <span class="adm-stat__label">
+          projects · {totals.public_projects} public
+          {totals.external > 0 && ` · ${totals.external} still elsewhere`}
+        </span>
+      </div>
+      <div class="adm-stat">
+        <span class="adm-stat__value">{totals.people}</span>
+        <span class="adm-stat__label">people · {totals.admins} admin{totals.admins === 1 ? '' : 's'}</span>
+      </div>
+      <div class="adm-stat">
+        <span class="adm-stat__value">{totals.memberships}</span>
+        <span class="adm-stat__label">
+          memberships
+          {totals.pending_invites > 0 && ` · ${totals.pending_invites} invited`}
+        </span>
+      </div>
+      <div class="adm-stat">
+        <span class="adm-stat__value">{money(Number(totals.ai_spend_usd))}</span>
+        <span class="adm-stat__label">
+          AI this month
+          {totals.ai_jobs_running > 0 && ` · ${totals.ai_jobs_running} running`}
+        </span>
+      </div>
+    </div>
+  )}
+
+  <p class="section-label">Projects</p>
+  <p class="page-intro">
+    Counts, not contents. A private project's entries stay private — being able to
+    administer one is not the same as being able to read it.
+  </p>
+
+  {[...byApp.entries()].map(([app, rows]) => (
+    <>
+      <p class="adm-app">{appBySlug(app)?.name ?? app}</p>
+      <table class="adm-table">
+        <thead>
+          <tr>
+            <th>Project</th><th>Owner</th><th class="num">Members</th>
+            <th class="num">Records</th><th class="num">AI</th><th>Visibility</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {(rows ?? []).map(p => (
+            <tr>
+              <td>
+                <a href={projectHref(p)}>{p.name}</a>
+                <span class="adm-muted"> /{p.slug}</span>
+                {p.external_url && <span class="adm-flag">elsewhere</span>}
+              </td>
+              <td>
+                {p.owner_name ?? <span class="adm-muted">nobody</span>}
+                {p.owner_email && <span class="adm-muted"> · {p.owner_email}</span>}
+              </td>
+              <td class="num">{p.members}</td>
+              <td class="num">
+                {p.external_url ? <span class="adm-muted">—</span> : p.records}
+              </td>
+              <td class="num">
+                {Number(p.ai_spend_usd) > 0 ? money(Number(p.ai_spend_usd)) : <span class="adm-muted">—</span>}
+              </td>
+              <td>
+                <form method="POST" class="inline-form">
+                  <input type="hidden" name="action" value="visibility" />
+                  <input type="hidden" name="workspace_id" value={p.id} />
+                  <select class="field__input field__input--auto" name="visibility"
+                          onchange="this.form.requestSubmit()">
+                    {VISIBILITIES.map(v => (
+                      <option value={v} selected={p.visibility === v}>{v}</option>
+                    ))}
+                  </select>
+                  <noscript><button class="button button--quiet" type="submit">Set</button></noscript>
+                </form>
+              </td>
+            </tr>
+            <tr class="adm-roster-row">
+              <td colspan="7">
+                <details>
+                  <summary class="adm-muted">
+                    {p.members} member{p.members === 1 ? '' : 's'}
+                  </summary>
+                  <ul class="adm-roster">
+                    {(rosters.get(p.id) ?? []).map(m => (
+                      <li>
+                        <span class="adm-roster__who">
+                          {m.display_name || m.email}
+                          <span class="adm-muted"> {m.email}</span>
+                        </span>
+                        <form method="POST" class="inline-form">
+                          <input type="hidden" name="action" value="member-role" />
+                          <input type="hidden" name="workspace_id" value={p.id} />
+                          <input type="hidden" name="user_id" value={m.user_id} />
+                          <select class="field__input field__input--auto" name="role">
+                            {ROLES.map(r => (
+                              <option value={r} selected={m.role === r}>{r}</option>
+                            ))}
+                          </select>
+                          <button class="button button--quiet" type="submit">Set</button>
+                        </form>
+                        <form method="POST" class="inline-form">
+                          <input type="hidden" name="action" value="member-remove" />
+                          <input type="hidden" name="workspace_id" value={p.id} />
+                          <input type="hidden" name="user_id" value={m.user_id} />
+                          <button class="button button--quiet" type="submit">Remove</button>
+                        </form>
+                      </li>
+                    ))}
+                  </ul>
+                  <p class="page-intro adm-hint">
+                    The last owner cannot be demoted or removed — a project nobody
+                    owns is a project nobody can administer.
+                    {p.owner_id === user.id && (
+                      <> This one is yours; <a href={`/settings/${appBySlug(p.app)?.path ?? p.app}/${p.slug}`}>its own settings page</a> can invite people too.</>
+                    )}
+                  </p>
+                </details>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  ))}
+
+  <p class="section-label">People</p>
+  <p class="page-intro">
+    The four facts that decide what somebody can do here — admin, what they may
+    create, what they may spend, what they belong to — live in four tables and
+    have never been visible together. Handing them out one screen at a time is
+    how somebody ends up with an allowance and nothing to spend it on.
+  </p>
+
+  {(people ?? []).map(person => (
+    <div class="adm-person">
+      <div class="adm-person__head">
+        <strong>{person.display_name || person.email}</strong>
+        <span class="adm-muted"> {person.email}</span>
+        {person.is_admin && <span class="adm-flag">platform admin</span>}
+      </div>
+
+      <div class="adm-person__facts">
+        <span>{person.owns} owned</span>
+        <span>{person.memberships} member of</span>
+        <span>
+          {person.ai_monthly_usd === null
+            ? 'no AI allowance'
+            : `${money(Number(person.ai_monthly_usd))}/month${person.ai_enabled ? '' : ' (off)'}`}
+          {Number(person.ai_spend_usd) > 0 && ` · ${money(Number(person.ai_spend_usd))} spent`}
+        </span>
+        <span class="adm-muted">joined {when(person.created_at)}</span>
+      </div>
+
+      <form method="POST" class="adm-person__row">
+        <input type="hidden" name="action" value="admin" />
+        <input type="hidden" name="user_id" value={person.id} />
+        <label class="grant-picker__option">
+          <input type="checkbox" name="is_admin" checked={person.is_admin} />
+          platform admin
+        </label>
+        <button class="button button--quiet" type="submit">Save</button>
+      </form>
+
+      <div class="adm-person__row">
+        {HOSTED_APPS.map(a => (
+          <form method="POST" class="inline-form">
+            <input type="hidden" name="action" value="grant" />
+            <input type="hidden" name="user_id" value={person.id} />
+            <input type="hidden" name="app" value={a.slug} />
+            <label class="grant-picker__option">
+              {a.name}
+              <input class="field__input field__input--auto" type="number" min="0" max="20"
+                     name="max" value={person.grants?.[a.slug] ?? 0} />
+            </label>
+            <button class="button button--quiet" type="submit">Set</button>
+          </form>
+        ))}
+      </div>
+      <p class="page-intro adm-hint">
+        How many projects they may start in each app. Zero withdraws it. Owning one
+        already spends one of them — an admin is unmetered and does not need any.
+      </p>
+    </div>
+  ))}
+
+  {(invites ?? []).length > 0 && (
+    <>
+      <p class="section-label">Invitations outstanding</p>
+      <table class="adm-table">
+        <thead>
+          <tr><th>Who</th><th>To</th><th>As</th><th>Also gets</th><th>From</th><th>Expires</th><th></th></tr>
+        </thead>
+        <tbody>
+          {(invites ?? []).map(i => (
+            <tr class={new Date(i.expires_at) < new Date() ? 'adm-stale' : ''}>
+              <td>{i.email}</td>
+              <td>{i.workspace_name ?? <span class="adm-muted">nothing — creation only</span>}</td>
+              <td>{i.workspace_name ? i.role : <span class="adm-muted">—</span>}</td>
+              <td>
+                {i.grant_apps.length > 0
+                  ? i.grant_apps.map(a => appBySlug(a)?.name ?? a).join(', ')
+                  : <span class="adm-muted">—</span>}
+              </td>
+              <td class="adm-muted">{i.invited_by ?? '—'}</td>
+              <td>
+                {when(i.expires_at)}
+                {new Date(i.expires_at) < new Date() && <span class="adm-flag">expired</span>}
+              </td>
+              <td>
+                <form method="POST" class="inline-form">
+                  <input type="hidden" name="action" value="revoke-invite" />
+                  <input type="hidden" name="invite_id" value={i.id} />
+                  <button class="button button--quiet" type="submit">Revoke</button>
+                </form>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  )}
+</AppShell>
+
+<style>
+  .adm-summary { display: flex; flex-wrap: wrap; gap: 2rem; margin: 1.5rem 0; }
+  .adm-stat { display: flex; flex-direction: column; }
+  .adm-stat__value { font-size: 1.75rem; font-weight: 600; line-height: 1.1; }
+  .adm-stat__label { font-size: 0.85rem; opacity: 0.7; }
+
+  .adm-app { font-weight: 600; margin: 1.2rem 0 0.3rem; }
+
+  .adm-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.9rem; }
+  .adm-table th, .adm-table td {
+    text-align: left; padding: 0.4rem 0.6rem 0.4rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08); vertical-align: top;
+  }
+  .adm-table th { font-weight: 600; opacity: 0.7; font-size: 0.8rem; }
+  .adm-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .adm-table .inline-form { margin: 0; }
+  .adm-stale td { opacity: 0.5; }
+
+  .adm-person {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    padding: 0.9rem 0;
+  }
+  .adm-person__head { margin-bottom: 0.2rem; }
+  .adm-person__facts {
+    display: flex; flex-wrap: wrap; gap: 1.2rem;
+    font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.5rem;
+  }
+  .adm-person__row {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;
+    margin-bottom: 0.4rem;
+  }
+  .adm-person__row .inline-form { margin: 0; display: flex; align-items: center; gap: 0.4rem; }
+  .adm-person__row input[type="number"] { width: 4rem; }
+  .adm-hint { font-size: 0.8rem; margin: 0; }
+
+  .adm-roster-row td { border-bottom: 1px solid rgba(0, 0, 0, 0.08); padding-bottom: 0.5rem; }
+  .adm-roster-row summary { cursor: pointer; font-size: 0.85rem; }
+  .adm-roster { list-style: none; padding: 0.4rem 0 0; margin: 0; }
+  .adm-roster li {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem;
+    padding: 0.2rem 0; font-size: 0.9rem;
+  }
+  .adm-roster__who { min-width: 16rem; }
+  .adm-roster .inline-form { margin: 0; display: flex; gap: 0.3rem; }
+
+  .adm-muted { opacity: 0.55; }
+  .adm-flag {
+    margin-left: 0.5rem; font-size: 0.75rem; padding: 0.05rem 0.4rem;
+    border-radius: 3px; background: rgba(0, 0, 0, 0.08);
+  }
+</style>
