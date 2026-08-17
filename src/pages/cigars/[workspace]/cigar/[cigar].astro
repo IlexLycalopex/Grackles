@@ -4,8 +4,23 @@ import StarRating from '../../../../components/cl/StarRating.astro';
 import StrengthChip from '../../../../components/cl/StrengthChip.astro';
 import ReferenceBlock from '../../../../components/cl/ReferenceBlock.astro';
 import { resolveWorkspace } from '../../../../lib/workspace';
-import { humidorFrom, loadCigar, loadCigars, loadReference, smokedFrom } from '../../../../lib/cigar-lounge';
-import { formatDate, formatDuration, formatSize, photoUrl, restingDays } from '../../../../lib/cigar-helpers';
+import {
+  humidorFrom,
+  loadCigar,
+  loadCigars,
+  loadReference,
+  smokedFrom,
+  wishlistFrom,
+} from '../../../../lib/cigar-lounge';
+import {
+  daysSince,
+  formatDate,
+  formatDuration,
+  formatSize,
+  homeFor,
+  photoUrl,
+  restingDays,
+} from '../../../../lib/cigar-helpers';
 
 export const prerender = false;
 
@@ -21,8 +36,11 @@ if (!cigar) return new Response('Not found', { status: 404 });
 const base = `/cigars/${workspace.slug}`;
 const d = cigar.data;
 const inHumidor = d.status === 'humidor';
+const wanted = d.status === 'wishlist';
 const spec = formatSize(d.length, d.ringGauge);
 const resting = inHumidor ? restingDays(cigar) : null;
+const wishedFor = wanted ? daysSince(d.dateAdded) : null;
+const home = homeFor(base, d.status);
 
 // Previous/next within the list this entry belongs to, so the arrows stay in
 // the same ordering the log or humidor page used.
@@ -33,7 +51,9 @@ const resting = inHumidor ? restingDays(cigar) : null;
 const reference = cigar.referenceId ? await loadReference(supabase, cigar.referenceId) : null;
 
 const all = await loadCigars(supabase, workspace.id);
-const siblings = inHumidor ? humidorFrom(all) : smokedFrom(all);
+// The arrows stay inside the list this entry belongs to, in the ordering that
+// list is rendered in.
+const siblings = wanted ? wishlistFrom(all) : inHumidor ? humidorFrom(all) : smokedFrom(all);
 const index = siblings.findIndex(c => c.id === cigar.id);
 const prev = index > 0 ? siblings[index - 1] : null;
 const next = index >= 0 && index < siblings.length - 1 ? siblings[index + 1] : null;
@@ -49,7 +69,8 @@ const facts = [
   d.dateSmoked && { label: 'Smoked', value: formatDate(d.dateSmoked) },
   d.dateAcquired && { label: 'Acquired', value: formatDate(d.dateAcquired) },
   resting !== null && { label: 'Resting', value: formatDuration(resting) },
-  inHumidor && d.quantity > 1 && { label: 'Quantity', value: `×${d.quantity}` },
+  wishedFor !== null && { label: 'Wanted for', value: formatDuration(wishedFor) },
+  d.status !== 'smoked' && d.quantity > 1 && { label: 'Quantity', value: `×${d.quantity}` },
 ].filter(Boolean) as { label: string; value: string }[];
 ---
 
@@ -59,7 +80,7 @@ const facts = [
   workspace={workspace}
 >
   <div class="container">
-    <a class="back-link" href={inHumidor ? `${base}/humidor` : base}>← Back</a>
+    <a class="back-link" href={home}>← Back</a>
 
     <article class="entry">
       <header class="entry__header">
@@ -77,7 +98,28 @@ const facts = [
 
         <div class="entry__meta">
           {inHumidor && <span class="entry__badge entry__badge--quiet">In humidor</span>}
+          {wanted && <span class="entry__badge entry__badge--quiet">On the wishlist</span>}
           {d.strength && <StrengthChip strength={d.strength} />}
+          {/* The two moves an entry can make from here, so somebody who arrived
+              on the record itself is not sent back to a list to press them. The
+              first is a write, so it is a form posting to the page that owns
+              it; the second is the form that asks for the date and the rating. */}
+          {
+            workspace.canWrite && wanted && (
+              <form class="entry__move" method="POST" action={`${base}/wishlist`}>
+                <input type="hidden" name="intent" value="move" />
+                <input type="hidden" name="cigar" value={cigar.rowId} />
+                <button class="entry__badge" type="submit">To humidor</button>
+              </form>
+            )
+          }
+          {
+            workspace.canWrite && d.status !== 'smoked' && (
+              <a class="entry__badge" href={`${base}/smoke/${cigar.id}`}>
+                Smoke
+              </a>
+            )
+          }
           {
             workspace.canWrite && (
               <a class="entry__badge" href={`${base}/edit/${cigar.id}`}>
@@ -221,13 +263,24 @@ const facts = [
     transition: color var(--transition), border-color var(--transition);
   }
 
-  a.entry__badge {
+  /* The pressable ones: links, and the one move that has to be a form. */
+  a.entry__badge,
+  button.entry__badge {
     color: var(--paper);
     background: var(--ink);
     border-color: var(--ink);
   }
 
-  a.entry__badge:hover { opacity: 0.82; }
+  button.entry__badge {
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  a.entry__badge:hover,
+  button.entry__badge:hover { opacity: 0.82; }
+
+  /* So the form lays out its button rather than itself. */
+  .entry__move { display: contents; }
 
   /* "In humidor" is a state, not an action, so it keeps the quiet outline —
      the filled chip is the one you can actually press. */

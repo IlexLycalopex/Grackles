@@ -33,10 +33,17 @@ interface Props {
 
 const { endpoint, base, cigars, mode = 'form' } = Astro.props;
 
+/** Where the lounge already has it, which is most of why the hit is useful. */
+const WHERE = {
+  wishlist: 'on the wishlist',
+  humidor: 'in the humidor',
+  smoked: 'smoked',
+} as const;
+
 const local = cigars.map(cigar => ({
   id: cigar.id,
   name: cigar.data.name,
-  detail: [cigar.data.brand, cigar.data.vitola, cigar.data.status === 'humidor' ? 'in the humidor' : 'smoked']
+  detail: [cigar.data.brand, cigar.data.vitola, WHERE[cigar.data.status]]
     .filter(Boolean)
     .join(' · '),
   haystack: haystackFor(cigar.data, cigar.body),

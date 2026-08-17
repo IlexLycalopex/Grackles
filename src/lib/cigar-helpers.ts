@@ -1,18 +1,29 @@
-import type { Cigar } from './cigar-lounge';
+import type { Cigar, CigarStatus } from './cigar-lounge';
 export type { Cigar };
 
+/**
+ * The page an entry belongs on, given its status.
+ *
+ * Every write route ends by sending somebody back to where the thing they
+ * just changed now lives, and each of them used to spell that out as a
+ * ternary over two statuses. Three is where a ternary stops reading, and more
+ * to the point it is where four copies of one rule start disagreeing.
+ */
+export function homeFor(base: string, status: CigarStatus): string {
+  if (status === 'wishlist') return `${base}/wishlist`;
+  if (status === 'humidor') return `${base}/humidor`;
+  return base;
+}
 
-
-
-
-
+/** Whole days between a date and now, or null when there is no date. */
+export function daysSince(from: Date | undefined, now = new Date()): number | null {
+  if (!from) return null;
+  return Math.max(0, Math.floor((now.getTime() - from.getTime()) / 86_400_000));
+}
 
 /** Whole days a humidor cigar has been resting, or null if the date is unknown. */
 export function restingDays(cigar: Cigar, now = new Date()): number | null {
-  const acquired = cigar.data.dateAcquired;
-  if (!acquired) return null;
-  const days = Math.floor((now.getTime() - acquired.getTime()) / 86_400_000);
-  return Math.max(0, days);
+  return daysSince(cigar.data.dateAcquired, now);
 }
 
 /** "3 years", "5 months", "12 days" — one unit, rounded down. */

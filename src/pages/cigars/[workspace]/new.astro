@@ -4,9 +4,10 @@ import CigarFields from '../../../components/cl/CigarFields.astro';
 import CigarLookup from '../../../components/cl/CigarLookup.astro';
 import { requireWrite } from '../../../lib/workspace';
 import { loadCigars, loadReference } from '../../../lib/cigar-lounge';
-import { cigarSlug, readCigar } from '../../../lib/records/cigar';
+import { CIGAR_STATUSES, cigarSlug, readCigar } from '../../../lib/records/cigar';
 import { describeWriteError } from '../../../lib/records/save';
 import { uniqueSlug } from '../../../lib/slug';
+import { homeFor } from '../../../lib/cigar-helpers';
 
 export const prerender = false;
 
@@ -26,11 +27,12 @@ const workspace = gate.workspace;
 const base = `/cigars/${workspace.slug}`;
 const today = new Date().toISOString().slice(0, 10);
 
-// Which half of the app the button was pressed on. The humidor adds something
-// resting; the log records something smoked. It is one form either way, because
-// it is one table — the status just starts in the right place.
+// Which part of the app the button was pressed on. The wishlist records
+// something wanted, the humidor something resting, the log something smoked. It
+// is one form for all three, because it is one table — the status just starts
+// in the right place.
 const wanted = Astro.url.searchParams.get('status');
-const startStatus = wanted === 'humidor' ? 'humidor' : 'smoked';
+const startStatus = CIGAR_STATUSES.find(s => s === wanted) ?? 'smoked';
 
 // Stage zero of the lookup: what this lounge already has. Loaded for the panel
 // rather than for the write below, which keeps its own read for the reason
@@ -117,7 +119,7 @@ if (Astro.request.method === 'POST') {
     if (writeError) {
       error = describeWriteError(writeError, 'cl_cigars insert');
     } else {
-      return Astro.redirect(parsed.values.status === 'humidor' ? `${base}/humidor` : base);
+      return Astro.redirect(homeFor(base, parsed.values.status));
     }
   }
 }
@@ -126,13 +128,23 @@ if (Astro.request.method === 'POST') {
 <ClLayout title={`Add a cigar · ${workspace.name}`} workspace={workspace}>
   <div class="container">
     <div class="page-header">
-      <p class="eyebrow">{startStatus === 'humidor' ? 'To the humidor' : 'To the log'}</p>
+      <p class="eyebrow">
+        {
+          startStatus === 'wishlist'
+            ? 'To the wishlist'
+            : startStatus === 'humidor'
+              ? 'To the humidor'
+              : 'To the log'
+        }
+      </p>
       <h1>Add a cigar</h1>
       <p class="subtitle">
         {
-          startStatus === 'humidor'
-            ? 'Something new to rest. Give it a quantity if there is more than one.'
-            : 'One you have smoked. It needs the date, and a rating if you have one.'
+          startStatus === 'wishlist'
+            ? 'One to look out for. Nothing is required but a name — the rest can wait until you have it.'
+            : startStatus === 'humidor'
+              ? 'Something new to rest. Give it a quantity if there is more than one.'
+              : 'One you have smoked. It needs the date, and a rating if you have one.'
         }
       </p>
     </div>
@@ -175,9 +187,7 @@ if (Astro.request.method === 'POST') {
 
       <div class="cigar-form__actions">
         <button class="cigar-form__submit" type="submit">Add</button>
-        <a class="cigar-form__cancel" href={startStatus === 'humidor' ? `${base}/humidor` : base}>
-          Cancel
-        </a>
+        <a class="cigar-form__cancel" href={homeFor(base, startStatus)}>Cancel</a>
       </div>
     </form>
   </div>

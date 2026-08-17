@@ -2,7 +2,7 @@
 import ClLayout from '../../../layouts/ClLayout.astro';
 import StarRating from '../../../components/cl/StarRating.astro';
 import { resolveWorkspace } from '../../../lib/workspace';
-import { humidorFrom, loadCigars, smokedFrom } from '../../../lib/cigar-lounge';
+import { humidorFrom, loadCigars, smokedFrom, wishlistFrom } from '../../../lib/cigar-lounge';
 import {
   brandStats,
   mean,
@@ -21,9 +21,11 @@ const wsSlug = Astro.params.workspace!;
 const workspace = await resolveWorkspace(supabase, 'cigar-lounge', wsSlug, user?.id ?? null);
 if (!workspace) return new Response('Not found', { status: 404 });
 
+const base = `/cigars/${workspace.slug}`;
 const cigars = await loadCigars(supabase, workspace.id);
 const smoked = smokedFrom(cigars);
 const humidor = humidorFrom(cigars);
+const wishlist = wishlistFrom(cigars);
 
 const ratings = rated(smoked).map(c => c.data.rating!);
 const distribution = ratingDistribution(smoked);
@@ -61,6 +63,15 @@ const spendApproximate = priced.some(p => p.price.approximate);
         <span class="stat__value">{totalCigars(humidor)}</span>
         <span class="stat__label">Resting</span>
       </div>
+      {/* Only once there is one. A permanent zero beside three real figures
+          reads as a feature nobody uses rather than as a wishlist nobody has
+          started. */}
+      {wishlist.length > 0 && (
+        <a class="stat stat--link" href={`${base}/wishlist`}>
+          <span class="stat__value">{totalCigars(wishlist)}</span>
+          <span class="stat__label">Wanted</span>
+        </a>
+      )}
       <div class="stat">
         <span class="stat__value">{ratings.length ? mean(ratings).toFixed(1) : '—'}</span>
         <span class="stat__label">Avg rating</span>

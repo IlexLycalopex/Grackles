@@ -10,8 +10,17 @@ import type { StoredReference } from './cigar-lookup';
  * date columns are revived into Dates here rather than left as ISO strings.
  */
 
+/**
+ * Where an entry stands: wanted, resting, or smoked.
+ *
+ * One table holds all three, because they are three states of one object
+ * rather than three kinds of thing — see `20260817120000_cigar_wishlist` for
+ * why that is the shape and what it buys.
+ */
+export type CigarStatus = 'wishlist' | 'humidor' | 'smoked';
+
 export interface CigarData {
-  status: 'humidor' | 'smoked';
+  status: CigarStatus;
   quantity: number;
   name: string;
   brand: string;
@@ -25,6 +34,13 @@ export interface CigarData {
   smokedAt?: string;
   dateAcquired?: Date;
   dateSmoked?: Date;
+  /**
+   * When the row was written, which for a wishlist entry is the only date it
+   * has — you have not acquired it and you have not smoked it, so "how long
+   * have I been meaning to buy this" is the question the wishlist sorts on.
+   * Present on every entry because it is `created_at`, and used only there.
+   */
+  dateAdded?: Date;
   pricePaid?: string;
   rating?: number;
   pairing?: string;
@@ -55,7 +71,7 @@ const COLUMNS = `
   id, slug, status, quantity, name, brand, vitola, wrapper, length_text,
   ring_gauge, country, strength, bought_at, smoked_at, date_acquired,
   date_smoked, price_text, rating, pairing, note, photo_path, tasting_notes,
-  reference_id
+  reference_id, created_at
 `;
 
 /** Every column of a reference row. Short enough that narrowing it earns nothing. */
@@ -74,6 +90,20 @@ function undef(value: string | null): string | undefined {
   return value ? value : undefined;
 }
 
+const STATUSES: CigarStatus[] = ['wishlist', 'humidor', 'smoked'];
+
+/**
+ * The status column is `text` with a CHECK behind it, so anything outside the
+ * three is impossible rather than merely unexpected — but this function is the
+ * one place the database's shape becomes the app's, and reading an unknown
+ * value as 'smoked' would silently file a row in the log. Falling back to the
+ * default the column itself carries is the honest reading of a row that should
+ * not exist.
+ */
+function toStatus(raw: unknown): CigarStatus {
+  return STATUSES.find(s => s === raw) ?? 'smoked';
+}
+
 function toCigar(row: any): Cigar {
   return {
     id: row.slug,
@@ -81,7 +111,7 @@ function toCigar(row: any): Cigar {
     body: row.tasting_notes ?? '',
     referenceId: row.reference_id ?? null,
     data: {
-      status: row.status === 'humidor' ? 'humidor' : 'smoked',
+      status: toStatus(row.status),
       quantity: row.quantity ?? 1,
       name: row.name,
       brand: row.brand ?? '',
@@ -95,6 +125,9 @@ function toCigar(row: any): Cigar {
       smokedAt: undef(row.smoked_at),
       dateAcquired: toDate(row.date_acquired),
       dateSmoked: toDate(row.date_smoked),
+      // A timestamptz rather than a date, so it is parsed rather than pinned
+      // to midnight UTC the way the two above are.
+      dateAdded: row.created_at ? new Date(row.created_at) : undefined,
       pricePaid: undef(row.price_text),
       rating: row.rating ?? undefined,
       pairing: undef(row.pairing),
@@ -132,6 +165,23 @@ export function humidorFrom(cigars: Cigar[]): Cigar[] {
     .sort((a, b) => {
       const diff =
         (a.data.dateAcquired?.getTime() ?? Date.now()) - (b.data.dateAcquired?.getTime() ?? Date.now());
+      return diff !== 0 ? diff : a.data.name.localeCompare(b.data.name);
+    });
+}
+
+/**
+ * The wishlist: wanted cigars, longest-wanted first.
+ *
+ * The same ordering the humidor uses and for the same reason — the thing you
+ * want to be shown is what has been waiting longest, not what you added a
+ * minute ago and can still see. `dateAdded` is `created_at`, which every row
+ * has, so unlike the humidor there is no missing-date case to fall back from.
+ */
+export function wishlistFrom(cigars: Cigar[]): Cigar[] {
+  return cigars
+    .filter(c => c.data.status === 'wishlist')
+    .sort((a, b) => {
+      const diff = (a.data.dateAdded?.getTime() ?? 0) - (b.data.dateAdded?.getTime() ?? 0);
       return diff !== 0 ? diff : a.data.name.localeCompare(b.data.name);
     });
 }

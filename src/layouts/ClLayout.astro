@@ -20,6 +20,9 @@ const { user } = Astro.locals;
 const links = [
   { href: base, label: 'Log' },
   { href: `${base}/humidor`, label: 'Humidor' },
+  // Readable by anyone who can read the lounge, so it is not behind the same
+  // gate as the desk below: what somebody is after is part of the record.
+  { href: `${base}/wishlist`, label: 'Wishlist' },
   { href: `${base}/stats`, label: 'Stats' },
   ...(workspace.canWrite ? [{ href: `${base}/lookup`, label: 'Look up' }] : []),
 ];

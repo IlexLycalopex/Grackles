@@ -3,6 +3,7 @@ import ClLayout from '../../../../layouts/ClLayout.astro';
 import { FormValues, fieldValue } from '../../../../lib/forms';
 import { requireWrite } from '../../../../lib/workspace';
 import { loadCigar, loadCigars } from '../../../../lib/cigar-lounge';
+import { homeFor } from '../../../../lib/cigar-helpers';
 import { describeWriteError } from '../../../../lib/records/save';
 import { slugify, uniqueSlug } from '../../../../lib/slug';
 
@@ -28,10 +29,14 @@ const cigar = await loadCigar(supabase, workspace.id, cigarSlugParam!);
 if (!cigar) return new Response('Not found', { status: 404 });
 
 // Already smoked: there is nothing to take out of the humidor, and the edit
-// form is what they actually want.
-if (cigar.data.status !== 'humidor') return Astro.redirect(`${base}/edit/${cigar.id}`);
+// form is what they actually want. A wishlist entry is a legitimate source —
+// you can want a cigar, get hold of it and smoke it the same evening, and
+// making somebody file it in the humidor first so they can immediately take it
+// out again is the bookkeeping this page exists to end.
+if (cigar.data.status === 'smoked') return Astro.redirect(`${base}/edit/${cigar.id}`);
 
 const d = cigar.data;
+const fromWishlist = d.status === 'wishlist';
 const remaining = d.quantity - 1;
 
 let error: string | null = null;
@@ -88,8 +93,10 @@ const v = (key: string, fallback: string | number = '') =>
       <p class="subtitle">
         {
           remaining > 0
-            ? `One of ${d.quantity}. ${remaining} will stay in the humidor.`
-            : 'The last one — this entry moves into the log.'
+            ? `One of ${d.quantity}. ${remaining} will stay ${fromWishlist ? 'on the wishlist' : 'in the humidor'}.`
+            : fromWishlist
+              ? 'Straight off the wishlist — this entry moves into the log.'
+              : 'The last one — this entry moves into the log.'
         }
       </p>
     </div>
@@ -140,7 +147,7 @@ const v = (key: string, fallback: string | number = '') =>
       </label>
 
       <p class="cigar-form__hint">
-        The rest carries over from the humidor entry: {[d.vitola, d.wrapper, d.country,
+        The rest carries over from the {fromWishlist ? 'wishlist' : 'humidor'} entry: {[d.vitola, d.wrapper, d.country,
         d.strength ? `${d.strength} strength` : null, d.pricePaid]
           .filter(Boolean)
           .join(' · ') || 'nothing else recorded'}.
@@ -148,7 +155,7 @@ const v = (key: string, fallback: string | number = '') =>
 
       <div class="cigar-form__actions">
         <button class="cigar-form__submit" type="submit">Log it</button>
-        <a class="cigar-form__cancel" href={`${base}/humidor`}>Cancel</a>
+        <a class="cigar-form__cancel" href={homeFor(base, d.status)}>Cancel</a>
       </div>
     </form>
   </div>
