@@ -35,7 +35,9 @@ const CONSTRAINTS: Record<string, string> = {
   // Cigar Lounge
   cl_cigars_workspace_id_slug_key: 'There is already an entry with that name and date.',
   cl_smoked_needs_date: 'A smoked cigar needs the date it was smoked.',
-  cl_humidor_has_no_date: 'Something in the humidor cannot have a smoked date.',
+  cl_humidor_has_no_date: 'Nothing carries a smoked date until it has been smoked.',
+  cl_wishlist_not_acquired:
+    'This has a date acquired, so it belongs in the humidor rather than the wishlist.',
   cl_smoked_is_singular: 'A smoked entry records a single cigar.',
   cl_acquired_before_smoked: 'It cannot have been smoked before it was acquired.',
   cl_cigars_quantity_check: 'The quantity has to be at least one.',

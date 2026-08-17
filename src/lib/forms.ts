@@ -8,7 +8,17 @@
  * being created or corrected.
  */
 export class FormValues {
-  constructor(private readonly form: FormData) {}
+  // Written out rather than declared as a constructor parameter property. The
+  // test runner strips types rather than compiling them (`--experimental-strip-
+  // types`), and a parameter property is the one piece of TypeScript that
+  // cannot be stripped — it emits an assignment. The shorthand made every
+  // module that imports this one, which is every record reader in the repo,
+  // impossible to unit test.
+  private readonly form: FormData;
+
+  constructor(form: FormData) {
+    this.form = form;
+  }
 
   /** Trimmed text. Absent and blank are the same thing. */
   str(key: string): string {

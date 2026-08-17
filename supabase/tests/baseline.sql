@@ -166,7 +166,24 @@ create table public.cl_cigars (
   tasting_notes     text not null default '',
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now(),
-  unique (workspace_id, slug)
+  unique (workspace_id, slug),
+
+  -- The two date rules as they read before there was a wishlist, faults and
+  -- all. `cl_humidor_has_no_date` names the humidor because at the time
+  -- "not smoked" and "in the humidor" were the same sentence, so it says
+  -- nothing at all about a row that is neither — which is exactly the hole
+  -- 20260817120000 closes by restating it as "anything not smoked". Left in
+  -- the permissive form deliberately: the check that a wishlist entry cannot
+  -- carry a smoked date passes against the migration and fails against this,
+  -- which is the only way it is worth writing.
+  --
+  -- Production also carries cl_smoked_is_singular and cl_acquired_before_smoked
+  -- (see the constraint map in src/lib/records/save.ts). They are not
+  -- reproduced here because nothing in migrations/ touches them, and a
+  -- reconstruction nobody has checked against the original is worse than a
+  -- stated absence.
+  constraint cl_smoked_needs_date   check (status <> 'smoked'  or date_smoked is not null),
+  constraint cl_humidor_has_no_date check (status <> 'humidor' or date_smoked is null)
 );
 
 create trigger touch_cl_cigars before update on public.cl_cigars

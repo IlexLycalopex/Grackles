@@ -2,6 +2,7 @@
 import StarRating from './StarRating.astro';
 import StrengthChip from './StrengthChip.astro';
 import {
+  daysSince,
   formatDuration,
   photoUrl,
   restingDays,
@@ -23,15 +24,22 @@ interface Props {
   /** Rendered only for editors. */
   editHref?: string;
   /**
-   * Rendered only for editors, and only in the humidor: the shortcut that
-   * takes one out of the box and into the log. Editing the entry by hand does
-   * the same thing, but that means remembering to decrement the quantity and
-   * set the date — which is exactly the bookkeeping this app is meant to end.
+   * Rendered only for editors, and only for something not yet smoked: the
+   * shortcut that takes one out of the box and into the log. Editing the entry
+   * by hand does the same thing, but that means remembering to decrement the
+   * quantity and set the date — which is exactly the bookkeeping this app is
+   * meant to end.
    */
   smokeHref?: string;
+  /**
+   * Where to POST "I have this now", for a wishlist card. A form rather than a
+   * link because it is a write, and inline rather than a page because the whole
+   * claim of the wishlist is that moving something off it is one press.
+   */
+  moveAction?: string;
 }
 
-const { cigar, base, index, editHref, smokeHref } = Astro.props;
+const { cigar, base, index, editHref, smokeHref, moveAction } = Astro.props;
 const {
   status,
   quantity,
@@ -44,17 +52,24 @@ const {
   smokedAt,
   dateAcquired,
   dateSmoked,
+  dateAdded,
   rating,
   photo,
 } = cigar.data;
 
 const spec = [vitola, country].filter(Boolean).join(' · ');
 const inHumidor = status === 'humidor';
+const wanted = status === 'wishlist';
+const smoked = status === 'smoked';
 
-// The date each view sorts and filters on: when it was smoked, or when it
-// went into the humidor.
-const sortDate = inHumidor ? dateAcquired : dateSmoked;
+// The date each view sorts and filters on: when it was smoked, when it went
+// into the humidor, or — for something not yet owned — when it was wished for.
+const sortDate = wanted ? dateAdded : inHumidor ? dateAcquired : dateSmoked;
+
+// How long it has been waiting, for the two states where waiting is the fact
+// the card is reporting. A smoked entry has finished waiting.
 const resting = inHumidor ? restingDays(cigar) : null;
+const wishedFor = wanted ? daysSince(dateAdded) : null;
 
 // The index row's right-hand side: SEP '25. Short enough to sit opposite the
 // plate number without either wrapping.
@@ -108,7 +123,7 @@ const size = sizeOf(cigar.data);
 
     <h2 class="cigar-card__name">
       {name}
-      {inHumidor && quantity > 1 && <span class="cigar-card__qty">×{quantity}</span>}
+      {!smoked && quantity > 1 && <span class="cigar-card__qty">×{quantity}</span>}
     </h2>
 
     {spec && <p class="cigar-card__spec">{spec}</p>}
@@ -116,7 +131,11 @@ const size = sizeOf(cigar.data);
     <div class="cigar-card__footer">
       {strength ? <StrengthChip strength={strength} pipsOnly /> : <span />}
 
-      {inHumidor ? (
+      {wanted ? (
+        <span class="cigar-card__resting cigar-card__resting--wanted">
+          {wishedFor !== null ? `Wanted ${formatDuration(wishedFor)}` : 'Wanted'}
+        </span>
+      ) : inHumidor ? (
         <span class="cigar-card__resting">
           {resting !== null ? formatDuration(resting) : 'Resting'}
         </span>
@@ -132,9 +151,20 @@ const size = sizeOf(cigar.data);
       Set as plain micro-text rather than chips floating over the plate: on
       paper a floating control reads as a smudge, and hover-only controls are
       unreachable on a phone. */}
-  {(editHref || (smokeHref && inHumidor)) && (
+  {(editHref || (smokeHref && !smoked) || (moveAction && wanted)) && (
     <div class="cigar-card__actions">
-      {smokeHref && inHumidor && (
+      {/* A one-press write, so a form — and a form inside the grid the filter
+          script reorders, which is fine: it moves the whole card. */}
+      {moveAction && wanted && (
+        <form class="cigar-card__move" method="POST" action={moveAction}>
+          <input type="hidden" name="intent" value="move" />
+          <input type="hidden" name="cigar" value={cigar.rowId} />
+          <button class="cigar-card__action" type="submit" aria-label={`Move ${name} to the humidor`}>
+            To humidor
+          </button>
+        </form>
+      )}
+      {smokeHref && !smoked && (
         <a class="cigar-card__action" href={smokeHref}>Smoke</a>
       )}
       {editHref && (
@@ -244,12 +274,22 @@ const size = sizeOf(cigar.data);
     margin-top: 11px;
   }
 
+  .cigar-card__resting--wanted { color: var(--accent); }
+
+  /* The move is a form, so its button has to be talked back down into looking
+     like the two links beside it. */
+  .cigar-card__move { display: contents; }
+
   .cigar-card__action {
+    padding: 0;
     font-family: var(--mono);
     font-size: 9px;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--ink-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
     transition: color var(--transition);
   }
 
