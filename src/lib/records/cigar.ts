@@ -2,7 +2,7 @@ import { FormValues, invalid, valid, type Parsed } from '../forms';
 import { parsePrice } from '../cigar-helpers';
 import { slugify } from '../slug';
 
-export const CIGAR_STATUSES = ['humidor', 'smoked'] as const;
+export const CIGAR_STATUSES = ['wishlist', 'humidor', 'smoked'] as const;
 export type CigarStatus = (typeof CIGAR_STATUSES)[number];
 
 export const STRENGTHS = ['mild', 'medium', 'full'] as const;
@@ -48,8 +48,14 @@ export function readCigar(form: FormData): Parsed<CigarValues> {
   if (status === 'smoked' && !date_smoked) {
     return invalid('A smoked cigar needs the date it was smoked — or put it back in the humidor.');
   }
-  if (status === 'humidor' && date_smoked) {
+  if (status !== 'smoked' && date_smoked) {
     return invalid('This has a date smoked, so its status should be smoked.');
+  }
+  // A cigar you have acquired is one you own, and owning it is what the humidor
+  // is; a wishlist row with an acquisition date is a move somebody half-made.
+  // `cl_wishlist_not_acquired` is the guarantee, this is the sentence.
+  if (status === 'wishlist' && date_acquired) {
+    return invalid('This has a date acquired, so it belongs in the humidor rather than the wishlist.');
   }
   if (status === 'smoked' && quantity > 1) {
     return invalid('A smoked entry records one cigar. Keep the rest as a humidor entry.');

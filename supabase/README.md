@@ -27,6 +27,7 @@ The files in `migrations/` are the additions from 2026-08-05, in apply order:
 | `20260813110000_blackletter_app_slug` | `blackletter` joins the `app_slug` enum — on its own, because `ALTER TYPE ... ADD VALUE` cannot be used in the transaction that uses it |
 | `20260813120000_blackletter_schema` | `bl_words`, `bl_puzzles`, `bl_games`; `app.mark_guess()` and `app.blackletter_puzzle()` |
 | `20260813120100_blackletter_rpcs` | The four functions that are the whole player-facing surface of the game |
+| `20260817120000_cigar_wishlist` | `wishlist` joins the cigar statuses; the date rules restated for three of them; `smoke_from_humidor` accepts a wish as a source |
 
 ### What changed conceptually
 
@@ -173,6 +174,115 @@ The three 2026-08-07 migrations are live as of that date. They must go out toget
 
 `20260809120000` is live as of 2026-08-09. It is self-contained and depends only on
 `20260807120000` having added `cl_cigars.reference_id`.
+
+`20260817120000` is live as of 2026-08-17. It depends on `20260809120000` having
+put `photo_path` and `reference_id` into `smoke_from_humidor`'s insert, since it
+replaces that function and keeps the list.
+
+### A third status, and the two rules that were written for two
+
+**`20260817120000` is live as of 2026-08-17**, as `20260817222631_cigar_wishlist`.
+It went out ahead of the app commit that uses it, which is the safe ordering
+either way: the wishlist pages write `status = 'wishlist'` and would have been
+refused before it, and nothing else in the app changes behaviour after it — a
+status nobody writes is a status nobody notices.
+
+It adds `wishlist` to `cl_cigars.status`. The wishlist is a state
+of a cigar rather than a second kind of object, so it is a value in a column
+rather than a table — see the migration's own preamble for the argument, and
+`README.md` for what it buys the app.
+
+Three things about it are worth carrying forward.
+
+**The status constraint is dropped by column list, not by name and not by
+wording.** It was an inline column check in a migration that predates this
+repository, so its name is whatever Postgres generated. Searching
+`pg_get_constraintdef` for the word `status` looked like the obvious
+alternative and is a trap: four other checks on this table mention `status`, and
+a definition search would have dropped all five and put one back. The
+enumeration is the only check whose `conkey` is `{status}` alone — nothing but
+that column — which identifies it exactly rather than approximately.
+
+**A rule that names one status is not a rule about the other one.**
+`cl_humidor_has_no_date` read `status <> 'humidor' or date_smoked is null`,
+which was a complete statement of "nothing carries a smoked date until it has
+been smoked" for exactly as long as there were two statuses. With three it says
+nothing at all about a wishlist row, so one could carry a date smoked and sit in
+the log's date ordering without being in the log. It is restated as `status =
+'smoked' or date_smoked is null` — about the status that *has* the date rather
+than the one that does not — and `cl_smoked_needs_date` is restated alongside it
+for the same reason. Both keep their names, because `describeWriteError` maps
+constraint names to sentences and a rename turns a sentence back into a dump.
+
+The general form, for the next status anyone adds to anything here: a CHECK
+phrased as "X does not have Y" silently stops covering the table the moment a
+third X exists. Phrase it as "only Z has Y" and it keeps covering it.
+
+**`smoke_from_humidor` takes a wish as a source.** Its guard was `status <>
+'humidor'`, refusing with "that cigar has already been smoked" — true of the
+only other status there was. You can want a cigar, get hold of it and smoke it
+the same evening, and making somebody file it in the humidor first so they can
+immediately take it out again is the bookkeeping the function exists to end. A
+'smoked' source is still refused, with the same message. The stack path leaves
+the remainder in the source's own status, so a wish for three with one smoked
+off it leaves two still wanted.
+
+Nothing about the policies changed. `cl_cigars_read` and its three siblings are
+scoped to the workspace and have never looked at `status`, so the wishlist
+inherits exactly the visibility the humidor has.
+
+### What production actually had
+
+The migration was written defensively, against a table whose constraint
+definitions were not in this repository. They were read off the live database
+before it was applied, and every guess it was hedging against turned out to be
+the case it was written for:
+
+| Constraint | `conkey` | Definition before |
+| --- | --- | --- |
+| `cl_cigars_status_check` | `{status}` | `status = ANY (ARRAY['humidor','smoked'])` |
+| `cl_humidor_has_no_date` | `{status,date_smoked}` | `status <> 'humidor' OR date_smoked IS NULL` |
+| `cl_smoked_needs_date` | `{status,date_smoked}` | `status <> 'smoked' OR date_smoked IS NOT NULL` |
+| `cl_smoked_is_singular` | `{status,quantity}` | `status <> 'smoked' OR quantity = 1` |
+| `cl_acquired_before_smoked` | `{date_acquired,date_smoked}` | unchanged by this migration |
+
+Three of those five mention `status` in their text, which is what the `conkey`
+search exists to avoid: a definition search for the word would have dropped
+`cl_smoked_is_singular` along with the enumeration and not put it back. It is
+still there, and so is every other check on the table — fourteen now, thirteen
+before, the one addition being `cl_wishlist_not_acquired`.
+
+`cl_humidor_has_no_date` was the permissive phrasing, so the hole was real: a
+wishlist row could have carried a smoked date and sorted into the log's date
+ordering without being in the log.
+
+Applied against 11 cigars, 8 resting and 3 smoked, none of which violated any of
+the restated rules. Verified afterwards with a live round trip that wrote a
+three-cigar wish, smoked one off it, checked the remainder stayed wanted and the
+log entry kept its photo, confirmed all three refusals fire and that a smoked
+cigar is still refused with the same message — then deleted what it wrote and
+asserted the row count was back where it started. `get_advisors` reports nothing
+new: the migration creates no table and no `SECURITY DEFINER` function.
+
+### What the test baseline was hiding
+
+`tests/baseline.sql` reconstructed `cl_cigars` without any of the four CHECK
+constraints production carries — the ones `src/lib/records/save.ts` maps to
+sentences. The two this migration restates are now in the baseline, in their
+**pre-wishlist form**, which is the same tactic `smoke_from_humidor` is
+reproduced with: the assertion that a wishlist entry cannot carry a smoked date
+fails against the old rule and passes against the new one, which is the only way
+it is worth writing.
+
+It also surfaced a test that had been writing a row production would reject.
+`tests/admin.sh` inserted a cigar with the column defaults, which means status
+'smoked' and no date smoked — refused by `cl_smoked_needs_date` on the real
+database, and accepted by the harness only because the harness did not have it.
+The insert now names both.
+
+`cl_smoked_is_singular` and `cl_acquired_before_smoked` are still absent from
+the baseline. Nothing in `migrations/` touches them, and a reconstruction
+nobody has checked against the original is worse than a stated absence.
 
 ### A policy may not read its own table
 

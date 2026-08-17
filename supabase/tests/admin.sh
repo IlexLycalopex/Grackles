@@ -56,8 +56,13 @@ check "an admin sees every project, including ones they are not in" ok \
 check "it reports counts, and the entries stay unreadable" ok \
   "do \$\$ declare r record; begin
      $SU
-     insert into public.cl_cigars (workspace_id,slug,name)
-       values ('$CIGARS','a-test','A test');
+     -- Status and date named rather than left to the column defaults. The
+     -- default is 'smoked', and cl_smoked_needs_date has always refused a
+     -- smoked entry with no date — this insert only ever worked because the
+     -- test baseline was missing that constraint, which 20260817120000 puts
+     -- back while restating it for a third status.
+     insert into public.cl_cigars (workspace_id,slug,name,status,date_smoked)
+       values ('$CIGARS','a-test','A test','smoked','2026-08-14');
      $DOWN
      select * into r from public.admin_projects() where id = '$CIGARS';
      if r.records < 1 then raise exception 'the count did not reach the console'; end if;

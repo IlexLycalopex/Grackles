@@ -1,15 +1,15 @@
 ---
 import { fieldValue } from '../../lib/forms';
 import type { Cigar } from '../../lib/cigar-lounge';
-import { STRENGTHS } from '../../lib/records/cigar';
+import { STRENGTHS, type CigarStatus } from '../../lib/records/cigar';
 
 /**
  * The fields of a cigar. `cigar` null means a new entry.
  *
- * One table holds both the humidor and the log, so this is one form with a
- * status on it rather than two. The status decides which date is required, and
- * the database enforces the same pairing — a smoked entry must carry a date
- * smoked and must be a single cigar.
+ * One table holds the wishlist, the humidor and the log, so this is one form
+ * with a status on it rather than three. The status decides which dates are
+ * allowed, and the database enforces the same pairing — a smoked entry must
+ * carry a date smoked and must be a single cigar.
  */
 interface Props {
   cigar: Cigar | null;
@@ -22,7 +22,7 @@ interface Props {
    * save still comes back showing what was typed rather than the suggestion.
    */
   defaults?: {
-    status?: 'humidor' | 'smoked';
+    status?: CigarStatus;
     dateSmoked?: string;
     name?: string;
     brand?: string;
@@ -74,14 +74,18 @@ const strength = v('strength', d?.strength, strengthDefault);
   <label class="cigar-form__field">
     <span class="cigar-form__label">Status</span>
     <select class="cigar-form__input" name="status">
+      <option value="wishlist" selected={status === 'wishlist'}>On the wishlist</option>
       <option value="humidor" selected={status === 'humidor'}>In humidor</option>
       <option value="smoked" selected={status === 'smoked'}>Smoked</option>
     </select>
+    <span class="cigar-form__hint">
+      Changing this is how an entry moves — from wanted, to resting, to smoked.
+    </span>
   </label>
   <label class="cigar-form__field">
     <span class="cigar-form__label">Quantity</span>
     <input class="cigar-form__input" type="number" name="quantity" min="1" value={v('quantity', d?.quantity, 1)} />
-    <span class="cigar-form__hint">A smoked entry is always one.</span>
+    <span class="cigar-form__hint">A smoked entry is always one; on the wishlist it is how many you want.</span>
   </label>
 </div>
 
@@ -129,6 +133,7 @@ const strength = v('strength', d?.strength, strengthDefault);
   <label class="cigar-form__field">
     <span class="cigar-form__label">Acquired</span>
     <input class="cigar-form__input" type="date" name="date_acquired" value={v('date_acquired', iso(d?.dateAcquired))} />
+    <span class="cigar-form__hint">Leave blank while it is only on the wishlist.</span>
   </label>
   <label class="cigar-form__field">
     <span class="cigar-form__label">Smoked</span>

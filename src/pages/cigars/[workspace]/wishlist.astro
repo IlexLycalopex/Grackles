@@ -1,0 +1,288 @@
+---
+import ClLayout from '../../../layouts/ClLayout.astro';
+import CigarCard from '../../../components/cl/CigarCard.astro';
+import CigarFilter from '../../../components/cl/CigarFilter.astro';
+import CigarLookup from '../../../components/cl/CigarLookup.astro';
+import FilterBar from '../../../components/cl/FilterBar.astro';
+import ReferenceBlock from '../../../components/cl/ReferenceBlock.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { loadCigars, loadReference, wishlistFrom } from '../../../lib/cigar-lounge';
+import { parsePrice, totalCigars } from '../../../lib/cigar-helpers';
+import { describeWriteError } from '../../../lib/records/save';
+import { slugify, uniqueSlug } from '../../../lib/slug';
+
+export const prerender = false;
+
+/**
+ * The wishlist: cigars you want.
+ *
+ * Read by anyone who can read the lounge — what somebody is after is part of
+ * the record, and a viewer being shown it is the point of showing a lounge to
+ * anyone. The two writes it hosts are gated on `canWrite` below.
+ *
+ * Static segment, like `humidor` and `stats`, so it does not collide with the
+ * dynamic routes a directory deeper.
+ */
+const { supabase, user } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const workspace = await resolveWorkspace(supabase, 'cigar-lounge', wsSlug, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const base = `/cigars/${workspace.slug}`;
+const today = new Date().toISOString().slice(0, 10);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+let error: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  // The page is readable by viewers, so the gate is here rather than at the
+  // top. A courtesy either way — RLS refuses the write regardless — but it
+  // turns a database error into a status code.
+  if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+  if (!workspace.canWrite) return new Response('Forbidden', { status: 403 });
+
+  const form = await Astro.request.formData();
+  const intent = String(form.get('intent') ?? '');
+
+  if (intent === 'add') {
+    /**
+     * Straight from a lookup onto the wishlist.
+     *
+     * Only the reference id travels, and the row is read here — so what gets
+     * written is what the database holds, and a fiddled form can at worst name
+     * a different real reference row. `loadReference` goes through the caller's
+     * client, so RLS has already decided they may see it.
+     *
+     * There is no form in between on purpose. Adding to the humidor asks for a
+     * date, a quantity and a price because those are facts you have at the
+     * till; wanting a cigar has no facts attached beyond its name, and a form
+     * that asks for none of them is a page that exists to be submitted.
+     */
+    const wantedId = String(form.get('reference') ?? '').trim();
+    const reference = UUID.test(wantedId) ? await loadReference(supabase, wantedId) : null;
+
+    if (!reference) {
+      error = 'That lookup could not be found, so nothing was added.';
+    } else if (!reference.name && !reference.brand) {
+      error = 'That lookup has no name to file it under. Add it by hand instead.';
+    } else {
+      const name = reference.name || reference.brand;
+      const existing = await loadCigars(supabase, workspace.id);
+      const slug = uniqueSlug(
+        slugify([today, reference.brand, name].filter(Boolean).join(' ')),
+        existing.map(c => c.id)
+      );
+
+      const { error: writeError } = await supabase.from('cl_cigars').insert({
+        workspace_id: workspace.id,
+        slug,
+        status: 'wishlist',
+        name,
+        brand: reference.brand,
+        vitola: reference.vitola,
+        wrapper: reference.wrapper,
+        country: reference.country,
+        strength: reference.strength,
+        // Decimal inches, because that is what the lookup returned. Rendering
+        // `4 7/8"` from 4.9 would be writing something nobody said.
+        length_text: reference.length_inches ? `${reference.length_inches}″` : '',
+        ring_gauge: reference.ring_gauge,
+        reference_id: reference.id,
+      });
+
+      if (writeError) error = describeWriteError(writeError, 'cl_cigars wishlist insert');
+      else return Astro.redirect(`${base}/wishlist`);
+    }
+  } else if (intent === 'move') {
+    /**
+     * You have it now.
+     *
+     * One column and a date, on the row that is already there — no copy, no
+     * new entry, no second slug. The photo, the notes and the lookup it was
+     * filled from come with it because they never went anywhere, which is the
+     * whole argument for the wishlist being a status rather than a table.
+     *
+     * `workspace_id` is in the filter as well as the id. RLS would refuse a row
+     * from another lounge anyway; naming it means a wrong id changes nothing
+     * rather than relying on that.
+     */
+    const rowId = String(form.get('cigar') ?? '').trim();
+
+    if (!UUID.test(rowId)) {
+      error = 'That entry could not be found, so nothing has moved.';
+    } else {
+      const { data: moved, error: writeError } = await supabase
+        .from('cl_cigars')
+        .update({ status: 'humidor', date_acquired: today })
+        .eq('id', rowId)
+        .eq('workspace_id', workspace.id)
+        .eq('status', 'wishlist')
+        .select('id');
+
+      if (writeError) {
+        error = describeWriteError(writeError, 'cl_cigars wishlist move');
+      } else if (!moved || moved.length === 0) {
+        // An update RLS refuses does not raise, it narrows to nothing — the
+        // same asymmetry `NOTHING_DELETED` exists for. The `status` filter
+        // means this also catches the double-submitted move, which has already
+        // happened and should say so rather than claiming to have run twice.
+        error = 'Nothing moved. It may already be in the humidor, or your access may have changed.';
+      } else {
+        return Astro.redirect(`${base}/humidor`);
+      }
+    }
+  }
+}
+
+const cigars = await loadCigars(supabase, workspace.id);
+const wishlist = wishlistFrom(cigars);
+
+/**
+ * A lookup somebody has just run, or a permalink they were sent.
+ *
+ * The panel below is in `standalone` mode, so a result becomes `?reference=<id>`
+ * rather than a summary drawn twice — and on this page that URL is one press
+ * away from being an entry.
+ */
+const wantedReference = Astro.url.searchParams.get('reference');
+const reference = wantedReference ? await loadReference(supabase, wantedReference) : null;
+
+// Whether the thing being looked at is already on the wishlist. Offering "add
+// to the wishlist" for something already on it is how you get it twice.
+const alreadyWanted = reference
+  ? wishlist.find(c => c.referenceId === reference.id) ?? null
+  : null;
+
+// What the wishlist would cost, from whatever could be read out of the free
+// text. `price_text` on a wishlist entry is what it sells for rather than what
+// was paid, which is the same column doing the honest thing in both states.
+const priced = wishlist
+  .map(c => ({ price: parsePrice(c.data.pricePaid), quantity: c.data.quantity }))
+  .filter((p): p is { price: NonNullable<ReturnType<typeof parsePrice>>; quantity: number } =>
+    p.price !== null && p.price.value !== null
+  );
+const estimate = priced.reduce((sum, p) => sum + (p.price.value ?? 0) * p.quantity, 0);
+const estimateApproximate = priced.some(p => p.price.approximate);
+
+const countries = [...new Set(wishlist.map(c => c.data.country).filter(Boolean))].sort() as string[];
+const STRENGTHS = ['mild', 'medium', 'full'] as const;
+const strengths = STRENGTHS.filter(s => wishlist.some(c => c.data.strength === s));
+
+// Longest-wanted first is the rendered order, so that is what the sort returns
+// to; the other two are the ways you might want to break it up.
+const sorts = [
+  { key: 'oldest', label: 'Longest wanted' },
+  { key: 'recent', label: 'Newest' },
+  { key: 'name', label: 'A–Z' },
+];
+---
+
+<ClLayout title={`Wishlist · ${workspace.name}`} workspace={workspace}>
+  <div class="container">
+    <header class="page-header">
+      <p class="label">Wanted · {totalCigars(wishlist)} cigars</p>
+      <h1>The <em>wishlist.</em></h1>
+      <p class="subtitle">
+        Cigars to look out for. Look one up and it goes on in a press; when one
+        turns up, it moves into the humidor without being typed again.
+        {
+          estimate > 0 && (
+            <>
+              {' '}Roughly {estimateApproximate ? 'over ' : ''}£{estimate.toFixed(2)} of it,
+              from the prices noted.
+            </>
+          )
+        }
+      </p>
+    </header>
+
+    {error && <p class="form-error" role="alert">{error}</p>}
+
+    {
+      workspace.canWrite && (
+        <>
+          <CigarLookup
+            endpoint={`/api/cigars/${workspace.slug}/lookup`}
+            base={base}
+            cigars={cigars}
+            mode="standalone"
+          />
+
+          {reference && <ReferenceBlock reference={reference} heading="h2" />}
+
+          {reference && (
+            <div class="reference-actions">
+              {alreadyWanted ? (
+                <a class="record-actions__btn" href={`${base}/cigar/${alreadyWanted.id}`}>
+                  Already on the wishlist →
+                </a>
+              ) : (
+                <form method="POST">
+                  <input type="hidden" name="intent" value="add" />
+                  <input type="hidden" name="reference" value={reference.id} />
+                  <button class="record-actions__btn record-actions__btn--primary" type="submit">
+                    + Add to the wishlist
+                  </button>
+                </form>
+              )}
+              <a class="record-actions__btn" href={`${base}/new?status=humidor&reference=${reference.id}`}>
+                Add one to the humidor
+              </a>
+              <a class="record-actions__btn" href={`${base}/new?status=smoked&reference=${reference.id}`}>
+                Log one smoked
+              </a>
+            </div>
+          )}
+
+          <div class="record-actions">
+            <a class="record-actions__btn" href={`${base}/new?status=wishlist`}>
+              + Add one by hand
+            </a>
+          </div>
+        </>
+      )
+    }
+
+    {
+      wishlist.length === 0 ? (
+        <p class="empty-state">
+          Nothing on the wishlist.
+          {workspace.canWrite ? ' Look a cigar up above and it goes straight on.' : ''}
+        </p>
+      ) : (
+        <>
+          <div class="log-divider">
+            <span class="label">Everything wanted</span>
+            <span class="log-divider__count" data-count-for="wishlist-grid" data-count-noun="entries">
+              {wishlist.length} entr{wishlist.length === 1 ? 'y' : 'ies'}
+            </span>
+          </div>
+
+          <FilterBar grid="wishlist-grid" countries={countries} strengths={strengths} sorts={sorts} />
+          <CigarFilter grid="wishlist-grid" noun="wanted" />
+
+          <div class="cigar-grid" id="wishlist-grid">
+            {wishlist.map((cigar, i) => (
+              <CigarCard
+                cigar={cigar}
+                base={base}
+                index={i}
+                editHref={workspace.canWrite ? `${base}/edit/${cigar.id}` : undefined}
+                smokeHref={workspace.canWrite ? `${base}/smoke/${cigar.id}` : undefined}
+                moveAction={workspace.canWrite ? `${base}/wishlist` : undefined}
+              />
+            ))}
+          </div>
+        </>
+      )
+    }
+  </div>
+</ClLayout>
+
+<style>
+  /* The buttons under a lookup. `.reference-actions` is already global and is
+     a flex row; the add is a form rather than a link, so it needs the row to
+     ignore the wrapper and lay out the button itself. */
+  .reference-actions form { display: contents; }
+</style>

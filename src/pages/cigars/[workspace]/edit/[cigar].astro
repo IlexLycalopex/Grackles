@@ -3,6 +3,7 @@ import ClLayout from '../../../../layouts/ClLayout.astro';
 import CigarFields from '../../../../components/cl/CigarFields.astro';
 import { requireWrite } from '../../../../lib/workspace';
 import { loadCigar } from '../../../../lib/cigar-lounge';
+import { homeFor } from '../../../../lib/cigar-helpers';
 import ConfirmDelete from '../../../../components/ConfirmDelete.astro';
 import { readCigar } from '../../../../lib/records/cigar';
 import { NOTHING_DELETED, describeDeleteError, describeWriteError } from '../../../../lib/records/save';
@@ -46,11 +47,11 @@ if (Astro.request.method === 'POST') {
       submitted = null;
     } else if (!removed || removed.length === 0) {
       // RLS does not refuse a delete, it narrows it to nothing. Saying
-      // \"deleted\" here would be a lie the page could not detect.
+      // "deleted" here would be a lie the page could not detect.
       error = NOTHING_DELETED;
       submitted = null;
     } else {
-      return Astro.redirect(cigar.data.status === 'humidor' ? `${base}/humidor` : base);
+      return Astro.redirect(homeFor(base, cigar.data.status));
     }
   } else {
     const parsed = readCigar(submitted);
@@ -69,7 +70,7 @@ if (Astro.request.method === 'POST') {
       if (writeError) {
         error = describeWriteError(writeError, 'cl_cigars update');
       } else {
-        return Astro.redirect(parsed.values.status === 'humidor' ? `${base}/humidor` : base);
+        return Astro.redirect(homeFor(base, parsed.values.status));
       }
     }
   }
@@ -95,9 +96,11 @@ const d = cigar.data;
           prefix="cigar-form"
           title={[d.brand, d.name].filter(Boolean).join(' ')}
           detail={
-            d.status === 'humidor'
-              ? `${d.quantity} in the humidor — all of them go.`
-              : 'This entry leaves the log, and the stats with it.'
+            d.status === 'wishlist'
+              ? 'This comes off the wishlist. Nothing else changes.'
+              : d.status === 'humidor'
+                ? `${d.quantity} in the humidor — all of them go.`
+                : 'This entry leaves the log, and the stats with it.'
           }
           cancelHref={`${base}/edit/${cigar.id}`}
         />
@@ -107,7 +110,7 @@ const d = cigar.data;
 
           <div class="cigar-form__actions">
             <button class="cigar-form__submit" type="submit">Save</button>
-            <a class="cigar-form__cancel" href={base}>Cancel</a>
+            <a class="cigar-form__cancel" href={homeFor(base, d.status)}>Cancel</a>
             <a class="cigar-form__delete" href={`${base}/edit/${cigar.id}?delete=1`}>Delete</a>
           </div>
         </form>

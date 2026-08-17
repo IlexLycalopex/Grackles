@@ -218,6 +218,76 @@ check "the reference the entry was filled from carries too" ok \
      select reference_id into got from public.cl_cigars where id = new_id;
      if got is distinct from ref then raise exception 'log entry lost its reference'; end if;
    end \$\$;" "$as_jamie"
+echo "── the wishlist"
+# A wishlist entry is a cl_cigars row with a third status, so what is worth
+# asserting is not that the row can be written — it is that the coherence rules
+# written for two statuses still hold with three, and that the one operation the
+# feature exists for actually moves the row rather than copying it.
+seed_wish="insert into public.cl_cigars
+    (id, workspace_id, slug, status, quantity, name, brand, photo_path)
+  values ('c1000000-0000-4000-8000-000000000002','$LOUNGE','wanted','wishlist',1,
+          'Serie D No. 4','Partagás','$PHOTO');"
+
+check "a wanted cigar can go on the wishlist" ok \
+  "$seed_wish" "$as_jamie"
+check "a wishlist entry may not carry a date acquired" cl_wishlist_not_acquired \
+  "insert into public.cl_cigars (workspace_id, slug, status, name, date_acquired)
+   values ('$LOUNGE','wanted-2','wishlist','Serie D No. 4','2026-08-14');" "$as_jamie"
+check "a wishlist entry may not carry a date smoked" cl_humidor_has_no_date \
+  "insert into public.cl_cigars (workspace_id, slug, status, name, date_smoked)
+   values ('$LOUNGE','wanted-3','wishlist','Serie D No. 4','2026-08-14');" "$as_jamie"
+check "a status outside the three is still refused" cl_cigars_status_check \
+  "insert into public.cl_cigars (workspace_id, slug, status, name)
+   values ('$LOUNGE','wanted-4','someday','Serie D No. 4');" "$as_jamie"
+
+check "moving to the humidor keeps the row, the id and the photo" ok \
+  "$seed_wish
+   do \$\$ declare st text; p text; n integer; begin
+     update public.cl_cigars set status = 'humidor', date_acquired = '2026-08-17'
+       where id = 'c1000000-0000-4000-8000-000000000002';
+     select status, photo_path into st, p from public.cl_cigars
+       where id = 'c1000000-0000-4000-8000-000000000002';
+     if st <> 'humidor' then raise exception 'still %', st; end if;
+     if p <> '$PHOTO' then raise exception 'lost the photo in the move'; end if;
+     select count(*) into n from public.cl_cigars where slug = 'wanted';
+     if n <> 1 then raise exception 'the move duplicated the entry: % rows', n; end if;
+   end \$\$;" "$as_jamie"
+
+# The reason the smoke function had to be touched at all: you can want a cigar,
+# get hold of it and smoke it the same evening, and being made to file it in the
+# humidor first is the bookkeeping this app exists to end.
+check "one can be smoked straight off the wishlist" ok \
+  "$seed_wish
+   do \$\$ declare new_id uuid; st text; p text; begin
+     new_id := public.smoke_from_humidor('c1000000-0000-4000-8000-000000000002','wanted-smoked','2026-08-17');
+     select status, photo_path into st, p from public.cl_cigars where id = new_id;
+     if st <> 'smoked' then raise exception 'expected smoked, got %', st; end if;
+     if p <> '$PHOTO' then raise exception 'lost the photo'; end if;
+     if new_id <> 'c1000000-0000-4000-8000-000000000002'
+       then raise exception 'the last one should convert in place'; end if;
+   end \$\$;" "$as_jamie"
+check "smoking one of three leaves two still wanted" ok \
+  "$seed_wish
+   do \$\$ declare q integer; st text; begin
+     update public.cl_cigars set quantity = 3
+       where id = 'c1000000-0000-4000-8000-000000000002';
+     perform public.smoke_from_humidor('c1000000-0000-4000-8000-000000000002','wanted-smoked','2026-08-17');
+     select quantity, status into q, st from public.cl_cigars
+       where id = 'c1000000-0000-4000-8000-000000000002';
+     if q <> 2 then raise exception 'expected 2 left, got %', q; end if;
+     if st <> 'wishlist' then raise exception 'the remainder changed status to %', st; end if;
+   end \$\$;" "$as_jamie"
+check "something already smoked is still refused" 23514 \
+  "$seed_wish
+   do \$\$ begin
+     update public.cl_cigars set status = 'smoked', date_smoked = '2026-08-16'
+       where id = 'c1000000-0000-4000-8000-000000000002';
+     perform public.smoke_from_humidor('c1000000-0000-4000-8000-000000000002','wanted-smoked','2026-08-17');
+   end \$\$;" "$as_jamie"
+check "a viewer cannot put something on someone else's wishlist" "row-level security" \
+  "insert into public.cl_cigars (workspace_id, slug, status, name)
+   values ('$LOUNGE','wanted-5','wishlist','Serie D No. 4');" "$as_rob"
+
 echo
 echo "passed: $pass   failed: $fail"
 [ $fail -eq 0 ]

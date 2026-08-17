@@ -68,14 +68,24 @@ const reference = wanted ? await loadReference(supabase, wanted) : null;
 
     {
       reference && (
-        <p class="reference-actions">
-          <a class="record-actions__btn record-actions__btn--primary" href={`${base}/new?status=humidor&reference=${reference.id}`}>
+        <div class="reference-actions">
+          {/* Posted to the wishlist page rather than handled here: that page
+              owns the write, and this is the same one press from either side
+              of the app. Nothing about the desk needs to know how it works. */}
+          <form method="POST" action={`${base}/wishlist`}>
+            <input type="hidden" name="intent" value="add" />
+            <input type="hidden" name="reference" value={reference.id} />
+            <button class="record-actions__btn record-actions__btn--primary" type="submit">
+              + Add to the wishlist
+            </button>
+          </form>
+          <a class="record-actions__btn" href={`${base}/new?status=humidor&reference=${reference.id}`}>
             Add one to the humidor
           </a>
           <a class="record-actions__btn" href={`${base}/new?status=smoked&reference=${reference.id}`}>
             Log one smoked
           </a>
-        </p>
+        </div>
       )
     }
   </div>
@@ -89,4 +99,7 @@ const reference = wanted ? await loadReference(supabase, wanted) : null;
     max-width: 40rem;
     margin: 1.5rem auto 4rem;
   }
+
+  /* The add is a form; the row should lay out its button, not its wrapper. */
+  .reference-actions form { display: contents; }
 </style>

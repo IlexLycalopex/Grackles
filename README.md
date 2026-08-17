@@ -33,6 +33,7 @@ several people can share a project.
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
 | ✅ | Cedarhouse — the cigar lounge off Oxblood Foil and onto the shared paper tokens, with an editorial log page, facet chips and specimen plates |
 | ✅ | Blackletter — the word game, at five, six and seven letters. Schema, dictionary and workspace are live on the project |
+| ✅ | Cedarhouse's wishlist — a third cigar status, added straight from a lookup and moved off in one press. Migration applied 2026-08-17 |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.
 Its nav is whatever the visitor is a member of: signed out it offers one thing,
@@ -91,11 +92,12 @@ every value of the enum — so this is the only thing stopping it being offered.
 
 /cigars/:workspace                 Cedarhouse — the log
 /cigars/:workspace/humidor         what is resting
+/cigars/:workspace/wishlist        what is wanted, and the two moves off it
 /cigars/:workspace/stats           ratings, brands, spend
 /cigars/:workspace/cigar/:slug     one entry
-/cigars/:workspace/new             add to the humidor or the log
+/cigars/:workspace/new             add to the wishlist, the humidor or the log
 /cigars/:workspace/edit/:slug      edit an entry
-/cigars/:workspace/smoke/:slug     take one out of the humidor
+/cigars/:workspace/smoke/:slug     take one out of the humidor or off the wishlist
 /cigars/:workspace/lookup          the reference desk — what is this cigar? (editors only)
 /api/cigars/:workspace/lookup      the same question as JSON (cache first, then the model)
 
@@ -673,7 +675,7 @@ constraints, the first as a courtesy and the second as the guarantee.
 
 ### Where a lookup shows up
 
-Three places, and the separation between them is the point.
+Four places, and the separation between them is the point.
 
 **The add form** carries the panel. It fills blank fields only, marks what it
 filled until you touch it, and does not touch tasting notes — a profile "as
@@ -685,6 +687,10 @@ URL — `?reference=<id>` — so it can be kept or passed on, and starting an en
 from one carries only that id. The add page then reads the row and prefills
 server-side, so what lands in the form is what the database holds rather than
 whatever survived a query string.
+
+**The wishlist** carries the same panel as the desk, and one more button under
+the result: *add to the wishlist*. There is no form in between, and that is the
+whole feature — see below.
 
 **An entry** shows the row it was filled from, in a block that is deliberately
 unlike the entry above it: bordered, left-aligned and mono-labelled, against a
@@ -722,6 +728,80 @@ which is that `GRANT select, insert` withholds nothing.
 
 Token counts are columns on the row, as they are on `wbpr_agent_sessions`, and
 for the same reason.
+
+## The wishlist
+
+Cedarhouse recorded two things about a cigar — that it was resting, and that it
+had been smoked — and the interesting third one happens before either: you read
+about one, or somebody hands you a band, and you mean to find it. That was going
+in a note somewhere outside the app, which is where it stopped being connected
+to anything.
+
+**A wishlist entry is a `cl_cigars` row with a third status.** Not a
+`cl_wishlist` table, and the argument is not economy of tables. The thing being
+recorded is a cigar — brand, vitola, wrapper, dimensions, the reference row a
+lookup filled it from — and every one of those columns already exists. A
+separate table would have been that column list twice, a second set of policies,
+and a copy step on the one operation the whole feature exists for.
+
+What the third status buys is that **moving is not copying**. "I have it now" is
+an UPDATE of one column on one row; the entry keeps its id, its URL, its photo,
+its notes and the lookup it came from, because none of them ever went anywhere.
+A link somebody sent to a wishlist entry still resolves after it moves into the
+humidor and again after it is smoked, and it is the same record throughout —
+which is true of the humidor-to-log move too, and was the reason
+`smoke_from_humidor` converts the last one in place rather than replacing it.
+
+The cost is the honest one to state: `status` is read in a dozen places that
+assumed it had two values. Every one of those was already a filter — the log and
+the humidor have always been the same table — so it is a third filter rather
+than a new concept, but the filters had to be found. The two that mattered were
+not filters at all and are written up in `supabase/README.md`: a CHECK
+constraint phrased as *the humidor has no smoked date*, which quietly stopped
+covering the table the moment there was a status that was neither, and
+`smoke_from_humidor`'s guard, which refused everything that was not in the
+humidor with the message "that cigar has already been smoked".
+
+### Getting one on, and getting it off
+
+**On, in one press.** The reference desk and the wishlist page both carry the
+lookup panel, and a result on either offers *add to the wishlist* as a button
+rather than a link to a form. Adding to the humidor asks for a date, a quantity
+and a price because those are facts you have at the till; wanting a cigar has no
+facts attached beyond its name, so a form in the way would be a page that exists
+to be submitted. Only the reference id is posted, and the row is read
+server-side, so what gets written is what the database holds rather than what
+survived a query string. Adding by hand is still there for a cigar that no
+lookup finds.
+
+**Off, in one press or one form.** *To humidor* is the one-column update, dated
+today. *Smoke* is the form that already existed, because that move has facts
+worth asking for — the date, where you were, a rating — and it is the same page
+whether the cigar came off the wishlist or out of the humidor. You can want a
+cigar, get hold of it and smoke it the same evening, and being made to file it in
+the humidor first so you can immediately take it out again is exactly the
+bookkeeping this app exists to end.
+
+Both moves are offered on the card and on the entry page, so somebody who
+followed a link to the record itself is not sent back to a list to press them.
+The one-press move is a form rather than a link because it is a write; a `GET`
+that changes the database is one prefetch away from a wishlist that empties
+itself.
+
+### What it does not do
+
+No price alerts, no stock checking, no notifications — nothing that would need
+this app to know about the world outside it. The one number it does show is what
+the wishlist would cost, summed from the prices noted on the entries, and it is
+the same `price_text` column doing the honest thing in both states: what it
+sells for while you want it, what you paid once you have it.
+
+A wishlist entry is excluded from every figure on the stats page except its own
+count. Ratings, spend, brand counts and the rest are about cigars that exist in
+your hands, and a want counted among them would be an average of things that
+happened and things that did not. The count appears only once there is one to
+count: a permanent zero beside three real figures reads as a feature nobody
+uses rather than as a wishlist nobody has started.
 
 ## One write that is not a statement
 
