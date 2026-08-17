@@ -175,13 +175,17 @@ The three 2026-08-07 migrations are live as of that date. They must go out toget
 `20260809120000` is live as of 2026-08-09. It is self-contained and depends only on
 `20260807120000` having added `cl_cigars.reference_id`.
 
+`20260817120000` is live as of 2026-08-17. It depends on `20260809120000` having
+put `photo_path` and `reference_id` into `smoke_from_humidor`'s insert, since it
+replaces that function and keeps the list.
+
 ### A third status, and the two rules that were written for two
 
-**`20260817120000` is not applied.** It ships with the app commit that uses it
-and must go out with it or ahead of it: the wishlist pages write `status =
-'wishlist'`, which the live constraint refuses. Nothing else in the app changes
-behaviour if it is applied early — a status nobody writes is a status nobody
-notices — so applying it first is the safe ordering.
+**`20260817120000` is live as of 2026-08-17**, as `20260817222631_cigar_wishlist`.
+It went out ahead of the app commit that uses it, which is the safe ordering
+either way: the wishlist pages write `status = 'wishlist'` and would have been
+refused before it, and nothing else in the app changes behaviour after it — a
+status nobody writes is a status nobody notices.
 
 It adds `wishlist` to `cl_cigars.status`. The wishlist is a state
 of a cigar rather than a second kind of object, so it is a value in a column
@@ -226,6 +230,39 @@ off it leaves two still wanted.
 Nothing about the policies changed. `cl_cigars_read` and its three siblings are
 scoped to the workspace and have never looked at `status`, so the wishlist
 inherits exactly the visibility the humidor has.
+
+### What production actually had
+
+The migration was written defensively, against a table whose constraint
+definitions were not in this repository. They were read off the live database
+before it was applied, and every guess it was hedging against turned out to be
+the case it was written for:
+
+| Constraint | `conkey` | Definition before |
+| --- | --- | --- |
+| `cl_cigars_status_check` | `{status}` | `status = ANY (ARRAY['humidor','smoked'])` |
+| `cl_humidor_has_no_date` | `{status,date_smoked}` | `status <> 'humidor' OR date_smoked IS NULL` |
+| `cl_smoked_needs_date` | `{status,date_smoked}` | `status <> 'smoked' OR date_smoked IS NOT NULL` |
+| `cl_smoked_is_singular` | `{status,quantity}` | `status <> 'smoked' OR quantity = 1` |
+| `cl_acquired_before_smoked` | `{date_acquired,date_smoked}` | unchanged by this migration |
+
+Three of those five mention `status` in their text, which is what the `conkey`
+search exists to avoid: a definition search for the word would have dropped
+`cl_smoked_is_singular` along with the enumeration and not put it back. It is
+still there, and so is every other check on the table — fourteen now, thirteen
+before, the one addition being `cl_wishlist_not_acquired`.
+
+`cl_humidor_has_no_date` was the permissive phrasing, so the hole was real: a
+wishlist row could have carried a smoked date and sorted into the log's date
+ordering without being in the log.
+
+Applied against 11 cigars, 8 resting and 3 smoked, none of which violated any of
+the restated rules. Verified afterwards with a live round trip that wrote a
+three-cigar wish, smoked one off it, checked the remainder stayed wanted and the
+log entry kept its photo, confirmed all three refusals fire and that a smoked
+cigar is still refused with the same message — then deleted what it wrote and
+asserted the row count was back where it started. `get_advisors` reports nothing
+new: the migration creates no table and no `SECURITY DEFINER` function.
 
 ### What the test baseline was hiding
 

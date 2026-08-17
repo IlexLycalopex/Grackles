@@ -33,7 +33,7 @@ several people can share a project.
 | ✅ | DNS cutover — grackles.co.uk and www resolve to the Vercel project, and the GitHub Pages CNAME is gone |
 | ✅ | Cedarhouse — the cigar lounge off Oxblood Foil and onto the shared paper tokens, with an editorial log page, facet chips and specimen plates |
 | ✅ | Blackletter — the word game, at five, six and seven letters. Schema, dictionary and workspace are live on the project |
-| ⬜ | Cedarhouse's wishlist — a third cigar status, added straight from a lookup and moved off in one press. Code is in; `20260817120000_cigar_wishlist` is not applied yet |
+| ✅ | Cedarhouse's wishlist — a third cigar status, added straight from a lookup and moved off in one press. Migration applied 2026-08-17 |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.
 Its nav is whatever the visitor is a member of: signed out it offers one thing,

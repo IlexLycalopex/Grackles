@@ -58,9 +58,12 @@ alter table public.cl_cigars
   add constraint cl_cigars_status_check
   check (status in ('humidor', 'smoked', 'wishlist'));
 
+-- One string literal rather than two adjacent ones. Postgres concatenates
+-- `'a' 'b'` only when a newline separates them, which makes the two-literal
+-- form a line-ending away from a syntax error every time this file is piped,
+-- pasted or sent over an API.
 comment on constraint cl_cigars_status_check on public.cl_cigars is
-  'humidor: resting. smoked: in the log. wishlist: wanted rather than owned, '
-  'so it carries neither date_acquired nor date_smoked.';
+  'humidor: resting. smoked: in the log. wishlist: wanted rather than owned, so it carries neither date_acquired nor date_smoked.';
 
 -- ── The date rules, restated for three statuses ─────────────────────
 --
