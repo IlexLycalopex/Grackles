@@ -133,4 +133,64 @@ assert.equal(
   'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/09/e0/d5/x.jpg/600x600bb.jpg'
 );
 
+// 12. The record the combined query buries is still found by the title query.
+//     This is the Wolf Alice case: "Wolf Alice Visions of a Life" is six words,
+//     most of them common enough that Apple ranks other people's records above
+//     the one that was asked for. Asking the title against album titles alone
+//     puts it back in reach, and the same match test is what accepts it.
+calls.length = 0;
+const visions = album('Visions of a Life', 'Wolf Alice');
+handler = (url) =>
+  url.includes('attribute=albumTerm')
+    ? { results: [album('Visions of a Life', 'Some Other Band'), visions] }
+    : {
+        results: [
+          album('Alice in Chains', 'Alice in Chains'),
+          album('Journey In Satchidananda', 'Alice Coltrane'),
+          album('The Wolf', 'Sam Fender'),
+        ],
+      };
+assert.equal(
+  await findArtwork({ album: 'Visions of a Life', artist: 'Wolf Alice' }),
+  'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/09/e0/d5/x.jpg/600x600bb.jpg'
+);
+const itunesCalls = calls.filter(u => u.includes('itunes'));
+assert.equal(itunesCalls.length, 2, itunesCalls.join('\n'));
+assert.ok(
+  itunesCalls.some(u => u.includes('term=Wolf+Alice+Visions+of+a+Life') && !u.includes('attribute')),
+  itunesCalls.join('\n')
+);
+assert.ok(
+  itunesCalls.some(
+    u => u.includes('term=Visions+of+a+Life') && u.includes('attribute=albumTerm')
+  ),
+  itunesCalls.join('\n')
+);
+
+// 13. The extra query widens what is looked at, never what is accepted. The
+//     title query answers with the right title by the wrong band, and that is
+//     still refused rather than hung on somebody's week.
+handler = (url) =>
+  url.includes('attribute=albumTerm')
+    ? { results: [album('Visions of a Life', 'A Tribute Band')] }
+    : { results: [] };
+assert.equal(await findArtwork({ album: 'Visions of a Life', artist: 'Wolf Alice' }), '');
+
+// 14. When both queries answer, the combined one is preferred — a week that
+//     already found its cover goes on finding the same one.
+const other = album('Depression Cherry', 'Beach House');
+other.artworkUrl100 = 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/aa/bb/cc/y.jpg/100x100bb.jpg';
+handler = (url) =>
+  url.includes('attribute=albumTerm')
+    ? { results: [other] }
+    : { results: [album('Depression Cherry', 'Beach House')] };
+assert.equal(
+  await findArtwork({ album: 'Depression Cherry', artist: 'Beach House' }),
+  'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/09/e0/d5/x.jpg/600x600bb.jpg'
+);
+
+// 15. One query failing does not take the other down with it.
+handler = (url) => (url.includes('attribute=albumTerm') ? { results: [visions] } : null);
+assert.ok(await findArtwork({ album: 'Visions of a Life', artist: 'Wolf Alice' }));
+
 console.log('all artwork lookup checks passed');

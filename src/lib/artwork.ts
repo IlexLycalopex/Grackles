@@ -37,9 +37,10 @@ const ITUNES_SEARCH = 'https://itunes.apple.com/search';
 /**
  * The ceiling on how long a save waits for a cover.
  *
- * Both lookups can run in sequence, so the worst case is twice this. That is
- * the number to keep an eye on: it lands on a person watching a form, not on a
- * background job.
+ * The two iTunes queries run together and share this budget; Wikipedia only
+ * follows when they have both come back with nothing, so the worst case is
+ * still twice this rather than three times it. That is the number to keep an
+ * eye on: it lands on a person watching a form, not on a background job.
  */
 const LOOKUP_TIMEOUT_MS = 4000;
 
@@ -82,27 +83,71 @@ interface ItunesAlbum {
 }
 
 /**
+ * How many results are read from one query.
+ *
+ * Enough to get past a compilation or a tribute record sitting at the top, and
+ * enough that a diluted query still has the real record somewhere inside the
+ * window — which was the whole of the Wolf Alice failure below. Reading more is
+ * only ever more JSON: the match test decides what is accepted, not the rank.
+ */
+const ITUNES_LIMIT = '25';
+
+/** One album search, described by the two things that vary between them. */
+function itunesQuery(term: string, attribute?: string): string {
+  const url = new URL(ITUNES_SEARCH);
+  url.searchParams.set('term', term);
+  url.searchParams.set('entity', 'album');
+  // `albumTerm` matches the words against album titles only. Left off, the
+  // term is matched against everything Apple indexes for a record.
+  if (attribute) url.searchParams.set('attribute', attribute);
+  url.searchParams.set('limit', ITUNES_LIMIT);
+  return url.toString();
+}
+
+/** The `results` array of one query, or an empty one when it could not answer. */
+async function itunesAlbums(url: string): Promise<ItunesAlbum[]> {
+  const payload = await getJson(url, 'iTunes');
+  return Array.isArray(payload?.results) ? payload.results : [];
+}
+
+/**
  * Apple's copy, at 600px.
  *
  * The API only ever returns a 100px thumbnail, but the URL is a path into a
  * resizing service and the size in it is a request rather than a fact. Every
  * mzstatic cover in the imported data is a 600x600bb built the same way.
+ *
+ * Two queries go out, because one is not reliable enough to be the only one.
+ * Asking for `"<artist> <album>"` as a single term is the query that filled in
+ * 28 of the imported covers, and it works right up until the words stop being
+ * distinctive: *Wolf Alice — Visions of a Life* is six of them, four so common
+ * ("a", "of", "life", and "alice", which is also Cooper, Coltrane and In
+ * Chains) that the record everybody meant does not come back near the top. The
+ * album was on the store the whole time, exactly under the name that was typed.
+ * The match test never got to see it.
+ *
+ * So the album title is also asked on its own, against album titles only, where
+ * the artist's name cannot pull the ranking around. Both are read, the combined
+ * query first so a week that already found its cover keeps finding the same
+ * one, and every candidate faces the same test — a second query can only turn
+ * an empty field into a cover, never a right cover into a wrong one.
+ *
+ * They go out together rather than one after the other: the failing case is
+ * exactly the case that needs the second query, so making it wait for the first
+ * would put the extra second on the saves that are already the slowest.
  */
 async function fromItunes(album: string, artist: string): Promise<string> {
-  const url = new URL(ITUNES_SEARCH);
-  url.searchParams.set('term', `${artist} ${stripEdition(album)}`);
-  url.searchParams.set('entity', 'album');
-  // Enough to get past a compilation or a tribute record sitting at the top;
-  // few enough that a bad query cannot cost much to read.
-  url.searchParams.set('limit', '10');
+  const title = stripEdition(album);
 
-  const payload = await getJson(url.toString(), 'iTunes');
-  const results: ItunesAlbum[] = Array.isArray(payload?.results) ? payload.results : [];
+  const [combined, byTitle] = await Promise.all([
+    itunesAlbums(itunesQuery(`${artist} ${title}`)),
+    itunesAlbums(itunesQuery(title, 'albumTerm')),
+  ]);
 
-  const wantAlbum = normalise(stripEdition(album));
+  const wantAlbum = normalise(title);
   const wantArtist = normalise(artist);
 
-  for (const result of results) {
+  for (const result of [...combined, ...byTitle]) {
     const gotAlbum = normalise(stripEdition(result.collectionName ?? ''));
     const gotArtist = normalise(result.artistName ?? '');
 

@@ -24,7 +24,7 @@ several people can share a project.
 | ✅ | The WBPR broadcast agent (MiniMax M3) — running; the one-click write-up is the last untested path |
 | ✅ | Cigar Lounge search — a filter box on the log and the humidor, matching words, wrappers and sizes |
 | ✅ | Cigar lookup — schema applied, the reference desk, the panel on the add form, and an entry showing what a lookup said about it |
-| ✅ | Album covers looked up on save — the build step the migration dropped, moved to the write |
+| ✅ | Album covers looked up on save — the build step the migration dropped, moved to the write, and asked two ways so a common-worded title still lands |
 | ✅ | AI governance — applied and live. See `docs/ai-architecture.md` and `supabase/README.md` |
 | ✅ | The platform console at `/admin` — applied and live (same migrations) |
 | ✅ | Ask the archive at `/search` — one question, across every project you can see |
@@ -536,6 +536,31 @@ Two properties are the whole design:
   away. Wikipedia is only consulted through the link already on the pick —
   searching it by title would find an article for anything, and the wrong
   article has a picture too.
+
+Two queries go to iTunes, not one, and *Wolf Alice — Visions of a Life* is why.
+The original query is the artist and the album joined into a single term, which
+is what filled in 28 of the imported covers and what stops working the moment
+the words stop being distinctive: six of them there, most common enough
+elsewhere in the catalogue ("a", "of", "life", and "alice", who is also Cooper,
+Coltrane and In Chains) that Apple ranked other people's records above the one
+that had been asked for. The album was on the store under exactly the name that
+was typed. The match test never saw it.
+
+So the album title is also asked on its own with `attribute=albumTerm`, which
+matches words against album titles only and takes the artist's name out of the
+ranking, and both result sets are read — the combined query first, so a week
+that already found its cover finds the same one. The safety property survives
+because the second query widens what is *looked at*, never what is *accepted*:
+every candidate faces the same artist-and-album test, so an extra query can turn
+an empty field into a cover but not a right cover into a wrong one. They go out
+together rather than in sequence, because the case that needs the second query
+is exactly the case that failed the first — running them one after the other
+would put the extra second on the slowest saves. The worst case is still two
+timeouts, iTunes then Wikipedia, not three.
+
+Both changes only apply to a save. A week whose cover was refused before the
+second query existed still has an empty field, and asking again is what it
+always was: open the pick and save it.
 
 `src/lib/artwork.test.mjs` pins that matcher against fixture responses
 (`node --experimental-strip-types src/lib/artwork.test.mjs`). It stubs `fetch`;
