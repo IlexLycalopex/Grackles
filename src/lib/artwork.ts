@@ -1,5 +1,5 @@
 import type { SelectionValues } from './records/selection';
-import { looselyEqual, normalise, stripEdition } from './title-match.ts';
+import { creditMatches, looselyEqual, normalise, stripEdition } from './title-match.ts';
 
 /**
  * Finding a cover for a week's pick.
@@ -151,17 +151,10 @@ async function fromItunes(album: string, artist: string): Promise<string> {
     const gotAlbum = normalise(stripEdition(result.collectionName ?? ''));
     const gotArtist = normalise(result.artistName ?? '');
 
-    // The artist is allowed to contain what was typed, because a store credits
-    // features and collaborations in the same field: "Madvillain" has to match
-    // "Madvillain", but "DJ Shadow" should still match "DJ Shadow & Cut
-    // Chemist". The album is held to the stricter test — that is the half
-    // that decides whether this is the right record.
-    const artistMatches =
-      looselyEqual(gotArtist, wantArtist) ||
-      gotArtist.includes(wantArtist) ||
-      wantArtist.includes(gotArtist);
-
-    if (!artistMatches || !looselyEqual(gotAlbum, wantAlbum)) continue;
+    // The artist gets the looser test, because a store credits features and
+    // collaborations in the same field. The album is held to the stricter one —
+    // that is the half that decides whether this is the right record.
+    if (!creditMatches(gotArtist, wantArtist) || !looselyEqual(gotAlbum, wantAlbum)) continue;
 
     const artwork = result.artworkUrl100 ?? '';
     if (!artwork.startsWith('https://')) continue;

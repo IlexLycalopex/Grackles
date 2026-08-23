@@ -242,8 +242,10 @@ because these APIs index *works* and a work has many editions.
 What was worth carrying across, all of it learned the hard way by the script
 that ran first:
 
-- **Ask for five results and prefer one that has a cover.** The first hit for a
-  title is regularly a reprint or a study guide with no artwork.
+- **Ask for several results and prefer one that has a cover.** The first hit for
+  a title is regularly a reprint or a study guide with no artwork. Ten of them
+  now, and every one is looked at rather than only the first that carries a
+  picture — see below.
 - **Drop the volume number.** "Chew Vol 9 Chicken Tenders" is indexed as "Chew
   Chicken Tenders", and this list has a lot of graphic novels.
 - **Use the first author only.** A joint credit — "A & B", "A and B", "A; B" —
@@ -271,14 +273,37 @@ Nobody has to press it, though, and a book saved without pressing it would land
 with a placeholder and no way to notice — the original complaint, back again. So
 `fillCover()` runs the same lookup on the save itself, exactly as `fillArtwork()`
 does for a week's pick. That path carries two more rules, both borrowed from
-there: **a lookup never fails a save**, and **a wrong cover is worse than none**
-— nobody is reviewing that one, so the title that comes back has to look like the
-title that was asked for. The button skips that check on purpose, because there a
-person is looking at the result. Clearing a cover field is how a bad match gets
-asked again.
+there: **a lookup never fails a save**, and **a wrong cover is worse than none**.
+The button skips the second on purpose, because there a person is looking at the
+result. Clearing a cover field is how a bad match gets asked again.
 
-The matcher those checks run on is `lib/title-match.ts`, shared with the artwork
-lookup rather than copied into both — same reason as `json.ts`.
+That second rule used to be applied too late to do its job. Each source picked
+one result — the first that carried a cover, else the first — and *then* the
+save checked whether it was the right book. So a search that put three wrong
+answers above the right one produced no cover at all, and the right answer,
+sitting fourth with a picture on it, was never something the check got to
+consider. It is the same failure the album lookup had, arrived at from the other
+direction: there the ranking hid the record, here the ranking was allowed to
+decide before anything was verified.
+
+Both sources now hand back everything they returned, and the caller says what it
+wants. The button takes the first usable result, as it always did. The save
+passes `verify` and takes the first result that *looks like the book*, so the
+ranking only orders the candidates instead of choosing between them. Two things
+came with that: the check now covers Google's answer too, where before a cover
+could be taken from a volume nobody had compared to anything, and it checks the
+author as well as the title, which matters because two books share a title far
+more often than they share a title and an author. An ISBN turns the check off,
+as it always did — it names one edition, so the query has already answered the
+question.
+
+The credit test is deliberately loose in both directions, because that field
+holds more than a name at both ends: a library credits translators alongside
+authors, and somebody typing a co-authored book usually types both names. It
+lives in `lib/title-match.ts` as `creditMatches()`, shared with the artwork
+lookup rather than copied into both — same reason as `json.ts` — which is also
+how the album matcher picked up its missing-credit case: an empty artist field
+used to satisfy it, and now nothing does.
 
 `description` is deliberately not fetched. The column exists and holds what the
 old script put there, but nothing in this app renders it — filling it would add

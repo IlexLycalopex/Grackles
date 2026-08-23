@@ -46,6 +46,27 @@ export function stripEdition(title: string): string {
 }
 
 /**
+ * Whether a catalogue's credit is the one that was asked for.
+ *
+ * Looser than the title test, and deliberately loose in both directions,
+ * because the field on the other end holds more than a name. A store credits
+ * features and collaborations in it — "DJ Shadow" has to match "DJ Shadow & Cut
+ * Chemist" — and a library credits translators and illustrators the same way,
+ * so "Italo Calvino" has to match "Italo Calvino, William Weaver". The reverse
+ * happens just as often on the way in: somebody types both names of a
+ * co-authored book, and the catalogue lists one of them.
+ *
+ * Both sides are expected already `normalise()`d, the same as `looselyEqual`.
+ * A missing credit on either side is not a match — a result with nobody against
+ * it is a result this cannot check, and unchecked is what the caller asked to
+ * avoid.
+ */
+export function creditMatches(got: string, want: string): boolean {
+  if (!got || !want) return false;
+  return looselyEqual(got, want) || got.includes(want) || want.includes(got);
+}
+
+/**
  * Equal, or one a prefix of the other and not by a landslide.
  *
  * The prefix half is what accepts a catalogue's truncated title against a full

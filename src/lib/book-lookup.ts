@@ -28,7 +28,7 @@
  */
 
 import type { BookValues } from './records/book';
-import { looselyEqual, normalise, stripEdition } from './title-match.ts';
+import { creditMatches, looselyEqual, normalise, stripEdition } from './title-match.ts';
 
 const OPEN_LIBRARY = 'https://openlibrary.org/search.json';
 const GOOGLE_BOOKS = 'https://www.googleapis.com/books/v1/volumes';
@@ -111,13 +111,15 @@ async function searchOpenLibrary(
   title: string,
   author: string,
   isbn: string
-): Promise<Partial_ | null> {
+): Promise<Partial_[]> {
   const params = new URLSearchParams({
-    // Five, not one. The first hit for a title is regularly a reprint or a
-    // study guide with no artwork, and a result with a cover is worth more
-    // than a result that merely came first — the old script learned this and
-    // so the pick below is deliberate.
-    limit: '5',
+    // Ten, not one, and every one of them comes back for the caller to judge.
+    // The first hit for a title is regularly a reprint or a study guide with no
+    // artwork — the old script learned that, which is why it asked for five —
+    // and the same reasoning goes one step further here. A result that is never
+    // read cannot be chosen, so the right book sitting fourth behind three
+    // wrong ones is indistinguishable from no book at all.
+    limit: '10',
     fields: 'key,title,author_name,first_publish_year,number_of_pages_median,publisher,subject,isbn,cover_i',
   });
 
@@ -131,10 +133,8 @@ async function searchOpenLibrary(
 
   const body = await getJson(`${OPEN_LIBRARY}?${params}`);
   const docs: any[] = body.docs ?? [];
-  const doc = docs.find(d => d.cover_i) ?? docs[0];
-  if (!doc) return null;
 
-  return {
+  return docs.map(doc => ({
     title: doc.title ?? '',
     author: doc.author_name?.[0] ?? '',
     year_published: doc.first_publish_year ?? null,
@@ -149,7 +149,7 @@ async function searchOpenLibrary(
     // picture does.
     cover_url: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : '',
     link_openlibrary: doc.key ? `https://openlibrary.org${doc.key}` : '',
-  };
+  }));
 }
 
 // ── Google Books ────────────────────────────────────────────────────
@@ -167,7 +167,7 @@ async function searchGoogleBooks(
   title: string,
   author: string,
   isbn: string
-): Promise<Partial_ | null> {
+): Promise<Partial_[]> {
   const q = isbn ? `isbn:${isbn.replace(/[^0-9Xx]/g, '')}` : `intitle:${title} inauthor:${author}`;
   // Optional chained: import.meta.env is Vite's, and is absent when this module
   // is exercised outside a build. A missing key is a supported case anyway.
@@ -177,10 +177,8 @@ async function searchGoogleBooks(
 
   const body = await getJson(`${GOOGLE_BOOKS}?${params}`);
   const items: any[] = body.items ?? [];
-  const info = (items.find(i => i.volumeInfo?.imageLinks?.thumbnail) ?? items[0])?.volumeInfo;
-  if (!info) return null;
 
-  return {
+  return items.flatMap(item => (item.volumeInfo ? [item.volumeInfo] : [])).map(info => ({
     title: info.title ?? '',
     author: info.authors?.[0] ?? '',
     // publishedDate is "2022" or "2022-09-13"; the leading year is what we want.
@@ -194,7 +192,68 @@ async function searchGoogleBooks(
     // browser blocks them as mixed content and the cover silently fails to load.
     cover_url: info.imageLinks?.thumbnail?.replace(/^http:/, 'https:') ?? '',
     link_openlibrary: '',
-  };
+  }));
+}
+
+// ── Choosing between what came back ─────────────────────────────────
+
+/** The book that was asked for, as typed, for a caller that wants it checked. */
+interface Want {
+  title: string;
+  author: string;
+}
+
+/**
+ * Whether a result is the book that was asked for.
+ *
+ * The same two-part test the artwork lookup makes of an album: the title held
+ * to the stricter rule because it is the half that identifies the record, the
+ * credit to the looser one because catalogues put translators, illustrators and
+ * co-authors in that field.
+ *
+ * The typed title is compared as typed rather than as searched. `cleanTitle`
+ * exists to get a graphic novel past an index that does not hold volume
+ * numbers, and the volume number is still part of what somebody meant —
+ * normalising both sides is what makes "Chew Vol 9 Chicken Tenders" and
+ * "Chew, Vol. 9: Chicken Tenders" the same string.
+ */
+function describes(candidate: Partial_, want: Want): boolean {
+  const gotTitle = normalise(stripEdition(candidate.title ?? ''));
+  if (!looselyEqual(gotTitle, normalise(stripEdition(want.title)))) return false;
+
+  // A book entered with nobody against it is not evidence that the result is
+  // wrong, so the credit is only checked when there is one to check.
+  if (!want.author) return true;
+
+  return creditMatches(normalise(candidate.author ?? ''), normalise(want.author));
+}
+
+/**
+ * Which of one source's results to take.
+ *
+ * `want` present means a candidate has to look like the book that was asked for
+ * before it is eligible at all. That is the save's rule and not the button's,
+ * and the difference is who is looking: the button puts what came back in front
+ * of a person who can throw it away, and the save writes it.
+ *
+ * Among what is eligible, a candidate carrying a cover beats one that merely
+ * came first. That is the old script's rule and the reason it asked for more
+ * than one result — a cover is the field this whole feature exists for.
+ */
+function choose(source: string, candidates: Partial_[], want: Want | null): Partial_ | null {
+  const eligible = want ? candidates.filter(c => describes(c, want)) : candidates;
+  const chosen = eligible.find(c => c.cover_url) ?? eligible[0] ?? null;
+
+  // Worth a line, because this is the shape a silent wrong answer would have
+  // had: something came back, and none of it was the book.
+  if (!chosen && want && candidates.length > 0) {
+    console.warn(
+      `${source} results rejected: asked “${want.title}” by “${want.author || 'nobody'}”, got ` +
+        candidates.map(c => `“${c.title}” by “${c.author || 'nobody'}”`).join('; ')
+    );
+  }
+
+  return chosen;
 }
 
 // ── Putting the two together ────────────────────────────────────────
@@ -220,31 +279,51 @@ export interface Lookup {
 /**
  * Ask both sources, Open Library first. Null means neither had anything; it
  * throws only when neither could be reached.
+ *
+ * `verify` is what separates the two callers. Without it the first usable
+ * result wins, which is the button's bargain: a person is about to read what
+ * came back. With it every result from both sources has to look like the book
+ * that was asked for before it can be chosen, because the save has nobody
+ * reading it — and a search that ranks the right book fourth is exactly as
+ * useless as one that does not have it, unless the ranking stops deciding.
+ *
+ * An ISBN turns the check back off on its own: it names one edition, so the
+ * question the check asks has already been answered by the query.
  */
 export async function lookupBook(query: {
   title: string;
   author: string;
   isbn: string;
+  verify?: boolean;
 }): Promise<Lookup | null> {
   const title = cleanTitle(query.title);
   const author = firstAuthor(query.author);
+
+  const want: Want | null =
+    query.verify && !query.isbn ? { title: query.title, author: query.author } : null;
 
   let primary: Partial_ | null = null;
   let primaryFailed = false;
 
   try {
-    primary = await searchOpenLibrary(title, author, query.isbn);
+    primary = choose('open library', await searchOpenLibrary(title, author, query.isbn), want);
   } catch (error) {
     console.error('open library lookup failed', error);
     primaryFailed = true;
   }
 
   // Google is asked only for what Open Library could not give, which is
-  // usually the cover — the one field this whole feature exists for.
+  // usually the cover — the one field this whole feature exists for. It is
+  // asked when Open Library's results were all refused, too: "none of these is
+  // the book" is a reason to ask somebody else, not a reason to stop.
   let fallback: Partial_ | null = null;
   if (!primary?.cover_url) {
     try {
-      fallback = await searchGoogleBooks(title, author, query.isbn || primary?.isbn || '');
+      fallback = choose(
+        'google books',
+        await searchGoogleBooks(title, author, query.isbn || primary?.isbn || ''),
+        want
+      );
     } catch (error) {
       console.error('google books lookup failed', error);
       if (primaryFailed) throw error;
@@ -356,10 +435,11 @@ export async function fillFromLookup(form: FormData): Promise<string> {
  *   and the caller writes the row regardless. A cover is worth a second of
  *   somebody's save; it is not worth losing what they typed because Open
  *   Library was slow.
- * - **A wrong cover is worse than none.** Nobody is reviewing this one, so the
- *   title that comes back has to look like the title that was asked for. The
- *   button skips this check on purpose — there, a person is looking at the
- *   result and can throw it away.
+ * - **A wrong cover is worse than none.** Nobody is reviewing this one, so
+ *   `verify` is set and every result from both sources has to look like the
+ *   book that was asked for — on the title, and on the author when one was
+ *   typed. The button skips this check on purpose: there, a person is looking
+ *   at the result and can throw it away.
  *
  * A book whose cover field is cleared gets asked about again on the next save,
  * which is how a bad match is retried rather than being stuck.
@@ -370,25 +450,21 @@ export async function fillCover(values: BookValues): Promise<BookValues> {
 
   let found: Lookup | null;
   try {
-    found = await lookupBook({ title: values.title, author: values.author, isbn: values.isbn });
+    found = await lookupBook({
+      title: values.title,
+      author: values.author,
+      isbn: values.isbn,
+      verify: true,
+    });
   } catch {
     // Already logged where it failed. The save carries on.
     return values;
   }
 
+  // Nothing convincing came back, which `lookupBook` has already said in the
+  // log along with what it turned down.
   const cover = found?.details.cover_url;
   if (!cover) return values;
-
-  // An ISBN names one edition, so a result found by one needs no second
-  // opinion. A title match does.
-  if (!values.isbn) {
-    const wanted = normalise(stripEdition(values.title));
-    const got = normalise(stripEdition(found!.details.title));
-    if (!looselyEqual(got, wanted)) {
-      console.warn(`cover lookup rejected: asked "${values.title}", got "${found!.details.title}"`);
-      return values;
-    }
-  }
 
   return { ...values, cover_url: cover };
 }

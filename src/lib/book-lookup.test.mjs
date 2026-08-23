@@ -84,13 +84,13 @@ assert.equal(asked('googleapis').length, 0, 'Google is not troubled once a cover
 assert.ok(said.includes('median across editions'), 'the estimate is declared');
 
 // 2. A result with a cover beats a result that merely came first. The old
-//    script asked for five for exactly this reason.
+//    script asked for more than one for exactly this reason.
 reset();
 openLibrary = () => ({ docs: [COVERLESS, SATSUMA] });
 f = form({ title: 'The Satsuma Complex' });
 await fillFromLookup(f);
 assert.equal(f.get('cover_url'), 'https://covers.openlibrary.org/b/id/12583579-L.jpg');
-assert.equal(param(asked('openlibrary')[0], 'limit'), '5');
+assert.equal(param(asked('openlibrary')[0], 'limit'), '10');
 
 // 3. A volume number is not in the index. This list is full of graphic novels.
 reset();
@@ -227,7 +227,9 @@ assert.equal(saved.cover_url, '', 'a mismatched title is refused');
 
 // …but an edition suffix or an accent is not a mismatch.
 reset();
-openLibrary = () => ({ docs: [{ ...SATSUMA, title: '2666 (Picador Classic)' }] });
+openLibrary = () => ({
+  docs: [{ ...SATSUMA, title: '2666 (Picador Classic)', author_name: ['Roberto Bolaño'] }],
+});
 saved = await fillCover(book({ title: '2666', author: 'Roberto Bolano' }));
 assert.equal(saved.cover_url, 'https://covers.openlibrary.org/b/id/12583579-L.jpg');
 
@@ -242,5 +244,131 @@ assert.deepEqual(saved, book({ title: 'The Satsuma Complex' }), 'values come bac
 reset();
 saved = await fillCover(book({}));
 assert.equal(calls.length, 0);
+
+// 18. The right book behind three wrong ones. This is the same failure the
+//     album lookup had: a search that ranks badly is only as good as the number
+//     of results anybody actually looks at, and taking the first one that
+//     carries a cover was taking a ranking's word for it. Every result is
+//     judged now, so a book sitting fourth is still found.
+reset();
+const doc = (title, author, cover) => ({
+  key: '/works/OL1W',
+  title,
+  author_name: [author],
+  cover_i: cover,
+});
+openLibrary = () => ({
+  docs: [
+    doc('Middlemarch: A Study Guide', 'Cliffs Notes', 111),
+    doc('Middlemarch in Context', 'Karen Chase', 222),
+    doc('Reading Middlemarch', 'Somebody Else', 333),
+    doc('Middlemarch', 'George Eliot', 444),
+  ],
+});
+saved = await fillCover(book({ title: 'Middlemarch', author: 'George Eliot' }));
+assert.equal(saved.cover_url, 'https://covers.openlibrary.org/b/id/444-L.jpg');
+assert.equal(asked('googleapis').length, 0, 'a cover was found, so Google is left alone');
+
+// 19. The title alone was never enough. Two books share a title far more often
+//     than two books share a title and an author.
+reset();
+openLibrary = () => ({ docs: [doc('The Road', 'Jack London', 555)] });
+saved = await fillCover(book({ title: 'The Road', author: 'Cormac McCarthy' }));
+assert.equal(saved.cover_url, '', 'right title, wrong author, refused');
+
+// …and it is refused rather than guessed at when the result names nobody.
+reset();
+openLibrary = () => ({ docs: [{ key: '/works/OL2W', title: 'The Road', cover_i: 556 }] });
+saved = await fillCover(book({ title: 'The Road', author: 'Cormac McCarthy' }));
+assert.equal(saved.cover_url, '');
+
+// 20. The credit is checked loosely, because the field it comes out of holds
+//     more than one name at both ends.
+reset();
+openLibrary = () => ({ docs: [doc('Invisible Cities', 'Italo Calvino, William Weaver', 777)] });
+saved = await fillCover(book({ title: 'Invisible Cities', author: 'Italo Calvino' }));
+assert.equal(saved.cover_url, 'https://covers.openlibrary.org/b/id/777-L.jpg', 'a translator credited alongside');
+
+reset();
+openLibrary = () => ({ docs: [doc('Good Omens', 'Terry Pratchett', 888)] });
+saved = await fillCover(book({ title: 'Good Omens', author: 'Neil Gaiman and Terry Pratchett' }));
+assert.equal(saved.cover_url, 'https://covers.openlibrary.org/b/id/888-L.jpg', 'a co-author typed, one credited');
+
+// …and a book entered with nobody against it is judged on its title alone,
+// which is the whole of what was asked.
+reset();
+openLibrary = () => ({ docs: [doc('Middlemarch', 'George Eliot', 999)] });
+saved = await fillCover(book({ title: 'Middlemarch' }));
+assert.equal(saved.cover_url, 'https://covers.openlibrary.org/b/id/999-L.jpg');
+
+// 21. None of this reaches the button, which is unverified on purpose — a
+//     person is about to read what came back and can throw it away.
+reset();
+openLibrary = () => ({ docs: [doc('A Completely Different Book', 'Nobody At All', 123)] });
+f = form({ title: 'Middlemarch', author: 'George Eliot' });
+await fillFromLookup(f);
+assert.equal(f.get('cover_url'), 'https://covers.openlibrary.org/b/id/123-L.jpg');
+
+// 22. Google's answer faces the same test. Open Library having the right book
+//     without a cover is not a reason to take a cover for a different one.
+reset();
+openLibrary = () => ({ docs: [{ key: '/works/OL3W', title: 'Middlemarch', author_name: ['George Eliot'] }] });
+googleBooks = () => ({
+  items: [
+    {
+      volumeInfo: {
+        title: 'Middlemarch: A Study Guide',
+        authors: ['Cliffs Notes'],
+        imageLinks: { thumbnail: 'http://books.google.com/books/content?id=wrong' },
+      },
+    },
+  ],
+});
+saved = await fillCover(book({ title: 'Middlemarch', author: 'George Eliot' }));
+assert.equal(saved.cover_url, '');
+assert.equal(asked('googleapis').length, 1, 'it was asked, and its answer was turned down');
+
+// …and taken when it is the same book.
+reset();
+openLibrary = () => ({ docs: [{ key: '/works/OL3W', title: 'Middlemarch', author_name: ['George Eliot'] }] });
+googleBooks = () => ({
+  items: [
+    {
+      volumeInfo: {
+        title: 'Middlemarch',
+        authors: ['George Eliot'],
+        imageLinks: { thumbnail: 'http://books.google.com/books/content?id=right' },
+      },
+    },
+  ],
+});
+saved = await fillCover(book({ title: 'Middlemarch', author: 'George Eliot' }));
+assert.equal(saved.cover_url, 'https://books.google.com/books/content?id=right');
+
+// 23. Open Library refusing every result is a reason to ask Google, not a
+//     reason to stop.
+reset();
+openLibrary = () => ({ docs: [doc('Something Else Entirely', 'Anon', 321)] });
+googleBooks = () => ({
+  items: [
+    {
+      volumeInfo: {
+        title: 'Middlemarch',
+        authors: ['George Eliot'],
+        imageLinks: { thumbnail: 'https://books.google.com/books/content?id=ok' },
+      },
+    },
+  ],
+});
+saved = await fillCover(book({ title: 'Middlemarch', author: 'George Eliot' }));
+assert.equal(saved.cover_url, 'https://books.google.com/books/content?id=ok');
+
+// 24. An ISBN names one edition, so the check it would make has already been
+//     made by the query — the title coming back differently is a subtitle or a
+//     translation, not a different book.
+reset();
+openLibrary = () => ({ docs: [SATSUMA] });
+saved = await fillCover(book({ title: 'Whatever It Was Called', isbn: '9781398508590' }));
+assert.equal(saved.cover_url, 'https://covers.openlibrary.org/b/id/12583579-L.jpg');
 
 console.log('all book lookup checks passed');
