@@ -468,3 +468,99 @@ create policy rl_library_delete on public.rl_library
 
 grant select, insert, update, delete on public.rl_library to authenticated;
 grant select on public.rl_library to anon;
+
+-- ── reading the backfill before it runs ─────────────────────────────────────
+
+-- What the backfill would do, without doing any of it.
+--
+-- Callable before and after; afterwards it reports on what happened. A
+-- migration that transforms somebody's reading history should be readable
+-- before it is run, and this is that reading.
+create or replace function app.rl_backfill_report(p_workspace uuid default null)
+returns table (
+  measure text,
+  value   bigint,
+  detail  text
+)
+language sql stable
+set search_path to 'public', 'pg_temp'
+as $$
+  with books as (
+    select b.*, app.rl_work_key(b.title, b.author) as wk
+    from public.rl_books b
+    where p_workspace is null or b.workspace_id = p_workspace
+  ),
+  works as (
+    select workspace_id, wk,
+           count(*) as readings,
+           count(*) filter (where date_finished is not null) as finished,
+           min(title) as a_title,
+           count(distinct title) as spellings
+    from books group by workspace_id, wk
+  )
+  select 'readings', count(*)::bigint,
+         'rows in rl_books that will be linked' from books
+  union all
+  select 'books', count(*)::bigint,
+         'entries rl_library will hold afterwards' from works
+  union all
+  select 'collapsed', coalesce(sum(readings - 1), 0)::bigint,
+         'readings that share a book with another — re-reads, and duplicates'
+    from works where readings > 1
+  union all
+  select 'read', count(*)::bigint,
+         'books the readings alone will mark as read' from works where finished > 0
+  union all
+  select 'unread', count(*)::bigint,
+         'books with no finished reading — abandoned, in progress, or coming up'
+    from works where finished = 0
+  union all
+  select 'spelled two ways', count(*)::bigint,
+         'books whose readings do not all spell the title the same way'
+    from works where spellings > 1
+  union all
+  select 'no author', count(*)::bigint,
+         'books folding on a blank author — these never auto-match on title'
+    from works where wk like '%|'
+$$;
+
+-- The near-duplicates, for a person to look at.
+--
+-- The SQL twin of looksLikeSameBook() in lib/library.ts, and deliberately
+-- looser than the key on both halves: surname without the initial, and one
+-- title a prefix of the other with the leading article ignored. Everything it
+-- returns goes in front of somebody; nothing it returns is ever merged by
+-- anything but a person pressing a button.
+create or replace function app.rl_near_duplicates(p_workspace uuid default null)
+returns table (
+  a_id uuid, a_title text, a_author text, a_read boolean,
+  b_id uuid, b_title text, b_author text, b_read boolean
+)
+language sql stable
+set search_path to 'public', 'pg_temp'
+as $$
+  with entries as (
+    select l.id, l.title, l.author, l.read, l.workspace_id,
+           l.series_index,
+           regexp_replace(app.rl_fold(app.rl_strip_edition((app.rl_title_volume(l.title)).stem)),
+                          '^(the|a|an) ', '') as stem,
+           regexp_replace(app.rl_author_key(l.author), ' [a-z0-9]$', '') as surname
+    from public.rl_library l
+    where p_workspace is null or l.workspace_id = p_workspace
+  )
+  select a.id, a.title, a.author, a.read,
+         b.id, b.title, b.author, b.read
+  from entries a
+  join entries b
+    on a.workspace_id = b.workspace_id
+   and a.id < b.id
+   and a.surname <> ''
+   and a.surname = b.surname
+   -- Different volumes of a series are different books however alike the titles.
+   and not (a.series_index is not null and b.series_index is not null
+            and a.series_index <> b.series_index)
+   and length(least(a.stem, b.stem)) >= 4
+   and (a.stem = b.stem
+        or greatest(a.stem, b.stem) like least(a.stem, b.stem) || ' %')
+$$;
+
