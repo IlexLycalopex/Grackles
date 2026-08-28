@@ -1,5 +1,15 @@
 # The library
 
+> **Built.** All seven steps, on `claude/reading-list-upgrade-spec-6mee3k`. The
+> migrations are written and verified against a local cluster built from
+> `tests/baseline.sql` plus every migration in order — they are **not yet
+> applied to the live project**. `README.md` describes what it does; this
+> document is the argument for why, kept as it was written plus the notes below
+> on what the building changed.
+>
+> What the estimate got wrong, and what it got right, is at the bottom.
+
+
 The plan for capturing what is actually on the bookcase, getting it into the
 database once and only once, and making the Reading List rest on a single
 registry of books rather than on a pile of readings.
@@ -1024,3 +1034,99 @@ the plan and the easiest to under-read.
 - **Whether `released` should be visible by default.** Honest, and clutter.
   Currently: filtered out unless asked for, which is what the Cigar Lounge does
   with smoked entries on the humidor page.
+
+---
+
+## What the building changed
+
+Written after the fact, against the estimate above. The measurements are
+`git show --stat` on each step's commit, which is the same crude measure the
+estimate used — so the two are comparable, whatever either is worth.
+
+| Step | Estimated | Actual | |
+| --- | --- | --- | --- |
+| 1 · Schema, read state, rename | 700–900 | **1,367** | over |
+| 2 · Backfill and the invariant | 300–450 | **469** | about right |
+| 3 · Import and review | 1,700–2,000 | **2,044** | about right |
+| 4 · Library page and picker | 1,900–2,200 | **1,782** | under |
+| 5 · Enrichment repointed | 350–450 | **186** | well under |
+| 6 · The lookup | 1,500–1,700 | **1,314** | under |
+| 7 · Ask the archive | 80–120 | ~150 | about right |
+| **1–7** | **6,500–7,800** | **7,146** | inside the range |
+
+Five migrations, as predicted. The total landed inside the range, which is less
+impressive than it sounds: two of the seven steps were wrong in opposite
+directions and cancelled.
+
+**Step 1 was the miss, and the reason is instructive.** The estimate treated it
+as "schema plus a fold". What it actually contains is the fold *twice* — once in
+plpgsql and once in TypeScript — plus the fixture that pins them together, plus
+the machinery to emit that fixture as SQL assertions, plus a repaired
+`baseline.sql`. The rule that the database is the authority and the application
+needs the same answer was in the spec from the beginning; its cost was not.
+
+**Step 5 came in at half the low estimate**, which is the argument the spec made
+about the governance layer, confirmed: 186 lines, one branch in `enrichOne` and
+one in the item runner. Nothing else moved.
+
+### The three predicted risks
+
+All three were real. Two were caught by tests before they could matter.
+
+**The read-state trigger's update case.** Predicted exactly: recounting only
+`NEW.library_id` leaves a book marked read after its only reading is moved away.
+Written correctly first time *because* it was written down, which is the whole
+value of having listed it.
+
+**The fold measured against real data.** This is the one the estimate got
+wrong-shaped rather than wrong. The prediction was that the fold's accuracy
+would be the risk; what actually bit was **determinism** — twice. The backfill
+picked each book's title and author from the earliest reading by `created_at`,
+which ties for every row imported in one statement, so the tie fell to a random
+uuid and "Bolaño" or "Bolano" won about half the time. Then
+`rl_near_duplicates()` ordered each pair by `a.id < b.id`, which orders it at
+random. Neither is an error; both produce a plausible answer that changes
+between runs. Both were found by a test asserting a *specific* value rather than
+a shape, and the backfill is now checked by digesting the whole library across
+three independent runs.
+
+**The lookup's daily cap.** Avoided rather than survived: written as a
+`SECURITY DEFINER` function from the start, and then checked in both directions,
+because the cigar version's failure was a table that refused *every* insert
+rather than a cap that leaked.
+
+### What was not on the list
+
+- **The accent map.** `translate()` maps position by position, and the
+  hand-written map had two ASCII letters in its left-hand side, so *Susanna*
+  folded to *Cusanna*. Generated from JavaScript's own NFD now, which makes the
+  two halves agree by construction rather than by anyone reading two long
+  strings side by side. This would have been very hard to notice in production
+  and trivially easy to ship.
+- **`looselyEqual` is wrong for the ambiguity check.** Its length guard exists
+  to stop a catalogue matching "live" to "live at leeds", and it rejects
+  precisely the subtitle case ambiguity has to catch. Different job, different
+  function.
+- **`app.rl_near_duplicates()` was unreachable.** PostgREST exposes `public`
+  only, so a function in `app` can be called by psql and by nothing else. The
+  page that needed it would have failed at runtime.
+- **`baseline.sql` carried a five-column stub of `rl_books`**, so nothing
+  touching any other column could be tested against it.
+- **The enrich page has been shipping unstyled.** `.rl-button` and every
+  `.enrich-*` class were referenced and defined nowhere.
+
+Four of those five are the same kind of thing: something that is *correct on
+paper* and wrong in a way only running it reveals. That is the argument for the
+step-2 dry run, restated by accident.
+
+### What the estimate did not cover, and still does not
+
+**The import is still blocked on a file nobody has made.** The parser is written
+against a guess at what an OCR pass produces. Everything else was buildable
+without it, exactly as predicted — and the review screen shows unmapped columns
+specifically so the first real export costs one alias rather than another
+afternoon with a camera.
+
+**Step 2's calendar time is still review, not writing.** 469 lines, and the part
+that matters is somebody reading `app.rl_backfill_report()` against their own
+four hundred books before running the migration that cannot be run twice.

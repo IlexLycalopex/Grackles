@@ -34,7 +34,7 @@ several people can share a project.
 | ✅ | Cedarhouse — the cigar lounge off Oxblood Foil and onto the shared paper tokens, with an editorial log page, facet chips and specimen plates |
 | ✅ | Blackletter — the word game, at five, six and seven letters. Schema, dictionary and workspace are live on the project |
 | ✅ | Cedarhouse's wishlist — a third cigar status, added straight from a lookup and moved off in one press. Migration applied 2026-08-17 |
-| ⬜ | The library — every book in one registry, read state derived from the reading list, the bookcase captured from photographs and deduplicated on the way in. Specified in `docs/reading-library-plan.md`; nothing built |
+| ✅ | The library — every book in one registry, read state derived from the reading list, the bookcase captured from photographs and deduplicated on the way in. Built; migrations written and verified locally, not yet applied to the live project |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.
 Its nav is whatever the visitor is a member of: signed out it offers one thing,
@@ -284,6 +284,270 @@ lookup rather than copied into both — same reason as `json.ts`.
 `description` is deliberately not fetched. The column exists and holds what the
 old script put there, but nothing in this app renders it — filling it would add
 another field that feeds nothing, which is the problem the target had.
+
+## The library
+
+Everything above this section is about *readings*. A row in `rl_books` is a
+year, a position in it and a set of dates — the right shape for a log and the
+wrong one for the several hundred books somebody owns and has not read yet,
+which have no year, no position and no dates. That absence is exactly what
+makes them the interesting ones.
+
+So there is a second table, and one rule:
+
+> **Every book exists in `rl_library`, always. Readings are drawn from it.**
+
+`rl_books.library_id` is `not null`, there is no path that creates a reading
+without a book, and the library is therefore a complete account of every book
+this project has ever known about — read, unread, owned, borrowed, wanted or
+gone.
+
+Three things follow, and they are the point of the whole exercise. A re-read is
+two log rows and one library row, so *Piranesi* read in 2021 and again in 2024
+is one book read twice. Read and unread become properties of a book rather than
+facts about a query. And the log goes on recording what you *read* — the 2019
+reading keeps saying it was a battered Penguin paperback after the copy on the
+shelf becomes a hardback — while the library records what you *have*.
+
+### What counts as the same book
+
+One fold, and four rules on top of it, because "is this the same book as that
+one" is asked by four things: the unique index that makes one-row-per-book a
+property of the database rather than a promise, the import's verdicts, the "you
+already own this" warning in a bookshop, and the backfill.
+
+    work_key = fold(title) [+ '#' + volume] + '|' + surname + first initial
+
+**ISBN is not the key.** An ISBN identifies an edition, so the Penguin
+paperback and the Everyman hardback would be two rows — which is exactly the
+duplication being removed. It is stored, it is used to *find* a book, and it
+never decides identity.
+
+**The volume number stays in the key**, even though `cleanTitle()` in
+`book-lookup.ts` strips it for lookups. That function is right: neither
+catalogue indexes a graphic novel under its volume number. Folding it away here
+would collapse an entire run of a series into one row.
+
+**The author folds to a surname and a first initial**, so "Le Guin, Ursula K.",
+"Ursula K. Le Guin" and "Ursula Le Guin" are one author, and "S. Clarke" and
+"Susanna Clarke" are one person.
+
+**The leading article is kept.** "The Trial" and "Trial" stay two keys. That is
+the wrong way round for tidiness and the right way round for safety: a missed
+merge is a visible duplicate on the library page, and a wrong merge is a book
+that has quietly become a different book. The near-miss is caught by the
+ambiguity check instead, where a person decides.
+
+The fold exists twice — `app.rl_work_key()` and `workKey()` in `lib/library.ts`
+— because the database has to be the authority and the application has to be
+able to propose matches before writing. Both read
+`supabase/tests/fixtures/work-keys.json`, so neither can be improved without the
+other going red. The SQL accent map is generated from JavaScript's own NFD
+rather than typed, after a hand-written one silently turned Susanna into
+Cusanna: `translate()` maps position by position, and a stray ASCII letter in
+the left-hand string is invisible.
+
+### Read, and read anyway
+
+A book is read when a reading of it finished. `date_finished is not null` is
+already this app's own definition — `records/book.ts` refuses a book marked
+`reading` that also carries a finish date on exactly that ground — so this is
+lifted one level up rather than invented.
+
+Five columns on `rl_library`, all maintained by one trigger: `times_read`,
+`last_read_on`, `reading`, `read_override`, and `read`, which is
+`coalesce(read_override, times_read > 0)`.
+
+`read` is a maintained column and not a view, for three reasons of which the
+third decides it: it is the primary filter on the library page, so it wants an
+index; it is the column the archive search needs, and `runPlan` builds `.eq()`
+against a real table; and **a book read before this app existed has no reading
+to derive from**, so the value has to be writable.
+
+Which makes the override half the feature rather than an escape hatch. The
+reading list starts in a particular year; everything read before that is unread
+as far as the log knows and read as far as you know. Setting it never touches
+the log — `times_read` stays 0 and `last_read_on` stays null on a book read in
+2003 and never recorded, which is honest: we know it was read, we do not know
+when.
+
+A reading with no finish date does *not* make a book read. Abandoned, still
+going and finished-but-undated all look the same from here, and the first two
+must not be counted. The third is what the override is for.
+
+The trigger recounts the entry a reading came *from* as well as the one it went
+to. Recounting only the new one is the obvious implementation, and the symptom
+is a book that stays read after its only reading was moved away — quiet, wrong,
+and invisible until somebody notices the unread shelf is short. There is a test
+for exactly that.
+
+### Ownership is a second axis
+
+Once every book has an entry, "in the library" stops meaning "on the bookcase".
+`ownership` is `owned`, `wanted`, `released` or `none` — four values rather than
+a boolean because a released book must not be rediscovered as new by next year's
+import, and a book never owned should not appear in *what happened to my copy*.
+
+The two axes give four quadrants and each is a real page. Owned and unread is
+the pile, and the default view.
+
+### Importing a bookcase
+
+Photographs go through OCR somewhere else and come back as a file.
+`/reading/:workspace/import` takes a CSV, a TSV, JSON or JSONL, sniffs the
+shape, and requires only a `title` column. Every other column is read under
+whatever it is called, and **anything unrecognised is kept and shown rather than
+dropped** — the file came from photographs that may not be taken again, and the
+first real export is what tells you which alias to add.
+
+Nothing lands in the library until a person has looked at it. Each row gets a
+verdict:
+
+| Verdict | Default |
+| --- | --- |
+| `new` — not in the library | add |
+| `known` — already there | **confirm** |
+| `ambiguous` — close, but not the same | none; a person decides |
+| `duplicate_in_batch` — the same book earlier in the file | skip |
+| `unreadable` — no title | skip |
+
+`known` is the majority verdict and its default is the thing that makes this
+import worth having. After the backfill every book ever read has an entry, so a
+first import of a mostly-read bookcase matches almost everything — and each
+match is *evidence of ownership*, which is a fact the library did not have.
+Confirming sets `ownership` and attaches the photograph and **touches nothing
+else**: not the title, not the genre, not the read state, nothing anybody has
+edited. An import is allowed to say *this is on the bookcase*, and that is all.
+
+Applying is one transaction. If two rows turn out to be the same book, nothing
+at all is written and the review says which row — that is the two folds
+disagreeing, and it is better caught than half-applied.
+
+The photographs know what is on the bookcase; they do not know what you have
+read. Three sources decide, in order: the log for rows already known, a `read`
+column in the file if the extraction produced one, and a switch at the top of
+the review. A row marked read gets an **override, never a fabricated reading** —
+inventing one would file hundreds of books into years they were not read in and
+break every count on the site.
+
+### The backfill
+
+`library_id not null` cannot be declared on a table whose every row violates it,
+so one migration mints an entry per distinct work across the whole existing log,
+links every reading, lets the read trigger fill in, and only then adds the
+constraint. Until that last line a bug in the fold is a row to fix; after it, it
+is a migration that will not apply.
+
+`app.rl_backfill_report()` and `public.rl_near_duplicates()` live in the
+*previous* migration, which is not a filing detail: a report you can only run
+after the transformation it describes has happened is not a dry run.
+
+Near-duplicates are surfaced and never merged. The backfill is the first moment
+the whole reading history is visible as one set of works, so it is the first
+moment a real duplicate can be seen — and the worst possible moment to act on
+one automatically, having just met it.
+
+### Searching, and the one press
+
+Four surfaces, and the first three cost nothing.
+
+**The library page** puts read/unread first, as three segments rather than a
+facet in a panel, because in a library that is mostly read it is the only
+question anybody arrives with. Filtering is a pass over what the page already
+holds. A cover-wall toggle, because a wall is the only view of eight hundred
+books a person can actually scan — and a missing cover is the visible signal
+that enrichment failed on that row.
+
+**The picker** on `/reading/:workspace/book/new` is now the only way onto a
+year. Type three letters, see your own books, press one. Typing a title you
+already own by hand joins that book rather than making a second copy, because
+the fold decides and not the form. A book you have read already says so on the
+row, so a re-read is a decision rather than a surprise.
+
+**Add to the year**, from the library, in one press — which is what the
+planning year has wanted since it was built.
+
+**Ask the archive** gained a `library` source. `read` being a real column is
+what reduces "which unread science fiction do I own" to one filter.
+
+### Looking a book up
+
+Four stages, cheapest first, stopping at the first that answers: your own
+library, the shared cache, OpenLibrary and Google Books, then one call to M3.
+Only the last spends anything, and it is a button that says so — never a
+keystroke.
+
+Stage zero never reaches the server, and on the stated problem it is the most
+useful thing here: standing in a bookshop, the page answers *do I already own
+this, and have I read it* from the library it already holds.
+
+When the model is reached, the rule is narrower than the cigar desk's, because a
+book makes the difference obvious — a cigar's dimensions are not in a free
+catalogue and a book's are:
+
+> **The model's answer is a better query, not a better record.**
+
+It is asked which book is meant. The app then asks OpenLibrary again with that
+answer, and every fact on the row comes from the catalogue.
+
+#### What it is not asked for
+
+**Never an ISBN.** M3 will produce a well-formed, checksum-valid, entirely
+fictional one with no signal that it did, and that number would be written into
+a field that looks authoritative, used to search a catalogue, and possibly typed
+into a shop. The parser drops one if it arrives, there is no column for it to
+land in, and a smuggled field fails the validator — so a prompt being ignored is
+visible rather than merely harmless.
+
+**Never a rating, a prize, a shortlisting, a sales figure or an attributed
+opinion.** This is the argument that dropped the Cigar Aficionado score, in a
+genre where it is worse: "shortlisted for the Booker in 2019" is a fabricated
+citation to a real institution.
+
+**Never a page count or a publisher.** The catalogue supplies those and is right
+about them. If both catalogues miss entirely, the title and author are kept and
+every other field stays blank rather than being invented.
+
+Null is a correct answer and the prompt says so.
+
+#### What it costs
+
+Roughly 350 prompt tokens and 90 completion for an uncached lookup — under a
+twentieth of a penny — and most lookups never reach it. A cache hit inserts
+nothing and so does not count against the daily cap of 50 per project, which is
+the right incentive.
+
+Barcode scanning was built before the model path was leaned on, because it makes
+that path rare: an ISBN off the back of a book is an exact catalogue lookup, and
+pointing a phone at it is faster than typing. `BarcodeDetector` is not
+everywhere, so the button appears only where it exists.
+
+The cap is a `SECURITY DEFINER` function from the start rather than a subquery
+in the policy on the table it counts. That is the cigar cap's lesson applied
+before rather than after — see below.
+
+### Filling the library in
+
+`reading.enrich` now runs against `rl_library` as well as `rl_books`, and that
+cost one branch in `enrichOne` and one in the item runner. The job envelope, the
+ledger, the validator, the proposal review and the tick loop are not
+feature-specific, which is what made this the cheapest step in the whole build.
+Registering a second feature instead would have been a migration, a second
+prompt version history, and two places where the cost of filling a book in is
+recorded.
+
+The library is the default target, because that is where a thin book is: an
+imported bookcase arrives as several hundred entries carrying a title and an
+author, and it is the entry that wants a cover and a page count, not any one
+reading of it. Asking for a year still means the readings in that year.
+
+The vocabulary spans both tables. Reading only `rl_books` would let the model
+mint "Sci-Fi" beside a library full of "Science Fiction", because the genres on
+several hundred unread imports would be invisible to it.
+
+At roughly $0.00035 a book, a library of 800 lands near **$0.28** — inside the
+$5 monthly default. That is an estimate; the ledger replaces it with
+measurements, which is the point of it.
 
 ## The target
 
