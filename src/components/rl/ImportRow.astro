@@ -1,0 +1,149 @@
+---
+/**
+ * One row of a staged import.
+ *
+ * Three things have to be visible at a glance across several hundred of these:
+ * what the file said, what the library already thinks, and what is about to
+ * happen. The third is a select rather than a set of buttons because it has to
+ * be readable in bulk — a column of words the eye can run down beats a row of
+ * controls it has to stop at.
+ *
+ * Unmapped columns are shown here rather than only being stored, which is the
+ * visible half of the rule that nothing the extraction found is thrown away:
+ * the first real export from an OCR pass tells you what alias to add by
+ * appearing in this line.
+ */
+
+interface Row {
+  id: string;
+  position: number;
+  title: string;
+  author: string;
+  verdict: string;
+  decision: string;
+  read_decision: boolean | null;
+  series_index: number | null;
+  pages: number | null;
+  year_published: number | null;
+  publisher: string;
+  genre: string;
+  isbn: string;
+  format: string;
+  source_photo: string;
+  raw: unknown;
+}
+
+interface Match {
+  id: string;
+  title: string;
+  author: string;
+  read: boolean;
+  ownership: string;
+}
+
+interface Props {
+  row: Row;
+  match: Match | null;
+  note: string;
+  frozen: boolean;
+}
+
+const { row, match, note, frozen } = Astro.props;
+
+const RECOGNISED = new Set([
+  'title', 'name', 'book', 'booktitle', 'author', 'authors', 'by', 'writer', 'creator',
+  'series', 'seriesname', 'seriesindex', 'volume', 'vol', 'booknumber', 'number',
+  'yearpublished', 'year', 'published', 'firstpublished', 'publicationyear', 'date',
+  'pages', 'pagecount', 'length', 'numberofpages', 'publisher', 'imprint',
+  'isbn', 'isbn13', 'isbn10', 'barcode', 'genre', 'category', 'subject',
+  'tags', 'keywords', 'shelves', 'subjects', 'format', 'binding', 'type', 'mediatype',
+  'read', 'hasread', 'finished', 'status', 'sourcephoto', 'photo', 'image', 'shelf',
+  'file', 'filename', 'notes', 'note', 'comment', 'comments',
+]);
+
+const raw = (row.raw ?? {}) as Record<string, string>;
+const extra = Object.entries(raw)
+  .filter(([key, value]) => value && !RECOGNISED.has(key.toLowerCase().replace(/[^a-z0-9]/g, '')))
+  .slice(0, 4);
+
+// Only the facts that distinguish one row from another. A line listing every
+// blank field is noise at this density.
+const facts = [
+  row.series_index !== null ? `vol ${row.series_index}` : '',
+  row.year_published ? String(row.year_published) : '',
+  row.pages ? `${row.pages}pp` : '',
+  row.publisher,
+  row.genre,
+  row.format !== 'print' ? row.format : '',
+  row.isbn,
+].filter(Boolean);
+
+const DECISIONS: Record<string, { value: string; label: string }[]> = {
+  new: [
+    { value: 'add', label: 'Add to the library' },
+    { value: 'skip', label: 'Skip' },
+  ],
+  known: [
+    { value: 'confirm', label: 'Mark as owned' },
+    { value: 'skip', label: 'Skip' },
+  ],
+  ambiguous: [
+    { value: 'skip', label: 'Skip — decide later' },
+    { value: 'confirm', label: 'Same book: mark as owned' },
+    { value: 'add', label: 'Different book: add it' },
+  ],
+  duplicate_in_batch: [
+    { value: 'skip', label: 'Skip' },
+    { value: 'add', label: 'Add anyway' },
+  ],
+  unreadable: [{ value: 'skip', label: 'Skip' }],
+};
+
+const options = DECISIONS[row.verdict] ?? DECISIONS.unreadable!;
+---
+
+<tr class={`import-row import-row--${row.verdict}${frozen ? ' import-row--frozen' : ''}`}>
+  <td class="import-row__n">{row.position}</td>
+
+  <td class="import-row__book">
+    <strong>{row.title || <em>no title</em>}</strong>
+    {row.author && <span class="import-muted"> — {row.author}</span>}
+    {facts.length > 0 && <div class="import-facts">{facts.join(' · ')}</div>}
+    {row.source_photo && <div class="import-facts import-facts--photo">{row.source_photo}</div>}
+    {extra.length > 0 && (
+      <div class="import-extra">
+        kept, not recognised: {extra.map(([key, value]) => `${key}: ${value}`).join(' · ')}
+      </div>
+    )}
+  </td>
+
+  <td class="import-row__verdict">
+    <span class={`import-tag import-tag--${row.verdict}`}>{row.verdict.replace(/_/g, ' ')}</span>
+    {match && (
+      <div class="import-match">
+        already: <strong>{match.title}</strong>
+        {match.author && ` — ${match.author}`}
+        <span class="import-muted">
+          {' · '}{match.read ? 'read' : 'unread'}{' · '}{match.ownership}
+        </span>
+      </div>
+    )}
+    <div class="import-why">{note}</div>
+  </td>
+
+  <td class="import-row__decision">
+    <input type="hidden" name="row_id" value={row.id} />
+    <select name="decision" disabled={frozen} aria-label={`What to do with ${row.title}`}>
+      {options.map(option => (
+        <option value={option.value} selected={row.decision === option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+    {row.read_decision !== null && (
+      <div class="import-muted import-read">
+        the file says {row.read_decision ? 'read' : 'unread'}
+      </div>
+    )}
+  </td>
+</tr>

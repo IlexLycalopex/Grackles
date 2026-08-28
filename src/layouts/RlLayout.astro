@@ -67,8 +67,18 @@ const { user } = Astro.locals;
             Publishers
           </a>
 
+          <a href={`${base}/library`} class={`site-nav__pill${pathname.startsWith(`${base}/library`) ? ' active' : ''}`}>
+            Library
+          </a>
+
           {/* Only to somebody who could act on what it produces. A viewer
-              following this would reach a page whose every button is refused. */}
+              following either of these would reach a page whose every button is
+              refused. */}
+          {workspace.canWrite && (
+            <a href={`${base}/import`} class={`site-nav__pill${pathname.startsWith(`${base}/import`) ? ' active' : ''}`}>
+              Import
+            </a>
+          )}
           {workspace.canWrite && (
             <a href={`${base}/enrich`} class={`site-nav__pill${pathname.startsWith(`${base}/enrich`) ? ' active' : ''}`}>
               Fill in

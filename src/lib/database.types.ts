@@ -365,6 +365,91 @@ export type Database = {
         };
         Relationships: [];
       };
+      rl_import_batches: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          filename: string;
+          content_hash: string;
+          rows_total: number;
+          rows_accepted: number;
+          read_default: boolean;
+          status: string;
+          uploaded_by: string | null;
+          created_at: string;
+          applied_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          filename?: string;
+          content_hash: string;
+          rows_total?: number;
+          rows_accepted?: number;
+          read_default?: boolean;
+          status?: string;
+          uploaded_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['rl_import_batches']['Insert']>;
+        Relationships: [];
+      };
+      rl_import_rows: {
+        Row: {
+          id: string;
+          batch_id: string;
+          workspace_id: string;
+          position: number;
+          raw: Json;
+          title: string;
+          author: string;
+          work_key: string;
+          verdict: string;
+          match_library_id: string | null;
+          decision: string;
+          read_decision: boolean | null;
+          series: string;
+          series_index: number | null;
+          year_published: number | null;
+          pages: number | null;
+          publisher: string;
+          isbn: string;
+          genre: string;
+          tags: string[];
+          format: string;
+          source_photo: string;
+          notes: string;
+          library_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          batch_id: string;
+          workspace_id: string;
+          position: number;
+          raw?: Json;
+          title?: string;
+          author?: string;
+          work_key?: string;
+          verdict?: string;
+          match_library_id?: string | null;
+          decision?: string;
+          read_decision?: boolean | null;
+          series?: string;
+          series_index?: number | null;
+          year_published?: number | null;
+          pages?: number | null;
+          publisher?: string;
+          isbn?: string;
+          genre?: string;
+          tags?: string[];
+          format?: string;
+          source_photo?: string;
+          notes?: string;
+          library_id?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['rl_import_rows']['Insert']>;
+        Relationships: [];
+      };
       rl_library: {
         Row: {
           id: string;
@@ -1331,6 +1416,17 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
+      /**
+       * Applies a staged import in one transaction: added rows become library
+       * entries, confirmed rows are marked owned, skipped rows write nothing.
+       *
+       * GRK30 no such import, GRK31 already applied, 23505 two rows in the
+       * batch are the same book — in which case nothing at all was written.
+       */
+      rl_apply_import: {
+        Args: { p_batch: string };
+        Returns: { added: number; confirmed: number };
+      };
       /**
        * Redeems membership, creation rights, or both. workspace_id is null
        * when the invite only granted the right to create.
