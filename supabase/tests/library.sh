@@ -216,6 +216,122 @@ check "a stranger sees nothing" ok \
 check "a stranger cannot add to it" 42501 \
   "insert into public.rl_library (workspace_id, title, author) values ('$WS','Intruder','Nobody');" "$as_rob"
 
+echo "── merging two entries that are one book"
+# The button on the other end of rl_near_duplicates(). It can only ever be a
+# manual correction of a near-match, because the unique index means two rows
+# that fold the same cannot both exist.
+check "every reading moves to the survivor" ok \
+  "insert into public.rl_library (id, workspace_id, title, author) values
+     ('bbbbbbbb-0000-4000-8000-000000000001','$WS','The Left Hand of Darkness','Ursula K. Le Guin'),
+     ('bbbbbbbb-0000-4000-8000-000000000002','$WS','Left Hand of Darkness','Ursula Le Guin');
+   insert into public.rl_books (workspace_id, year_id, library_id, order_read, title, date_finished)
+     values ('$WS','$YEAR','bbbbbbbb-0000-4000-8000-000000000001',40,'x','2019-01-01'),
+            ('$WS','$YEAR','bbbbbbbb-0000-4000-8000-000000000002',41,'y','2023-01-01');
+   select public.rl_merge_library('bbbbbbbb-0000-4000-8000-000000000001','bbbbbbbb-0000-4000-8000-000000000002');
+   do \$\$ begin
+     if (select count(*) from public.rl_books where library_id='bbbbbbbb-0000-4000-8000-000000000001') <> 2
+       then raise exception 'readings did not all move'; end if;
+     if exists (select 1 from public.rl_library where id='bbbbbbbb-0000-4000-8000-000000000002')
+       then raise exception 'the loser survived'; end if;
+   end \$\$;" "$as_jamie"
+check "and the counts are right afterwards" ok \
+  "insert into public.rl_library (id, workspace_id, title, author) values
+     ('bbbbbbbb-0000-4000-8000-000000000003','$WS','The Left Hand of Darkness','Ursula K. Le Guin'),
+     ('bbbbbbbb-0000-4000-8000-000000000004','$WS','Left Hand of Darkness','Ursula Le Guin');
+   insert into public.rl_books (workspace_id, year_id, library_id, order_read, title, date_finished)
+     values ('$WS','$YEAR','bbbbbbbb-0000-4000-8000-000000000003',42,'x','2019-01-01'),
+            ('$WS','$YEAR','bbbbbbbb-0000-4000-8000-000000000004',43,'y','2023-01-01');
+   select public.rl_merge_library('bbbbbbbb-0000-4000-8000-000000000003','bbbbbbbb-0000-4000-8000-000000000004');
+   do \$\$ begin
+     if (select times_read from public.rl_library where id='bbbbbbbb-0000-4000-8000-000000000003') <> 2
+       then raise exception 'times_read wrong after merge'; end if;
+     if (select last_read_on from public.rl_library where id='bbbbbbbb-0000-4000-8000-000000000003') <> '2023-01-01'
+       then raise exception 'last_read_on wrong after merge'; end if;
+   end \$\$;" "$as_jamie"
+check "a blank on the survivor takes the loser's value" ok \
+  "insert into public.rl_library (id, workspace_id, title, author, pages, genre, tags) values
+     ('bbbbbbbb-0000-4000-8000-000000000005','$WS','Dune','Frank Herbert',null,'',array['owned']),
+     ('bbbbbbbb-0000-4000-8000-000000000006','$WS','Dune Messiah','Frank Herbert',912,'SF',array['sf']);
+   select public.rl_merge_library('bbbbbbbb-0000-4000-8000-000000000005','bbbbbbbb-0000-4000-8000-000000000006');
+   do \$\$ begin
+     if (select pages from public.rl_library where id='bbbbbbbb-0000-4000-8000-000000000005') <> 912
+       then raise exception 'a blank did not take the value'; end if;
+     if (select genre from public.rl_library where id='bbbbbbbb-0000-4000-8000-000000000005') <> 'SF'
+       then raise exception 'genre not carried'; end if;
+     if (select array_to_string(tags,',') from public.rl_library where id='bbbbbbbb-0000-4000-8000-000000000005') <> 'owned,sf'
+       then raise exception 'tags not unioned'; end if;
+   end \$\$;" "$as_jamie"
+check "the survivor's own value is never overwritten" ok \
+  "insert into public.rl_library (id, workspace_id, title, author, pages) values
+     ('bbbbbbbb-0000-4000-8000-000000000007','$WS','Dune','Frank Herbert',536),
+     ('bbbbbbbb-0000-4000-8000-000000000008','$WS','Dune Messiah','Frank Herbert',912);
+   select public.rl_merge_library('bbbbbbbb-0000-4000-8000-000000000007','bbbbbbbb-0000-4000-8000-000000000008');
+   do \$\$ begin
+     if (select pages from public.rl_library where id='bbbbbbbb-0000-4000-8000-000000000007') <> 536
+       then raise exception 'the survivor lost to the loser'; end if;
+   end \$\$;" "$as_jamie"
+check "an override on either side survives" ok \
+  "insert into public.rl_library (id, workspace_id, title, author, read_override) values
+     ('bbbbbbbb-0000-4000-8000-000000000009','$WS','Dune','Frank Herbert',null),
+     ('bbbbbbbb-0000-4000-8000-00000000000a','$WS','Dune Messiah','Frank Herbert',true);
+   select public.rl_merge_library('bbbbbbbb-0000-4000-8000-000000000009','bbbbbbbb-0000-4000-8000-00000000000a');
+   do \$\$ begin
+     if not (select read from public.rl_library where id='bbbbbbbb-0000-4000-8000-000000000009')
+       then raise exception 'a stated fact was lost in the merge'; end if;
+   end \$\$;" "$as_jamie"
+check "ownership takes the more present of the two" ok \
+  "insert into public.rl_library (id, workspace_id, title, author, ownership) values
+     ('bbbbbbbb-0000-4000-8000-00000000000b','$WS','Dune','Frank Herbert','none'),
+     ('bbbbbbbb-0000-4000-8000-00000000000c','$WS','Dune Messiah','Frank Herbert','owned');
+   select public.rl_merge_library('bbbbbbbb-0000-4000-8000-00000000000b','bbbbbbbb-0000-4000-8000-00000000000c');
+   do \$\$ begin
+     if (select ownership from public.rl_library where id='bbbbbbbb-0000-4000-8000-00000000000b') <> 'owned'
+       then raise exception 'a book on the shelf was recorded as unowned'; end if;
+   end \$\$;" "$as_jamie"
+check "two notes are both kept" ok \
+  "insert into public.rl_library (id, workspace_id, title, author, notes) values
+     ('bbbbbbbb-0000-4000-8000-00000000000d','$WS','Dune','Frank Herbert','mine'),
+     ('bbbbbbbb-0000-4000-8000-00000000000e','$WS','Dune Messiah','Frank Herbert','theirs');
+   select public.rl_merge_library('bbbbbbbb-0000-4000-8000-00000000000d','bbbbbbbb-0000-4000-8000-00000000000e');
+   do \$\$ begin
+     if (select notes from public.rl_library where id='bbbbbbbb-0000-4000-8000-00000000000d') not like '%mine%'
+       or (select notes from public.rl_library where id='bbbbbbbb-0000-4000-8000-00000000000d') not like '%theirs%'
+       then raise exception 'a note was deleted by the merge'; end if;
+   end \$\$;" "$as_jamie"
+check "a book cannot be merged into itself" GRK33 \
+  "insert into public.rl_library (id, workspace_id, title, author)
+     values ('bbbbbbbb-0000-4000-8000-00000000000f','$WS','Dune','Frank Herbert');
+   select public.rl_merge_library('bbbbbbbb-0000-4000-8000-00000000000f','bbbbbbbb-0000-4000-8000-00000000000f');" "$as_jamie"
+check "a stranger cannot merge someone else's books" ok \
+  "do \$\$ begin
+     begin perform public.rl_merge_library('aaaaaaaa-0000-4000-8000-000000000099','aaaaaaaa-0000-4000-8000-000000000098');
+       raise exception 'a stranger merged books';
+     exception when sqlstate 'GRK32' then null;
+     end; end \$\$;" "$as_rob"
+
+echo "── near duplicates"
+check "a pair is reported once, in a stable order" ok \
+  "insert into public.rl_library (workspace_id, title, author) values
+     ('$WS','The Trial','Franz Kafka'), ('$WS','Trial','Franz Kafka');
+   do \$\$ begin
+     if (select count(*) from public.rl_near_duplicates('$WS')) <> 1
+       then raise exception 'expected exactly one pair, got %',
+         (select count(*) from public.rl_near_duplicates('$WS')); end if;
+     if (select a_title from public.rl_near_duplicates('$WS')) <> 'The Trial'
+       then raise exception 'the pair is not in title order'; end if;
+   end \$\$;" "$as_jamie"
+check "two volumes of a series are not a near duplicate" ok \
+  "insert into public.rl_library (workspace_id, title, author, series_index) values
+     ('$WS','Chew Vol 3',   'John Layman', 3),
+     ('$WS','Chew Vol 9',   'John Layman', 9);
+   do \$\$ begin if exists (select 1 from public.rl_near_duplicates('$WS'))
+     then raise exception 'a series was reported as duplicated'; end if; end \$\$;" "$as_jamie"
+check "two authors of one surname are not a near duplicate" ok \
+  "insert into public.rl_library (workspace_id, title, author) values
+     ('$WS','Blindness','José Saramago'), ('$WS','Blindness','Henry Green');
+   do \$\$ begin if exists (select 1 from public.rl_near_duplicates('$WS'))
+     then raise exception 'two different books were paired'; end if; end \$\$;" "$as_jamie"
+
 echo ""
 echo "passed: $pass   failed: $fail"
 [ "$fail" -eq 0 ]

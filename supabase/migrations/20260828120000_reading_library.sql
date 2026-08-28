@@ -531,12 +531,16 @@ $$;
 -- title a prefix of the other with the leading article ignored. Everything it
 -- returns goes in front of somebody; nothing it returns is ever merged by
 -- anything but a person pressing a button.
-create or replace function app.rl_near_duplicates(p_workspace uuid default null)
+-- In `public`, not `app`, and that is the difference between a function the
+-- library page can call and one only psql can: PostgREST exposes the public
+-- schema alone. The fold helpers below it stay in `app` because nothing outside
+-- the database has any business calling them.
+create or replace function public.rl_near_duplicates(p_workspace uuid default null)
 returns table (
   a_id uuid, a_title text, a_author text, a_read boolean,
   b_id uuid, b_title text, b_author text, b_read boolean
 )
-language sql stable
+language sql stable security invoker
 set search_path to 'public', 'pg_temp'
 as $$
   with entries as (
@@ -552,8 +556,13 @@ as $$
          b.id, b.title, b.author, b.read
   from entries a
   join entries b
+    -- (title, id) rather than id alone. The id half is what stops a pair being
+    -- reported twice, once from each end; the title half is what makes which of
+    -- the two is "a" the same on every run. Ordering a pair by uuid is ordering
+    -- it at random, and a report that shuffles itself between runs is one
+    -- nobody can act on a page at a time.
     on a.workspace_id = b.workspace_id
-   and a.id < b.id
+   and (a.title, a.id) < (b.title, b.id)
    and a.surname <> ''
    and a.surname = b.surname
    -- Different volumes of a series are different books however alike the titles.
@@ -562,5 +571,9 @@ as $$
    and length(least(a.stem, b.stem)) >= 4
    and (a.stem = b.stem
         or greatest(a.stem, b.stem) like least(a.stem, b.stem) || ' %')
+  order by a.title, b.title
 $$;
 
+
+revoke all on function public.rl_near_duplicates(uuid) from public;
+grant execute on function public.rl_near_duplicates(uuid) to authenticated;

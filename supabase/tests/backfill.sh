@@ -94,9 +94,9 @@ is "each keeps its volume number" "3,9" \
 is "two spellings of a title stay two books" "2" \
    "select count(*) from public.rl_library where title like '%Left Hand of Darkness'"
 is "and are offered as a near-duplicate" "1" \
-   "select count(*) from app.rl_near_duplicates()"
-is "the near-duplicate is the pair we expect" "The Left Hand of Darkness" \
-   "select a_title from app.rl_near_duplicates()"
+   "select count(*) from public.rl_near_duplicates()"
+is "the near-duplicate is the pair we expect" "Left Hand of Darkness|The Left Hand of Darkness" \
+   "select a_title || '|' || b_title from public.rl_near_duplicates()"
 
 echo "── read state, across the whole history"
 is "a finished reading marks its book read" "t" \

@@ -177,19 +177,26 @@ export function matchesQuery(haystack: string, query: string): boolean {
   return words.every(word => hay.includes(word));
 }
 
-/** Everything about an entry worth searching, as one string. */
+/**
+ * Everything about an entry worth searching, as one string.
+ *
+ * Nullable rather than optional on every field but the title, because that is
+ * how the columns come back from Postgres — an absent genre is `null`, not
+ * missing — and a signature that only accepted `undefined` would make every
+ * caller launder the row first.
+ */
 export const searchableText = (entry: {
   title: string;
-  author: string;
-  series?: string;
-  genre?: string;
-  publisher?: string;
-  tags?: string[];
-  isbn?: string;
+  author?: string | null;
+  series?: string | null;
+  genre?: string | null;
+  publisher?: string | null;
+  tags?: string[] | null;
+  isbn?: string | null;
 }): string =>
   [
     entry.title,
-    entry.author,
+    entry.author ?? '',
     entry.series ?? '',
     entry.genre ?? '',
     entry.publisher ?? '',

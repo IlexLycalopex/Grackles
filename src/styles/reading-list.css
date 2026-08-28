@@ -1296,3 +1296,178 @@ textarea.book-form__input { resize: vertical; line-height: 1.55; }
   .import-row__n { padding-bottom: 0; }
   .import-row__decision { width: auto; }
 }
+
+/* ── The library ────────────────────────────────────────────────────
+
+   Two axes, and the layout puts the important one first: read/unread is three
+   segments across the top, because in a library that is mostly read it is the
+   only question anybody arrives with. Ownership, format, genre and author are
+   the row underneath, narrowing whatever the segment chose. */
+
+.lib-filter { margin-bottom: 22px; }
+
+.lib-segments { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 14px; }
+.lib-segment {
+  padding: 9px 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  border-right: 1px solid var(--border);
+  transition: background var(--transition), color var(--transition);
+}
+.lib-segment:last-child { border-right: none; }
+.lib-segment span { color: var(--text-faint); font-size: 0.78rem; margin-left: 6px; }
+.lib-segment:hover { color: var(--text); }
+.lib-segment.is-active { background: var(--accent); color: #fff; }
+.lib-segment.is-active span { color: rgba(255, 255, 255, 0.75); }
+
+.lib-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.lib-search {
+  flex: 1 1 18rem;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+.lib-search:focus { outline: none; border-color: var(--accent); }
+.lib-select {
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.84rem;
+}
+.lib-wall-toggle { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 0.84rem; cursor: pointer; }
+.lib-count { margin-top: 10px; color: var(--text-faint); font-size: 0.8rem; }
+.lib-empty { color: var(--text-muted); padding: 30px 0; }
+
+.lib-grid { display: grid; gap: 10px; }
+.lib-card {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  transition: border-color var(--transition), background var(--transition);
+}
+.lib-card:hover { background: var(--bg-hover); }
+.lib-card--unread { border-left-color: var(--accent); }
+.lib-card--reading { border-left-color: var(--accent-audio); }
+.lib-card--own-released, .lib-card--own-none { opacity: 0.72; }
+
+.lib-card__cover { flex: none; width: 48px; height: 72px; border-radius: 3px; overflow: hidden; background: var(--bg); display: grid; place-items: center; }
+.lib-card__cover img { width: 100%; height: 100%; object-fit: cover; }
+.lib-card__blank { font-family: var(--display); font-size: 1.6rem; color: var(--text-faint); }
+.lib-card__body { flex: 1 1 auto; min-width: 0; }
+.lib-card__title { display: block; font-weight: 600; line-height: 1.35; }
+.lib-card__title:hover { color: var(--accent); }
+.lib-card__author { color: var(--text-muted); font-size: 0.86rem; margin-top: 2px; }
+.lib-card__meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; font-size: 0.76rem; align-items: baseline; }
+.lib-muted { color: var(--text-faint); }
+.lib-mono { font-family: var(--mono); font-size: 0.8rem; }
+.lib-state { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+.lib-state--unread { color: var(--accent); }
+.lib-state--read { color: var(--text-faint); }
+.lib-state--reading { color: var(--accent-audio); }
+.lib-own { color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 7px; }
+
+.lib-card__quick { display: flex; flex-direction: column; gap: 5px; flex: none; }
+.lib-quick {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--transition), border-color var(--transition);
+}
+.lib-quick:hover { color: var(--accent); border-color: var(--accent); }
+
+/* The cover wall. Not decoration: a wall is the only view of eight hundred
+   books a person can actually scan, and a missing cover is the visible signal
+   that enrichment failed on that row. */
+.lib-grid--wall { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 14px; }
+.lib-grid--wall .lib-card { flex-direction: column; padding: 0; border: none; background: none; gap: 6px; }
+.lib-grid--wall .lib-card__cover { width: 100%; height: auto; aspect-ratio: 2 / 3; border: 1px solid var(--border); }
+.lib-grid--wall .lib-card__quick,
+.lib-grid--wall .lib-card__meta { display: none; }
+.lib-grid--wall .lib-card__title { font-size: 0.8rem; }
+.lib-grid--wall .lib-card__author { font-size: 0.74rem; }
+
+/* ── One book ───────────────────────────────────────────────────────── */
+
+.lib-entry { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); gap: 32px; align-items: start; }
+.lib-entry__cover { width: 100%; max-width: 180px; border-radius: var(--radius); border: 1px solid var(--border); }
+.lib-entry__cover--blank {
+  aspect-ratio: 2 / 3;
+  display: grid;
+  place-items: center;
+  background: var(--bg-card);
+  font-family: var(--display);
+  font-size: 3rem;
+  color: var(--text-faint);
+}
+.lib-facts { margin: 18px 0; font-size: 0.86rem; }
+.lib-facts dt { color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; margin-top: 10px; }
+.lib-facts dd { margin-top: 2px; }
+.lib-heading { font-family: var(--display); font-size: 1.2rem; letter-spacing: 0.03em; margin: 24px 0 10px; }
+.lib-readings { list-style: none; display: grid; gap: 6px; font-size: 0.88rem; }
+.lib-readings a:hover { color: var(--accent); }
+.lib-merge { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
+.lib-merge__row { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 10px 0; }
+.lib-merge__row a { color: var(--accent); }
+
+@media (max-width: 720px) {
+  .lib-entry { grid-template-columns: 1fr; gap: 20px; }
+}
+
+/* ── Picking a book you already have ────────────────────────────────
+
+   The one press the project exists for. It filters what the page already
+   holds — no debounce against an endpoint, no lookup, nothing that costs. */
+
+.picker { margin-bottom: 22px; }
+.picker__search { width: 100%; }
+.picker__chosen {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+.picker__results { list-style: none; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-top: -8px; }
+.picker__hit {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.picker__results li:last-child .picker__hit { border-bottom: none; }
+.picker__hit:hover { background: var(--bg-hover); color: var(--accent); }
+.picker__note { display: block; margin-top: 2px; color: var(--text-faint); font-size: 0.74rem; }
+.picker__none { margin-top: 8px; color: var(--text-muted); font-size: 0.85rem; }

@@ -1423,6 +1423,26 @@ export type Database = {
        * GRK30 no such import, GRK31 already applied, 23505 two rows in the
        * batch are the same book — in which case nothing at all was written.
        */
+      /**
+       * Entries close enough to be the same book without folding to the same
+       * key — "The Trial" against "Trial". Offered to a person; never merged
+       * by anything but somebody pressing a button.
+       */
+      rl_near_duplicates: {
+        Args: { p_workspace?: string | null };
+        Returns: {
+          a_id: string; a_title: string; a_author: string; a_read: boolean;
+          b_id: string; b_title: string; b_author: string; b_read: boolean;
+        }[];
+      };
+      /**
+       * Moves every reading onto p_keep, takes the fuller value of each field,
+       * and deletes p_drop. GRK32 no such book, GRK33 they cannot be merged.
+       */
+      rl_merge_library: {
+        Args: { p_keep: string; p_drop: string };
+        Returns: { moved: number; kept: string };
+      };
       rl_apply_import: {
         Args: { p_batch: string };
         Returns: { added: number; confirmed: number };
