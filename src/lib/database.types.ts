@@ -365,6 +365,73 @@ export type Database = {
         };
         Relationships: [];
       };
+      rl_library: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          /** Identity, set by trigger. Never sent by a form. */
+          work_key: string;
+          title: string;
+          author: string;
+          series: string;
+          series_index: number | null;
+          format: string;
+          ownership: string;
+          /** coalesce(read_override, times_read > 0), maintained by trigger. */
+          read: boolean;
+          /** Null follows the readings; true is a book read before the log existed. */
+          read_override: boolean | null;
+          reading: boolean;
+          times_read: number;
+          last_read_on: string | null;
+          year_published: number | null;
+          pages: number | null;
+          publisher: string;
+          publisher_normalised: string;
+          genre: string;
+          tags: string[];
+          isbn: string;
+          cover_url: string;
+          description: string;
+          notes: string;
+          link_openlibrary: string;
+          source: string;
+          source_batch_id: string | null;
+          source_photo: string;
+          confidence: string;
+          added_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          title: string;
+          author?: string;
+          series?: string;
+          series_index?: number | null;
+          format?: string;
+          ownership?: string;
+          read_override?: boolean | null;
+          year_published?: number | null;
+          pages?: number | null;
+          publisher?: string;
+          genre?: string;
+          tags?: string[];
+          isbn?: string;
+          cover_url?: string;
+          description?: string;
+          notes?: string;
+          link_openlibrary?: string;
+          source?: string;
+          source_batch_id?: string | null;
+          source_photo?: string;
+          confidence?: string;
+          added_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['rl_library']['Insert']>;
+        Relationships: [];
+      };
       rl_books: {
         Row: {
           id: string;
@@ -390,6 +457,8 @@ export type Database = {
           coming_up: boolean;
           link_openlibrary: string;
           link_wikipedia: string;
+          /** The book this is a reading of. Not null once the backfill has run. */
+          library_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -399,6 +468,7 @@ export type Database = {
           year_id: string;
           order_read: number;
           title: string;
+          library_id?: string | null;
           author?: string;
           pages?: number | null;
           date_started?: string | null;

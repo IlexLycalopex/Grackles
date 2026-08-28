@@ -13,7 +13,7 @@ import { factsMatch, lookupBook, type Edition } from './openlibrary';
  *
  * The division of labour is the point. OpenLibrary supplies the facts — pages,
  * year, publisher, ISBN, cover — and the model supplies the two things a
- * catalogue cannot: which of three editions is the one on the shelf, and where
+ * catalogue cannot: which of three editions is the one being catalogued, and where
  * this book sits in *this reader's* vocabulary of genres and tags rather than
  * in a universal one.
  *
@@ -261,7 +261,7 @@ export function mergeProposal(
   if (edition.cover_url) fields.cover_url = edition.cover_url;
   if (edition.link_openlibrary) fields.link_openlibrary = edition.link_openlibrary;
 
-  // The model's, because they are judgements about this reader's shelf.
+  // The model's, because they are judgements about this reader's vocabulary.
   if (proposal.genre) fields.genre = proposal.genre.slice(0, 60);
   if (proposal.publisher_normalised) {
     fields.publisher_normalised = proposal.publisher_normalised.slice(0, 120);
@@ -282,7 +282,7 @@ export function mergeProposal(
  *
  * Nothing here writes to rl_books. The proposal is the deliverable, and a human
  * pressing accept is what makes it a change — which is also what turns an
- * occasional wrong answer into a nuisance rather than a corrupted shelf.
+ * occasional wrong answer into a nuisance rather than a corrupted record.
  */
 export async function enrichOne(
   supabase: Client,

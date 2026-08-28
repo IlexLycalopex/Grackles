@@ -14,7 +14,7 @@ export const prerender = false;
  *
  * Accepting is also the only place an enrichment reaches rl_books. The batch
  * writes proposals and nothing else, so a wrong answer is a row somebody
- * declines rather than a shelf somebody has to repair.
+ * declines rather than a record somebody has to repair.
  */
 
 /**

@@ -53,8 +53,8 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   if (yearId) query = query.eq('year_id', yearId);
 
   const { data: books, error: booksError } = await query;
-  if (booksError) return json({ error: 'Could not read the shelf.' }, 500);
-  if (!books?.length) return json({ error: 'Nothing on this shelf needs filling in.' }, 400);
+  if (booksError) return json({ error: 'Could not read the reading list.' }, 500);
+  if (!books?.length) return json({ error: 'Nothing on this list needs filling in.' }, 400);
 
   const opened = await openJob({
     supabase,
@@ -63,7 +63,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     class: 'batch',
     maxCalls: books.length + 10,
     itemsTotal: 0,
-    // The same shelf, twice within the hour, is the same run. Somebody
+    // The same selection, twice within the hour, is the same run. Somebody
     // double-clicking Start should not open a second batch against the first's
     // envelope.
     idempotencyKey: `enrich:${yearId ?? 'all'}:${books.length}`,
