@@ -870,6 +870,100 @@ for everything already recorded without a model being involved at all.
 7. **Ask the archive.** `library` in `SOURCES`, with `read` and `ownership`.
 8. **The enhancements**, in the order above, as appetite allows.
 
+## What it costs to build
+
+Estimated against what comparable features in this repository actually cost,
+rather than against a feeling. The figures are insertions and file-touches from
+`git show --stat`, which is a crude measure that has the single virtue of being
+the same measure for the estimate and for the evidence.
+
+| Already built here | Insertions | Files | Migrations |
+| --- | --- | --- | --- |
+| Reading year planning | 539 | 14 | 1 |
+| Fetch a book's details on add | 695 | 9 | — |
+| Cedarhouse's wishlist | 1,110 | 24 | 1 |
+| `reading.enrich`, end to end | 1,371 | 14 | 1 |
+| Ask the archive | 1,616 | 15 | 2 |
+| Cigar search and lookup, all six steps | ~3,030 | ~38 | 3 |
+
+Against those, step by step:
+
+| Step | Insertions | Migrations | Sittings | Risk |
+| --- | --- | --- | --- | --- |
+| 1 · Schema, read state, rename | 700–900 | 1 | 1–2 | **high** — three triggers |
+| 2 · Backfill and the invariant | 300–450 | 1 | 1 + a review | **high** — one-way, on real data |
+| 3 · Import and review | 1,700–2,000 | 1 | 2–3 | medium |
+| 4 · Library page and picker | 1,900–2,200 | — | 2–3 | low |
+| 5 · Enrichment repointed | 350–450 | — | ½ | low |
+| 6 · The lookup | 1,500–1,700 | 1 | 2 | medium |
+| 7 · Ask the archive | 80–120 | — | ½ | low |
+| **1–7** | **6,500–7,800** | **4** | **10–13** | |
+| 8 · Enhancements, all nine | ~900 | — | 1–2 | low |
+
+A "sitting" is one focused session ending with something committed and applied.
+The total lands between the cigar lookup and the AI governance layer, which is
+about right for what it is: one new core entity, a one-way migration of existing
+data, and five surfaces.
+
+Two of the numbers are worth reading twice.
+
+**Step 5 is the cheapest thing in the document and that is not an accident.**
+Pointing `reading.enrich` at a second table is 400 lines because the job
+envelope, the ledger, the validator, the proposal review and the tick loop
+already exist and are not feature-specific. Registering a second feature instead
+would be roughly 600 lines, a migration, and a second prompt version history to
+keep in step. Every line of the governance layer's generality is being cashed in
+here.
+
+**Step 7 is 100 lines because step 1 paid for it.** `read` being a maintained
+column rather than a join is what reduces "which unread science fiction do I
+own" to one `SOURCES` entry. Had it been a view, this step would have needed the
+search runner to learn about views.
+
+### What the estimate does not cover
+
+**Step 3 is blocked on a file nobody has made.** The parser is written against a
+guess at what the extraction produces until a real export exists. Everything
+else is not blocked: after step 2 the library already holds every book ever
+read, so steps 4, 5, 6 and 7 can all be built and used before a single
+photograph is taken. The honest sequence is 1 → 2 → then 4, 5, 6, 7 in any
+order, with 3 slotted in the week the file arrives.
+
+**Step 2's calendar time is review, not writing.** The SQL is a few hundred
+lines; the part that takes the time is running it dry, reading what it says it
+will do to roughly four hundred books — the figure `enrich.ts` and the enrich
+route's `MOST` already assume — and looking at the near-duplicates it surfaces.
+That is a sitting with the real data in front of somebody, and it cannot be
+shortened by writing the migration faster.
+
+### The three things most likely to break the estimate
+
+**The read-state trigger's update case.** When a reading moves between library
+entries, both the old and the new entry need recomputing, and the obvious
+implementation recomputes only `NEW.library_id`. The symptom is a book that
+stays read after the only reading of it was moved away — quiet, wrong, and
+invisible until somebody notices the unread shelf is short. This wants its own
+test in `supabase/tests/` before it wants a UI.
+
+**The fold, measured against real data for the first time.** If it is 95% right
+across four hundred books that is twenty rows to fix by hand; if it is 80% it is
+eighty rows and a rethink of the author rule. Nobody knows which until step 2's
+dry run, and the dry run is cheap — so run it early, before step 1 is even
+finished, as a read-only query against production.
+
+**The daily cap on the lookup.** The cigar version of this took two extra
+migrations because a `count(*)` subquery inside a policy over the table the
+policy guards is `42P17`, infinite recursion, and the symptom is not a leaky cap
+but a table that refuses every insert. It reads correctly, and it was asserted
+to work in three places before anybody ran it. Copy
+`20260807140000_cigar_lookup_cap.sql`, which is the version that works, rather
+than the plan that described the version that did not.
+
+And one scope risk rather than a technical one: "the review screen is a table
+grouped by verdict" is one sentence describing several hundred rows with
+per-row state, bulk actions and a batch default. It is the largest single UI in
+the plan and the easiest to under-read.
+
 ## Files
 
 | | |
