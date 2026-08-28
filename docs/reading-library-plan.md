@@ -1,81 +1,92 @@
 # The library
 
 The plan for capturing what is actually on the bookcase, getting it into the
-database once and only once, and turning it into the thing the Reading List has
-never had: a list of books you own but have not read.
+database once and only once, and making the Reading List rest on a single
+registry of books rather than on a pile of readings.
 
 Extraction is out of scope. Photographs of the shelves go through OCR and
 enrichment somewhere else and come back as a file; this document starts at the
 moment that file is uploaded and runs to the ongoing business of buying a book,
-wanting a book, and getting rid of one.
+wanting a book, finishing one and getting rid of one.
 
-Three things were asked for and they turn out to rest on one decision:
+Four things were asked for:
 
 - capture the whole library from photographs, without typing it;
-- search it quickly, so a book already owned goes onto the reading list in one
-  press rather than being re-entered;
 - have one row per book, because the shelves hold duplicates and the database
-  should not.
+  should not;
+- know at a glance which books are read and which are not — the majority are
+  read, which makes the unread ones the hard thing to find;
+- search it quickly, so a book already owned goes onto a reading list in one
+  press rather than being re-entered.
 
-The decision underneath all three is that **the library and the reading list are
-two different things and want two different tables**. Everything below follows
-from that, and the first section is the argument for it.
+And one rule that decides the shape of all four:
 
-## The library is not the reading list
+> **Every book exists in the library, always. Reading lists are drawn from it.**
+
+That is a stronger statement than "a second table joined to the first", and the
+whole document is downstream of it. A reading is never the first record of a
+book. `rl_books.library_id` is `not null`, there is no path that creates a
+reading without a library entry, and the library is therefore a complete
+account of every book this project has ever known about — read, unread, owned,
+borrowed, wanted or gone.
+
+## Two tables, one invariant
 
 `rl_books` is a log. A row is one *reading*: it belongs to a year (`year_id`),
-it holds a position in that year (`order_read`, unique per year), and it carries
-the dates, the format it was read in, and the notes made about it. The year
-pages, the target, the pace, `statsFor` and `yearProgress` all count rows in
-this table and are correct to do so.
+holds a position in that year (`order_read`, unique per year), and carries the
+dates, the format it was read in, and the notes made about it. The year pages,
+the target, the pace, `statsFor` and `yearProgress` all count rows in this table
+and are correct to do so.
 
-A book on the shelf is not a reading. It has no year, no position, no dates and
-possibly no opinion attached to it — that is precisely what makes it interesting,
-because the unread shelf is the thing this project exists to surface. Three ways
-of forcing it into `rl_books` were considered:
+A book is not a reading. It has no year, no position, and possibly no dates —
+which is exactly what makes the unread ones findable, because they are the rows
+with no reading attached. Three ways of avoiding a second table were considered
+and each breaks something that currently works:
 
-- **An `owned` flag on `rl_books`.** Every owned-unread book then needs a
-  `year_id` and an `order_read`, so eight hundred of them get filed under a
-  year that did not happen. Every count on the site is then wrong, and the fix
-  is a `where not owned` on each of them — which is the two-tables design,
-  written as a predicate that somebody will forget.
-- **A synthetic "shelf" year.** Same problem with a year number attached to it,
+- **An `owned` flag on `rl_books`.** Every book not yet read then needs a
+  `year_id` and an `order_read`, so several hundred of them get filed under a
+  year that did not happen and every count on the site is wrong. The fix is a
+  `where not owned` on each of them — which is the two-table design, written as
+  a predicate somebody will forget.
+- **A synthetic "shelf" year.** The same problem with a year number attached,
   plus a year pill in the nav that is not a year.
 - **Reusing `coming_up`.** `coming_up` means *chosen for this year and not read
-  yet*. Owning a book is not choosing it. Collapsing the two makes the planning
-  year meaningless, and the planning year is a feature that already works.
+  yet*. Owning a book is not choosing it, and collapsing the two makes the
+  planning year meaningless.
 
-So: a second table, `rl_library`, one row per book you own, and
-`rl_books.library_id` pointing at it. This is the same shape the Cigar Lounge
-already uses for `cl_cigars.reference_id` — the record somebody keeps and the
-thing it refers to, joined, not merged.
+So: `rl_library`, one row per book, and `rl_books.library_id` pointing at it,
+mandatory. This is the shape `cl_cigars.reference_id` already uses, with the
+optionality removed.
 
-Two consequences worth stating up front, because they are the payoff:
+Three consequences, and they are the payoff:
 
 **A re-read is two log rows and one library row.** *Piranesi* read in 2021 and
-again in 2024 is two readings of one book, and the library page can say so
-without any of the deduplication below having to decide whether the second one
-was a mistake.
+again in 2024 is two readings of one book, and the library entry says so without
+any deduplication having to decide whether the second was a mistake.
 
-**The log keeps what you read, not what you own.** When a library row is
-created from a log row, or a log row from a library row, the fields are
-**copied, not read through the join**. If the 2019 reading was a battered
-Penguin paperback and the copy on the shelf today is a hardback replacement, the
-2019 row should go on saying Penguin. A log that silently changed its own
-history whenever a shelf entry was edited would be a worse record than the one
-we have now.
+**Read and unread become properties of a book rather than facts about a
+query.** The library entry knows whether anything ever finished it. That is the
+subject of its own section below, and it is the answer to the third ask.
+
+**The library is the authority on identity; the log is the authority on the
+reading.** Title, author and series live on the library entry and are mirrored
+onto the log; format, dates, position, page count as read, publisher as read
+and notes stay on the log. Which is to say: the 2019 reading goes on saying it
+was a battered Penguin paperback after the copy on the shelf is replaced by a
+hardback. A log that rewrote its own history from the current shelf would be a
+worse record than the one we have now.
 
 ### A naming collision to clear up first
 
-The existing code calls `rl_books` "the shelf" in several places — `enrich.astro`
-opens "Filling in the shelf", and the enrich route answers "Could not read the
-shelf." Those sentences become actively misleading the day a shelf exists. The
-wording to settle on:
+The existing code calls `rl_books` "the shelf" in several places —
+`enrich.astro` opens "Filling in the shelf", and the enrich route answers "Could
+not read the shelf." Those sentences become actively misleading the day a
+library exists. The wording to settle on:
 
 | Word | Means |
 | --- | --- |
+| the library | `rl_library` — every book, full stop |
 | the reading list | `rl_books` — what was read, when, in what order |
-| the library | `rl_library` — what is owned |
 | the shelf | nothing, in prose. Too overloaded now to carry a meaning |
 
 The rename is three strings and belongs in step 1, before anything is built on
@@ -93,25 +104,23 @@ The key is a fold of title and author, generated by a trigger on write:
 
 `fold` is `normalise()` from `lib/title-match.ts` — NFD, strip combining marks,
 lowercase, everything that is not a letter or digit becomes a space — so
-*Bolaño* and *Bolano* are one book, and so are *2666* and *2666.*
+*Bolaño* and *Bolano* are one book.
 
-Four rules on top of it, each of which exists because of a specific way this
-goes wrong:
+Four rules on top of it, each from a specific way this goes wrong:
 
 **ISBN is not the key.** An ISBN identifies an *edition*. The Penguin paperback
-and the Everyman hardback of the same novel carry different ones, and would be
-two rows — which is exactly the duplication being removed. An ISBN read off a
-spine by OCR is also frequently wrong by a digit. ISBN is stored, is used to
-*find* a book in a catalogue, and never decides identity.
+and the Everyman hardback of the same novel carry different ones and would be
+two rows — exactly the duplication being removed. An ISBN read off a spine by
+OCR is also frequently wrong by a digit. ISBN is stored, is used to *find* a
+book in a catalogue, and never decides identity.
 
 **The volume number stays in the key.** `cleanTitle()` in `book-lookup.ts`
 deliberately strips it — "Chew Vol 9 Chicken Tenders" becomes "Chew Chicken
 Tenders" — because neither catalogue indexes a graphic novel under its volume
 number. That is right for a *lookup* and catastrophic for a *key*: it collapses
 an entire run of a series into one row, and this list has a lot of them. So the
-volume is parsed out into `series_index` and appended to the key. The two
-functions want different things from the same title and must not share an
-implementation.
+volume is parsed into `series_index` and appended to the key. The two functions
+want different things from the same title and must not share an implementation.
 
 **The author is folded to a surname, and reversed names are unreversed.**
 "Le Guin, Ursula K." and "Ursula K. Le Guin" are one author. A comma with no
@@ -120,29 +129,110 @@ name only, which is what `firstAuthor()` already does.
 
 **A row with no author never auto-matches on title alone.** OCR loses the author
 off a spine regularly, and *Blindness*, *Ghosts* and *The Trial* are each the
-title of several unrelated books. No author means the row goes to a person.
+title of several unrelated books. No author means a person decides.
 
 ### One fold, two implementations, and how they are kept honest
 
 The key is computed by a trigger, for the same reason `publisher_normalised`
-already is: a title corrected by hand on the edit page must update the key, and a
-value the form is trusted to send is a value the form can forget to send. The
-database is the authority.
+already is: a title corrected by hand must update the key, and a value the form
+is trusted to send is a value the form can forget to send. The database is the
+authority.
 
-TypeScript needs the same fold to *propose* matches in the import review before
-anything is written. Two implementations of one rule will drift, so:
+TypeScript needs the same fold to *propose* matches before anything is written.
+Two implementations of one rule will drift, so:
 
 - they are pinned by a single fixture of pairs — same book / different book —
   that both a `node --test` case and a SQL test read;
-- disagreement is designed to be cheap. If the fold in TypeScript misses a match
-  the database would have made, the result is a row marked `new` that the unique
-  index then refuses, and the reviewer sees a conflict. It is never a duplicate
-  row, because the index is the thing that actually holds.
+- disagreement is designed to be cheap. A match the TypeScript fold misses
+  becomes a row marked `new` that the unique index then refuses, and the review
+  says so. It is never a duplicate row, because the index is the thing that
+  actually holds.
 
-A `generated always as … stored` column was the alternative and is not usable:
-the fold is not immutable enough to satisfy Postgres without pinning the
-collation and the accent handling by hand, and changing the expression later
-would rewrite the table.
+A `generated always as … stored` column is not usable: the fold is not immutable
+enough to satisfy Postgres without pinning collation and accent handling by
+hand, and changing the expression later would rewrite the table.
+
+## Read and unread
+
+The third ask, and the one that most changes what the app is for. A library of
+which the majority is read has exactly one interesting question — *what have I
+not read* — and it needs to be a column, not a join written out by hand at four
+call sites.
+
+**A book is read when a reading of it finished.** `date_finished is not null` is
+already the app's own definition of finished: `records/book.ts` refuses a book
+marked `reading` that also carries a finish date, on precisely that ground, and
+`BookCard` renders from it. Nothing new is being invented; it is being lifted
+one level up onto the library entry.
+
+Five derived columns on `rl_library`, all maintained by one trigger:
+
+| Column | |
+| --- | --- |
+| `times_read` | log rows pointing here with a `date_finished` |
+| `last_read_on` | the most recent of those dates |
+| `reading` | any log row here with `reading` set |
+| `read_override` | nullable. `null` means follow the log |
+| `read` | the effective answer: `coalesce(read_override, times_read > 0)` |
+
+The trigger fires on insert, update and delete of `rl_books` — watching
+`library_id`, `date_finished` and `reading` — and on update of `read_override`.
+It recomputes the affected library rows and nothing else.
+
+**Why a maintained column and not a view.** Three reasons, and the third
+decides it. It is the primary filter on the library page, so it wants an index.
+It is the column the archive search needs in `SOURCES`, and `runPlan` builds
+`.eq()` filters against a real table. And a book read before this app existed
+has no log row to derive from, so the value must be *writable* — which a derived
+view is not.
+
+**The override is not an escape hatch, it is half the feature.** The reading
+list starts in a particular year. Everything read before that, and everything
+read and never logged, is unread as far as the log knows and read as far as the
+person knows. `read_override = true` is how that gets said, and given the stated
+shape of this library it will be set on a large number of rows — so it gets
+first-class treatment: a toggle on the entry, a bulk action on the library page,
+and a per-row control plus a batch default in the import review.
+
+Setting the override never touches the log. `times_read` stays 0 and
+`last_read_on` stays null on a book read in 2003 and never recorded, which is
+honest: we know it was read, we do not know when. Clearing the override back to
+`null` hands the question back to the log.
+
+**What is deliberately not derived.** A log row with no finish date does not
+make a book read. Abandoned, still going and finished-but-undated all look the
+same from here, and the first two must not be counted as read. The third is what
+the override is for.
+
+## Ownership is a second axis
+
+Once every book has a library entry, "is it on the bookcase" stops being the
+same question as "is it in the library". A book borrowed and returned, a library
+copy, an audiobook, a paperback given away years ago — all of them are books
+this project knows about and none of them is on a shelf.
+
+So ownership is its own column, orthogonal to read:
+
+```
+ownership  'owned'    -- it is on the bookcase
+           'wanted'   -- the wishlist
+           'released' -- it was owned and is not any more
+           'none'     -- never owned; read somebody else's copy
+```
+
+Four values rather than a boolean because `released` and `none` differ in a way
+that matters: a released book should not be rediscovered as new by next year's
+import, and a book never owned should not appear in *what happened to my copy*.
+`wanted` is the same third state the Cigar Lounge's wishlist arrived at, and it
+connects to planning — putting an unowned book on next year's plan marks it
+wanted, which is the whole of a books wishlist.
+
+The two axes give four quadrants and every one of them is a real page:
+
+|  | unread | read |
+| --- | --- | --- |
+| **owned** | the pile — the point of the project | the majority; the browsable library |
+| **not owned** | the wishlist, and things borrowed and abandoned | reading history without a copy |
 
 ## Schema
 
@@ -159,8 +249,15 @@ create table public.rl_library (
 
   format         text not null default 'print'
                  check (format in ('print','audio','graphic')),
-  status         text not null default 'shelf'
-                 check (status in ('shelf','wishlist','released')),
+  ownership      text not null default 'owned'
+                 check (ownership in ('owned','wanted','released','none')),
+
+  -- read state: derived by trigger from rl_books, overridable by hand
+  read           boolean not null default false,
+  read_override  boolean,
+  reading        boolean not null default false,
+  times_read     integer not null default 0,
+  last_read_on   date,
 
   year_published integer,
   pages          integer,
@@ -188,23 +285,42 @@ create table public.rl_library (
   unique (workspace_id, work_key)
 );
 
+create index rl_library_unread
+  on public.rl_library (workspace_id, ownership) where not read;
+
 alter table public.rl_books
-  add column library_id uuid references public.rl_library(id) on delete set null;
+  add column library_id uuid references public.rl_library(id) on delete restrict;
+-- made `not null` by the backfill migration, not by this one. See below.
 ```
 
-`on delete set null` on the join, and it is the most important word in the
-migration. Deleting a library row must never take a reading with it. A book
-given away is a shelf that changed; the fact that it was read in 2019 is not.
+`on delete restrict`, and it is the most important word in the migration.
+Under the invariant a reading cannot exist without a library entry, so
+`set null` is not available and `cascade` would delete reading history to tidy
+up a shelf. Restrict means a library entry that has been read cannot be deleted
+at all — which is correct, and the UI offers `ownership = 'released'` instead,
+in the one press somebody actually wanted.
 
-`status` has three values for the same reasons the Cigar Lounge has three:
-`shelf` is owned, `wishlist` is wanted, `released` is gone. A released book keeps
-its row rather than being deleted, which buys two things — the reading history
-keeps its link, and re-photographing the shelves next year does not re-import it
-as a discovery.
+`source_photo` is a plain text label, not a stored file. Photographs live
+outside this tool by the terms of the project, but tracing a wrong row back to
+the picture it came off is worth one column.
 
-`source_photo` is a plain text label, not a stored file. Photographs live outside
-this tool by the terms of the project, but tracing a wrong row back to the
-picture it came off is worth one column.
+### The title and author mirror
+
+`rl_books` keeps its own `title` and `author` columns — dropping them would
+touch `BOOK_COLUMNS`, `toBook`, every component and the archive's `SOURCES`, for
+no gain. Instead they become a mirror, maintained by trigger from the library
+entry, and the book form stops accepting them.
+
+That is a deliberate exception to *copy, not join*. Identity has to be single-
+valued or the fold means nothing: a book whose library entry says *The Left Hand
+of Darkness* and whose 2019 log row says *Left Hand of Darkness* would sort,
+group and search as two books on the pages that read the log. Everything that is
+genuinely a fact about the reading rather than about the work — format, dates,
+pages, publisher, ISBN, notes — stays the log's own and is never touched.
+
+It costs one case: a book read in an abridgement or a different translation
+under a different title. That is arguably two library entries anyway, and if it
+is not, the log's notes hold it.
 
 ### The import, staged
 
@@ -216,6 +332,9 @@ create table public.rl_import_batches (
   content_hash  text not null,
   rows_total    integer not null default 0,
   rows_accepted integer not null default 0,
+  -- what an undecided row means in this batch: a bookcase of books already
+  -- read, or a box of new ones. See "Read state on the way in".
+  read_default  boolean not null default false,
   status        text not null default 'review'
                 check (status in ('review','applied','abandoned')),
   uploaded_by   uuid references public.profiles(id) on delete set null,
@@ -233,10 +352,10 @@ create table public.rl_import_rows (
   author       text not null default '',
   work_key     text not null default '',
   verdict      text not null default 'new'
-               check (verdict in ('new','duplicate_in_batch','on_shelf','in_log','ambiguous','unreadable')),
+               check (verdict in ('new','duplicate_in_batch','known','ambiguous','unreadable')),
   match_library_id uuid references public.rl_library(id) on delete set null,
-  match_book_id    uuid references public.rl_books(id) on delete set null,
-  decision     text check (decision is null or decision in ('add','link','skip')),
+  decision     text check (decision is null or decision in ('add','confirm','skip')),
+  read_decision boolean,                     -- null takes the batch default
   library_id   uuid references public.rl_library(id) on delete set null,
   created_at   timestamptz not null default now(),
   unique (batch_id, position)
@@ -246,16 +365,54 @@ create table public.rl_import_rows (
 Staging rather than writing straight through, for the reason the enrich batch
 already gives: *a year half-enriched is worse than one never started*. An import
 that half-lands leaves somebody working out which half, across eight hundred
-books, with no record of what the file said. Here the file is parsed, judged and
-shown before a single library row exists.
+books, with no record of what the file said.
 
 `raw` keeps every column of the upload, including ones this app does not
 understand. Whatever the extraction pass found, it found once, from a photograph
 that may not be taken again — dropping a column because the parser has no home
-for it is the one unrecoverable mistake available in this whole design.
+for it is the one unrecoverable mistake available in this design.
 
-RLS on all three: the workspace's own members, `requireWrite` to upload or apply,
-and no anonymous read. Nothing here is public.
+RLS on all three: the workspace's own members, `requireWrite` to upload or
+apply, no anonymous read. Nothing here is public.
+
+## The backfill, and the day the invariant starts holding
+
+`library_id not null` cannot be declared on a table whose every row violates it.
+The existing reading list has to become a library first, and this is the single
+step with the most riding on it — it is also, on its own, the step that answers
+the read/unread ask for everything already recorded.
+
+Its own migration, in this order:
+
+1. **Fold every log row.** Compute `work_key` for all of `rl_books`.
+2. **Mint one library entry per distinct key**, per workspace, taking the
+   fullest value of each field across the rows that share it: title, author,
+   pages, publisher, cover, ISBN, genre, tags, year published, links.
+   `source = 'log'`, `added_at` from the earliest reading.
+3. **Link every log row** to its entry.
+4. **Let the read trigger run.** `times_read`, `last_read_on` and `read` fill in
+   from the dates already there. A book read in 2019 and 2024 comes out as one
+   entry, read twice. This is the moment the third ask is answered for the
+   recorded half of the library, and it costs nothing.
+5. **Set ownership.** Every backfilled entry starts at `'owned'`, because that
+   is true of most of them and because the first bookcase import will confirm
+   or contradict it row by row. The ones it contradicts are found by asking for
+   entries with `source = 'log'` that no import has ever confirmed — a list
+   worth looking at once, and the honest home of the borrowed and the
+   long-departed.
+6. **Run the duplicate radar** over the result and stop. Do not apply it.
+7. **Then, and only then, `alter column library_id set not null`.**
+
+Step 6 is the part not to rush. The backfill is the first moment the entire
+reading history is visible as one set of works rather than as a run of years,
+and it is therefore the first moment a genuine near-duplicate in the log — the
+same book entered twice with a subtitle on one of them — can be seen at all.
+Those are merges for a person to confirm, on a screen, once. Merging them
+automatically inside a migration would be doing the irreversible thing at the
+moment with the least information about it.
+
+The constraint goes on afterwards because until it does, a bug in the backfill
+is a row to fix; after it, it is a migration that will not apply.
 
 ## Uploading
 
@@ -285,6 +442,7 @@ underscores equivalent:
 | `genre` | category, subject |
 | `tags` | keywords, shelves |
 | `format` | binding, type |
+| `read` | read?, finished, status |
 | `source_photo` | photo, image, shelf, file |
 | `notes` | comment, note |
 
@@ -294,11 +452,10 @@ mapped by adding one alias rather than by re-running the photographs.
 
 **A file is imported once.** `content_hash` is unique per workspace, so
 uploading the same file twice returns the existing batch instead of opening a
-second. This is the same reasoning as the `idempotencyKey` on the enrich route,
-applied to a form somebody will double-submit on a phone.
+second — the same reasoning as the `idempotencyKey` on the enrich route, applied
+to a form somebody will double-submit on a phone.
 
-**Ceiling:** 2,000 rows per batch. Past that it is a paste that will time out
-rather than an import.
+**Ceiling:** 2,000 rows per batch.
 
 ## Deciding what is a duplicate
 
@@ -309,168 +466,211 @@ is involved and the whole pass is free.
 | --- | --- | --- |
 | `unreadable` | No usable title | skip |
 | `duplicate_in_batch` | Same `work_key` as an earlier row in this file — the second copy on the shelf, or the same spine photographed twice | skip |
-| `on_shelf` | `work_key` already in `rl_library` — a top-up import finding what it already knows | skip |
-| `in_log` | `work_key` matches one or more `rl_books` rows that have no `library_id` — you own a book you have already read | add **and** link |
+| `known` | `work_key` already in `rl_library` | **confirm** |
 | `ambiguous` | Titles are `looselyEqual` and the authors fold the same, but the keys differ | none — a person decides |
 | `new` | None of the above | add |
 
-`in_log` is the verdict that earns the whole design. A first import of an
-established reading list will produce hundreds of them, and each one is a book
-whose reading history and physical copy get joined up for free, in one pass,
-because the fold was doing the work anyway.
+**`known` is the majority verdict and it does not mean "skip".** After the
+backfill, every book ever read has a library entry, so a first import of a
+mostly-read bookcase will match almost everything — and each match is *evidence
+of ownership*, which is a fact the library did not have. Confirming a row sets
+`ownership = 'owned'`, attaches `source_photo`, and touches nothing else: not
+the title, not the genre, not the read state, not anything a person has edited.
+An import is allowed to say *this is on the bookcase* and nothing more.
 
-`ambiguous` is where the near-misses go: a subtitle on one side and not the
+That is also what makes the second import cheap. A shelf photographed again next
+year is several hundred confirmations and a handful of new books, which is one
+press and a short list.
+
+`ambiguous` is deliberately a small pile: a subtitle on one side and not the
 other, a volume number OCR read as an 8 instead of a 3, a translator credited as
-the author. It is deliberately a small pile. Two rows can only be ambiguous with
-each other, never merged automatically, and the review shows both in full with
-the fields that differ marked.
+the author. Two rows can only be ambiguous with each other, never merged
+automatically, and the review shows both in full with the differing fields
+marked.
 
-**Nothing merges silently across an author boundary**, and nothing merges on
-title alone. The cost of a missed merge is one duplicate row that shows up on
-the library page next to its twin and is merged by hand in one press. The cost
-of a wrong merge is a book that has quietly become a different book, discovered
-months later. They are not symmetrical, and every threshold here is set on the
-side of the recoverable error.
+**Nothing merges silently across an author boundary, and nothing merges on title
+alone.** The cost of a missed merge is one duplicate row sitting next to its twin
+on the library page, merged by hand in one press. The cost of a wrong merge is a
+book that has quietly become a different book, discovered months later. They are
+not symmetrical, and every threshold here is set on the side of the recoverable
+error.
+
+### Read state on the way in
+
+The photographs know what is on the bookcase. They do not know what has been
+read, and for this library that is the larger fact.
+
+Three sources, in order of authority:
+
+1. **The log, via `known`.** A confirmed row's read state is already right and is
+   not touched. This covers everything recorded since the reading list began.
+2. **A `read` column in the file, if the extraction produced one.** Parsed as a
+   boolean into `read_decision`.
+3. **The batch default.** One switch at the top of the review: *these are books I
+   have already read* / *these are new*. It sets `read_default` on the batch, and
+   any `new` row with no `read_decision` of its own takes it.
+
+Applying a `new` row with a read state of true sets `read_override = true` on the
+library entry — not a fabricated log row. There is no reading to record: no year,
+no dates, no position. Inventing one would put hundreds of books into years they
+were not read in and break every count on the site, to express something the
+override expresses exactly.
+
+Given the stated shape of this library — mostly read, mostly predating the log —
+the default for the first import is almost certainly *already read*, and the
+switch is at the top of the page rather than buried, because getting it wrong
+in either direction is several hundred rows wrong.
 
 ## Applying
 
-The review screen is a table of rows, grouped by verdict, with the default
-decisions pre-selected. Ambiguous rows are pinned to the top because they are the
-only ones that require attention; the other several hundred are correct and want
-one press between them.
+The review screen is a table grouped by verdict, with defaults pre-selected.
+Ambiguous rows are pinned to the top because they are the only ones that require
+attention; the other several hundred want one press between them.
 
 `rl_apply_import(p_batch uuid)` does the work in one transaction:
 
 1. Refuses unless the batch is in `review` and the caller may write.
-2. For each row decided `add`: insert into `rl_library`, taking `library_id`
-   back onto the import row.
-3. For each row decided `link` (and each `add` whose verdict was `in_log`):
-   set `rl_books.library_id` on every matching log row.
-4. `skip` writes nothing but keeps the row, so the batch remains a full account
-   of what the file said and what was done about it.
+2. `add` → insert into `rl_library`, taking `library_id` back onto the import
+   row, and set `read_override` where the row's read state says true.
+3. `confirm` → set `ownership = 'owned'` and `source_photo` on the matched
+   entry. Nothing else.
+4. `skip` → writes nothing, but the row is kept, so the batch stays a full
+   account of what the file said and what was done about it.
 5. Marks the batch `applied` and records `rows_accepted`.
 
-One statement, because a partially applied import is the state with no good
-next action. If the unique index refuses a row — the TypeScript fold and the SQL
-fold disagreeing, which is the one way this happens — the whole apply rolls back
-and the review says which row and why. That is the drift detector working, and
-it is better than an import that silently dropped one book.
+One statement, because a partially applied import is the state with no good next
+action. If the unique index refuses a row — the two folds disagreeing, which is
+the one way that happens — the whole apply rolls back and the review says which
+row and why. That is the drift detector working, and it is better than an import
+that silently dropped a book.
 
 An applied batch is not deletable from the UI. It is how you find out where a
 strange row came from.
 
 ## Filling the library in
 
-Eight hundred rows carrying a title and an author is a list, not a library.
-Covers, page counts, publishers, years and genre are what make it searchable and
-browsable, and `reading.enrich` already does exactly this job for `rl_books`.
+Several hundred rows carrying a title and an author is a list, not a library.
+Covers, page counts, publishers, years and genre are what make it browsable, and
+`reading.enrich` already does exactly this job for `rl_books`.
 
 **Point it at `rl_library` rather than writing a second one.** The item ref
 becomes `{ library_id }` or `{ book_id }` and the runner branches on which
-arrived; the prompt, the OpenLibrary candidate fetch, the validator, the
-proposal ledger, the budget envelope, the tick loop and the review screen are
-untouched. One feature key, one prompt version history, one place where the
-cost of enriching a book is recorded.
+arrived; the prompt, the OpenLibrary candidate fetch, the validator, the proposal
+ledger, the budget envelope, the tick loop and the review screen are untouched.
+One feature key, one prompt version history, one place where the cost is
+recorded.
 
-Two things do change, and both are about a spine being less than a book:
+Two things change, and both are about a spine being less than a book:
 
 **The candidate set is wider.** A log row usually carries a publisher and a page
 count to disambiguate with; an imported row often has title and author and
-nothing else. So "none of these is the book" is a much more common correct
-answer here, and the prompt already says so in those words. Rows that come back
-unmatched stay thin and are listed on the library page as such — a book with no
-cover is a book somebody can fix in ten seconds, and a wrong cover is one nobody
-will ever notice.
+nothing else. "None of these is the book" is therefore a much more common correct
+answer, and the prompt already says so in those words. Rows that come back
+unmatched stay thin and are listed as such — a book with no cover is fixable in
+ten seconds, and a wrong cover is one nobody will ever notice.
 
 **The free half runs first, and often finishes.** Where the import supplied an
-ISBN, OpenLibrary answers exactly and no model call is needed at all. Where
-title and author return a single candidate whose title and author both match
-under `looselyEqual`, the same is true. The model is paid for only when there is
-a choice to make or a genre to place — which is the cheapest-first rule the
-cigar lookup already argues for, applied to a batch instead of a button.
+ISBN, OpenLibrary answers exactly and no model call is needed. Where title and
+author return a single candidate matching under `looselyEqual`, the same is true.
+The model is paid for only when there is a choice to make or a genre to place —
+the cheapest-first rule the cigar lookup argues for, applied to a batch instead
+of a button.
 
-**What it costs.** Roughly 700 prompt tokens and 120 completion tokens per book
-that reaches the model, at the seeded $0.30/$1.20 per million — about $0.00035 a
-book, so a full library of 800 lands near **$0.28** and comfortably inside the
-$5 monthly default. These are estimates; the ledger replaces them with
-measurements, which is the point of it.
+**What it costs.** Roughly 700 prompt tokens and 120 completion per book that
+reaches the model, at the seeded $0.30/$1.20 per million — about $0.00035 a book,
+so a library of 800 lands near **$0.28**, inside the $5 monthly default. These
+are estimates; the ledger replaces them with measurements, which is the point of
+it.
 
 **What leaves the machine.** `reading.enrich` is registered `sends_records`, so
-the project must have consented, and what is actually sent is title, author,
-publisher, existing genre and tags, plus up to three OpenLibrary candidates.
-Notes, dates, ratings and the reading history are not in `EnrichContext` and must
-not be added to it when the library joins — someone's private note about a book
-is not needed to decide which edition it is.
+the project must have consented, and what is sent is title, author, publisher,
+existing genre and tags, plus up to three OpenLibrary candidates. Notes, dates,
+read state and the reading history are not in `EnrichContext` and must not be
+added when the library joins — a private note about a book is not needed to
+decide which edition it is.
 
 ## Searching, and the one press that matters
 
-Four surfaces, and the important thing about the first three is that they cost
+Four surfaces. The important thing about the first three is that they cost
 nothing.
 
-**1. The library page — `/reading/:workspace/library`.** Filter box over the
-loaded set, the same client-side matcher pattern as `CigarFilter`, with facets
-for unread / read, format, genre, author and status. A cover-wall toggle,
-because covers are being fetched anyway and a wall of them is how a person
-actually browses their own shelves. Promote the matcher to a Postgres `ilike`
-when the library passes about a thousand rows; it lives in a module both sides
-import specifically so that day is a change of caller.
+**1. The library page — `/reading/:workspace/library`.** Read/unread is the
+primary control, not a facet buried in a panel: three segments across the top —
+**unread**, **read**, **all** — with `ownership`, format, genre and author as
+secondary filters underneath and a filter box over the loaded set, the same
+client-side matcher pattern as `CigarFilter`. Default view: owned and unread,
+because that is the question a mostly-read library exists to answer.
 
-**2. The picker on the add-book form.** Type three letters at
-`/reading/:workspace/book/new` and your own library filters underneath. Pressing
-one prefills every field from the library row and sets `library_id`. This is the
-thing that was asked for — *available in the database for me to search quickly
-to add a new book to my reading list* — and it must never touch a model, never
-hit the network, and never cost a penny. A book already owned should reach the
-reading list faster than it could be typed.
+A cover-wall toggle, because covers are being fetched anyway and a wall of them
+is how a person actually browses their own shelves — and because a missing cover
+is the visible signal that enrichment failed on that row.
 
-Books already read carry a badge saying when, so a re-read is a deliberate
+Bulk *mark as read* / *clear override* on a selection, since the pre-log reading
+will be corrected in runs rather than one at a time. Promote the matcher to a
+Postgres `ilike` when the library passes about a thousand rows; it lives in a
+module both sides import specifically so that day is a change of caller.
+
+**2. The picker, which is now the only way onto a year.** Under the invariant,
+`/reading/:workspace/book/new` cannot mint a reading out of nothing. It opens on
+a search of the library: type three letters, see your own books, press one, and
+the reading is created against that entry with the particulars copied across. A
+book already read carries a badge saying when, so a re-read is a deliberate
 choice rather than a surprise.
 
+If nothing matches, the same page creates the library entry — by lookup or by
+hand — and puts it on the year in the same action. One form, two rows, and no
+path that produces a reading without a book. This must never touch a model,
+never hit the network for the library half, and never cost a penny: a book
+already owned should reach the reading list faster than it could be typed.
+
 **3. `Add to 2026`, from the library page.** The reverse direction: one press
-creates the log row in the current or planning year at the next free position,
-with `coming_up` ticked, fields copied across and `library_id` set. Building next
-year's plan becomes picking from your own shelves, which is what the planning
-year has wanted since it was built.
+creates the reading in the current or planning year at the next free position,
+`coming_up` ticked, `library_id` set. Building next year's plan becomes picking
+from your own unread shelf, which is what the planning year has wanted since it
+was built. Putting an entry with `ownership = 'none'` on a plan offers to mark
+it `wanted` — which is the whole of a books wishlist, arrived at by the route
+somebody actually takes.
 
-And the inverse for the books that predate all this: a log row with no
-`library_id` gets an *I own this* button that mints the library row from it.
-That is how the library keeps filling in between imports, at no cost.
+**4. Ask the archive.** `library` joins `SOURCES` in `lib/ai/search.ts`:
 
-**4. Ask the archive.** `library` joins `SOURCES` in `lib/ai/search.ts`, which
-makes "which unread science fiction do I own" a plan the model can write:
+    library — Every book, read or not, owned or not.
+      title, author, series, genre, publisher_normalised
+      pages, year_published
+      read boolean          — true when it has been read
+      reading boolean       — true while it is being read now
+      times_read number     — how many times it has been finished
+      last_read_on date     — when it was last finished
+      ownership enum(owned|wanted|released|none)
+      format, isbn, notes, added_at
 
-    library — Books you own, on the shelf or wanted.
-      title, author, genre, publisher_normalised, pages, year_published
-      format, status enum(shelf|wishlist|released)
-      isbn, notes, added_at date
+`read` being a real column rather than a join is what makes "which unread
+science fiction do I own" a plan the model can write — one filter on `read`, one
+on `ownership`, one `contains` on genre. It was the single most likely question
+to be asked of this table and it is why the column is maintained rather than
+derived at query time.
 
-The unread question needs one thing the vocabulary cannot express, because it is
-a join rather than a column: `read boolean` — true when any log row points at
-this library row. A generated view column, computed in the database, described
-to the model as an ordinary boolean. It is the single most likely question to be
-asked of this table and it is worth one view to be able to answer it.
-
-No row is sent to the model by `platform.search` and that does not change here.
+No row is sent to the model by `platform.search`, and that does not change here.
 
 ## Buying a book: the lookup
 
-The remaining ask is the MiniMax path for a book that is not in the library
-because it was bought five minutes ago. The Cigar Lounge's reference desk is the
-model, and most of it ports directly.
+The MiniMax path, for a book that is not in the library because it was bought
+five minutes ago. The Cigar Lounge's reference desk is the model and most of it
+ports directly.
 
 Four stages, cheapest first, stopping at the first that answers:
 
-**Stage 0 — your own records.** Free. Filters the loaded library and reading
-list. This is also the *buy-guard*: standing in a bookshop, the first thing the
-page tells you is whether you already own it. On the stated problem — a shelf
-with duplicates on it — this is the highest-value screen in the document and the
-cheapest to build.
+**Stage 0 — your own library.** Free. Filters the loaded set. This is also the
+*buy-guard*: standing in a bookshop, the first thing the page tells you is
+whether you already own it, and whether you have read it. On the stated problem
+— a shelf with duplicates on it and a memory that cannot hold eight hundred
+titles — this is the highest-value screen in the document and the cheapest to
+build.
 
 **Stage 1 — the shared reference cache.** One select against a new
 `rl_book_reference`, keyed on the canonical title + author fold. Global, not
 workspace-scoped, insert-only, no update or delete, every row carrying who asked
-for it — the `cl_cigar_reference` rules verbatim, and for the same reason: what
-a book is, is a fact about the world, so the second person to look one up pays
+for it — the `cl_cigar_reference` rules verbatim, and for the same reason: what a
+book is, is a fact about the world, so the second person to look one up pays
 nothing.
 
 **Stage 2 — OpenLibrary, then Google Books.** Free, already built, already
@@ -478,9 +678,9 @@ tuned. `fillFromLookup()` in `book-lookup.ts` does this today and keeps doing it
 
 **Stage 3 — one call to M3.** Only on a genuine miss, only on a button press
 that says what it does, never on a keystroke. `requireWrite` plus a per-workspace
-daily cap of 50, which is far above ordinary use and far below anything alarming
-— the cap is what makes the looser-than-owner-only gate defensible. Registered
-as `reading.lookup`, `class: 'single'`, so it is metered like everything else.
+daily cap of 50 — far above ordinary use and far below anything alarming, and
+the cap is what makes the looser-than-owner-only gate defensible. Registered as
+`reading.lookup`, `class: 'single'`, metered like everything else.
 
 ### The model's answer is a better query, not a better record
 
@@ -491,29 +691,28 @@ free catalogue and a book's are.
 So the model is asked to *identify*: given "the new Rachel Cusk one" or a title
 mangled by a phone keyboard, return the canonical title, the author, the series
 and volume if any, and the approximate first-publication year — plus up to two
-alternates as bare titles. The app then re-queries OpenLibrary with that, and
+alternates as bare titles. The app then re-queries OpenLibrary with that and
 takes the facts from the catalogue.
 
-What follows from that:
+What follows:
 
-**It is never asked for an ISBN, and must not supply one.** M3 will produce a
+**It is never asked for an ISBN and must not supply one.** M3 will produce a
 well-formed, checksum-valid, entirely fictional ISBN with no signal that it did.
-That number would then be written into a field that looks authoritative, used to
+That number would be written into a field that looks authoritative, used to
 search a catalogue, and possibly typed into a shop. There is no column for one to
-land in from this path — the ISBN on a library row comes from OpenLibrary or from
-a barcode, never from a completion.
+land in from this path — an ISBN comes from OpenLibrary or from a barcode, never
+from a completion.
 
 **It is never asked for ratings, review scores, sales figures, prizes or
-attributed opinion**, in those words and with the reason attached, for exactly
-the argument that dropped the Cigar Aficionado score: a fabricated citation to a
-real publication is the worst output this app could produce.
+attributed opinion**, in those words and with the reason attached, for the
+argument that dropped the Cigar Aficionado score: a fabricated citation to a real
+publication is the worst output this app could produce.
 
-**Page counts and publishers are catalogue facts.** If OpenLibrary and Google
-Books both miss entirely, the model's title and author are kept — that is its
-job — and every other field stays blank rather than being invented. A blank is
-correct and fixable; a plausible wrong number is neither.
+**Page counts and publishers are catalogue facts.** If both catalogues miss
+entirely, the model's title and author are kept — that is its job — and every
+other field stays blank rather than being invented.
 
-**Null is a correct answer and the prompt says so.** Same as the cigar lookup.
+**Null is a correct answer and the prompt says so.**
 
 Reply shape:
 
@@ -535,89 +734,99 @@ twentieth of a penny, and most lookups never reach it.
 ### Where it lands
 
 `/reading/:workspace/lookup` is the reference page, and a result becomes a URL
-(`?reference=<id>`) rather than being handed across in a query string — the
-shape the cigar desk arrived at when it was built, because it makes the page
-shareable and the prefill server-side. From a result: *add to library*, *add to
-wishlist*, or *add to library and to this year*.
+(`?reference=<id>`) rather than being handed across in a query string — the shape
+the cigar desk arrived at, because it makes the page shareable and the prefill
+server-side. From a result: *add to library*, *add to the wishlist*, or *add to
+library and to this year*.
 
-The same panel appears on the add-book form, where it fills blanks only and
-never overwrites something typed.
+The same panel appears on the add path, where it fills blanks only and never
+overwrites something typed.
 
 ## Ongoing management
 
 What the year after the import looks like.
 
-**A book is bought.** Lookup → library. If it is going to be read next, one more
-press puts it on the year as `coming_up`. Where the phone supports
-`BarcodeDetector` — Chrome and Android do — pointing the camera at the barcode
-resolves the ISBN and goes straight to OpenLibrary, which is exact, instant and
-free. That path should be built before the model path is leaned on, because it
-makes it rare.
+**A book is bought.** Lookup → library entry, `ownership = 'owned'`, `read`
+false. If it is going to be read next, one more press puts it on the year as
+`coming_up`. Where the phone supports `BarcodeDetector` — Chrome and Android do
+— pointing the camera at the barcode resolves the ISBN and goes straight to
+OpenLibrary, which is exact, instant and free. That path should be built before
+the model path is leaned on, because it makes it rare.
 
-**A book is wanted.** `status: wishlist`. The wishlist is a filter on the library
-page, not a fourth table, and getting one off it is a single update — which is
-what the Cigar Lounge's wishlist concluded after building it.
+**A book is finished.** Set the finish date on the reading, as now. The trigger
+does the rest: `times_read` goes up, `last_read_on` is set, `read` becomes true
+and the entry leaves the unread shelf. Nothing else to do and nothing to
+remember — which is the whole of the second ask.
 
-**A book leaves.** `status: released`, never a delete. Keeps the reading history
-joined, keeps next year's import from rediscovering it, and keeps *what I used
-to own* answerable.
+**A book was read years ago and never logged.** The override, from the entry or
+in bulk from the library page.
 
-**More shelves are photographed.** A second batch. The great majority of it
-comes back `on_shelf` and is skipped in one press; the interesting rows are the
-handful of new ones and the ambiguities. This is the case the whole staging
-design is shaped around — the import is not a one-off migration, it is the way
-the library is maintained.
+**A book is wanted.** `ownership = 'wanted'`. The wishlist is a filter on the
+library page, not a fifth table — which is what the Cigar Lounge's wishlist
+concluded after building it.
 
-**Something is wrong.** The library row has an edit page like everything else on
-the site. Two rows that turn out to be one get a *merge* action: repoint every
-`rl_books.library_id`, keep the older row's `added_at`, take the fuller value
-field by field with the survivor winning ties, and delete the loser. The unique
-index means this can only ever be a manual correction of a near-match, not a
-bulk cleanup.
+**A book leaves.** `ownership = 'released'`, never a delete. `on delete restrict`
+enforces it for anything that has been read, and it is the right answer anyway:
+it keeps the reading history joined, keeps next year's import from rediscovering
+the book as new, and keeps *what did I used to own* answerable.
+
+**More shelves are photographed.** A second batch, mostly `known`, confirmed in
+one press; the interesting rows are the handful of new ones and the ambiguities.
+This is the case the whole staging design is shaped around — the import is not a
+one-off migration, it is how the library is maintained.
+
+**Something is wrong.** The library entry has an edit page like everything else
+on the site, and editing the title or author re-folds the key and re-mirrors the
+log. Two entries that turn out to be one get a *merge*: repoint every
+`rl_books.library_id`, keep the older `added_at`, take the fuller value field by
+field with the survivor winning ties, sum the read state, delete the loser. The
+unique index means this can only ever be a manual correction of a near-match,
+never a bulk cleanup.
 
 ## Enhancements worth having
 
 Ranked by what they give back for what they cost. The first four are effectively
-free, because they are queries against a join that will already exist.
+free, because they are queries against columns that will already exist.
 
-**1. The unread shelf.** `status = 'shelf' and not read`, sorted by when it was
-acquired. This is the answer to the question that started the project and it is
-one view. Everything else on this list is a variation of it.
+**1. The unread shelf.** `ownership = 'owned' and not read`, newest acquisition
+first. This is the answer to the question that started the project, and after the
+read trigger it is one index scan.
 
-**2. The buy-guard.** Stage 0 of the lookup, on a phone, in a shop. Free, and it
-is the feature that stops the duplicates coming back.
+**2. The buy-guard.** Stage 0 of the lookup, on a phone, in a shop, answering
+*own it?* and *read it?* in one screen. Free, and it is the feature that stops
+the duplicates coming back.
 
 **3. Shelf roulette.** Pick me something — random from the unread shelf, filtered
-by mood: under 300 pages, fiction, something I have owned longest, an author I
-have read before and liked. A tiny surface with a disproportionate effect on
-whether the unread shelf gets read.
+by mood: under 300 pages, fiction, owned longest, an author I have read before.
+A tiny surface with a disproportionate effect on whether the unread shelf gets
+read.
 
-**4. The numbers.** How much of the library is unread, as a proportion and a
-page count; the ten longest-owned unread books; authors of whom you own more
-than one and have read none; how the year's reading split between books already
-owned and books bought to read. Direct extensions of `statsFor`.
+**4. The numbers.** What proportion of the library is unread, in books and in
+pages; the ten longest-owned unread books; authors of whom you own more than one
+and have read none; how each year's reading split between books already owned
+and books bought to read. Direct extensions of `statsFor`, and only possible once
+read state is a column.
 
 **5. Plan next year from the library.** The planning year already exists and
 already counts differently from a live one. Let a plan be assembled by picking
 from the unread shelf against the year's target, showing the running page count
 against the pace `yearProgress` computes.
 
-**6. Duplicate radar, continuous.** The import's ambiguity check, run as a
-background query over the library rather than over a batch, surfacing near-twins
-whenever they appear. Cheap insurance against the problem returning by a route
-the import never sees.
+**6. Duplicate radar, continuous.** The import's ambiguity check run over the
+library rather than over a batch, surfacing near-twins whenever they appear.
+Cheap insurance against the problem returning by a route the import never sees —
+and it is the same query the backfill needs at step 6, so it gets written anyway.
 
-**7. Export.** The library as CSV, from the app, on one button. There is a
-`backups/` directory in this repo and this data was expensive to capture.
+**7. Re-read prompts.** `last_read_on` older than some number of years, on a book
+still owned and rated well. The one recommendation this app can make that needs
+no external data and cannot be wrong about anything.
 
-**8. The cover wall.** Sounds cosmetic, is not: eight hundred covers is the only
-view of a library a person can actually scan, and it makes a missing cover
-visible, which is the signal that enrichment failed on that row.
+**8. Export.** The library as CSV, on one button. There is a `backups/`
+directory in this repo and this data was expensive to capture.
 
-**9. Lending.** Deliberately near the bottom. One nullable `lent_to` and a date
-is genuinely useful and is also the first step onto the road this project has
-already said it is not taking. If it happens, it happens as two columns and no
-screens.
+**9. Lending.** Deliberately last. One nullable `lent_to` and a date is genuinely
+useful and is also the first step onto the road this project has said it is not
+taking. If it happens, it happens as two columns and no screens.
 
 ## What this deliberately is not
 
@@ -628,62 +837,69 @@ screens.
 - **Not a valuation, an insurance schedule, or a catalogue for anybody else.**
 - **Not a Goodreads or StoryGraph sync.** An import format that accepts a CSV
   will accept theirs, which is the whole of the integration worth having.
+- **Not a fabricated reading history.** A book marked read without a reading gets
+  an override, never an invented log row in a year it was not read in.
 - **Not an automatic re-shelving audit.** Diffing this year's photographs against
-  last year's to find books that have gone missing was considered and is
-  deferred: it needs the photographs to be comparable in a way nothing here
-  guarantees, and it answers a question about the shelves rather than about the
-  reading.
+  last year's to find books gone missing was considered and deferred: it needs
+  the photographs to be comparable in a way nothing here guarantees, and it
+  answers a question about the shelves rather than about the reading.
 
 ## Order of work
 
-Each step is useful on its own, and the first three deliver the stated ask
-without any model being involved at all.
+Each step is useful on its own, and the first two deliver the read/unread ask
+for everything already recorded without a model being involved at all.
 
-1. **Schema and the rename.** `rl_library`, the import tables, `library_id`, the
-   `work_key` trigger and its fixture. Retire "the shelf" as a word for
-   `rl_books`. Nothing user-facing; everything below rests on it.
-2. **Import and review.** `/reading/:workspace/import`, the parser, the verdicts,
-   `rl_apply_import`. At the end of this step the library exists and is joined to
-   the reading history. **This is the milestone that matters** — everything after
-   it is making the data easier to use.
-3. **The library page and the picker.** Filter box, facets, cover wall, the
-   one-press add in both directions. Free, and it is what the project was for.
-4. **Enrichment.** Point `reading.enrich` at library rows; run it over the
+1. **Schema, read state, and the rename.** `rl_library`, the import tables, the
+   `work_key` trigger, the read-state trigger, the title/author mirror,
+   `library_id` nullable. Retire "the shelf" as a word for `rl_books`.
+2. **The backfill and the invariant.** Mint entries from the existing log, link,
+   let the read trigger fill in, review the duplicate radar by hand, then
+   `set not null`. **At the end of this step the library exists, every book ever
+   read is in it, and read/unread is a column** — which is most of what was asked
+   for, from data already in the database.
+3. **Import and review.** The parser, the verdicts, the read-state defaults,
+   `rl_apply_import`. This is where the unread half of the library arrives.
+4. **The library page and the picker.** Read/unread segments, filters, the cover
+   wall, the bulk override, and the one-press add in both directions. Free, and
+   it is what the project was for.
+5. **Enrichment.** Point `reading.enrich` at library rows; run it over the
    import; review the proposals on the page that already exists.
-5. **The lookup.** `rl_book_reference`, `reading.lookup`, the four stages, the
+6. **The lookup.** `rl_book_reference`, `reading.lookup`, the four stages, the
    reference page and the panel. Barcode scanning first, because it makes stage 3
    rare.
-6. **Ask the archive.** `library` in `SOURCES`, with the `read` boolean.
-7. **The enhancements**, in the order above, as appetite allows.
+7. **Ask the archive.** `library` in `SOURCES`, with `read` and `ownership`.
+8. **The enhancements**, in the order above, as appetite allows.
 
 ## Files
 
 | | |
 |---|---|
-| `supabase/migrations/…_reading_library.sql` | `rl_library`, `rl_books.library_id`, the `work_key` trigger, RLS |
+| `supabase/migrations/…_reading_library.sql` | `rl_library`, `rl_books.library_id`, the `work_key` and read-state triggers, the title/author mirror, RLS |
+| `supabase/migrations/…_reading_backfill.sql` | mint from the log, link, then `set not null` |
 | `supabase/migrations/…_reading_import.sql` | the two import tables and `rl_apply_import()` |
 | `supabase/migrations/…_reading_lookup.sql` | `rl_book_reference`, the daily cap, `reading.lookup` registered |
-| `supabase/migrations/…_reading_library_search.sql` | the view carrying `read`, for the archive |
 | `src/lib/library.ts` | new — the fold, the key, the matcher both sides import |
 | `src/lib/library-import.ts` | new — parse, map headers, judge, verdicts |
 | `src/lib/book-reference.ts` | new — the lookup prompt, parser and cache key |
 | `src/lib/title-match.ts` | the author fold and the reversed-name rule |
-| `src/lib/reading-list.ts` | `LibraryEntry`, loaders, the unread and stats views |
+| `src/lib/reading-list.ts` | `LibraryEntry`, loaders, the unread and read-state views |
 | `src/lib/records/library.ts` | new — the form parser, beside `records/book.ts` |
+| `src/lib/records/book.ts` | `library_id` required; title and author no longer read from the form |
 | `src/lib/ai/enrich.ts` | the item ref gains a target; one branch in the runner |
 | `src/lib/ai/features.ts` | `reading.lookup` |
-| `src/lib/ai/search.ts` | the `library` source |
+| `src/lib/ai/search.ts` | the `library` source, with `read` and `ownership` |
 | `src/pages/reading/[workspace]/import.astro` | upload and review |
-| `src/pages/reading/[workspace]/library.astro` | the library, its filters and the wall |
+| `src/pages/reading/[workspace]/library.astro` | the library, its segments and the wall |
+| `src/pages/reading/[workspace]/library/[entry].astro` | one entry, edit, override and merge |
 | `src/pages/reading/[workspace]/lookup.astro` | the reference page |
-| `src/pages/reading/[workspace]/library/[entry].astro` | one entry, edit and merge |
 | `src/pages/api/reading/[workspace]/import.ts` | parse and stage |
 | `src/pages/api/reading/[workspace]/apply-import.ts` | the RPC call and its gate |
 | `src/pages/api/reading/[workspace]/lookup.ts` | the four stages, the gate, the cap |
-| `src/components/rl/LibraryCard.astro`, `LibraryFilter.astro`, `LibraryPicker.astro`, `ImportRow.astro` | new |
-| `src/pages/reading/[workspace]/book/new.astro` | the picker, and `library_id` on insert |
+| `src/components/rl/LibraryCard.astro`, `LibraryFilter.astro`, `LibraryPicker.astro`, `ReadToggle.astro`, `ImportRow.astro` | new |
+| `src/pages/reading/[workspace]/book/new.astro` | the picker as the way in, and `library_id` on insert |
+| `src/components/rl/BookFields.astro` | title and author shown, not edited |
 | `src/layouts/RlLayout.astro` | Library and Import in the nav |
-| `src/styles/reading-list.css` | the wall, the review table, the picker |
+| `src/styles/reading-list.css` | the wall, the segments, the review table, the picker |
 | `src/lib/database.types.ts` | the new tables, by hand, then regenerated |
 | `README.md`, `supabase/README.md` | a section each, in the shape of the cigar ones |
 
@@ -693,21 +909,24 @@ without any model being involved at all.
   a file nobody has made yet. The first real export should be read before the
   parser is finished, and the aliases adjusted to it — one round of that is worth
   more than any amount of speculative flexibility.
+- **Whether the first import's read default should be *read*.** Almost certainly
+  yes, given the majority. It is a switch either way, and the reason it is
+  called out is that it is the single decision on that page that affects several
+  hundred rows.
+- **What to do about books read before the log and never photographed.** They are
+  in neither source and will simply be absent. There is no clever answer; the
+  library grows one override at a time as they come to mind, and the search box
+  is where somebody will notice.
 - **Whether ambiguity should ever be resolved by a model.** A batch of forty
-  near-twins is forty small judgements, and the enrich feature already shows that
-  a model with the right context is decent at *this is not the same book*. It is
-  deliberately not in this plan: the free rules produce a small enough pile that
+  near-twins is forty small judgements, and `reading.enrich` already shows a
+  model with the right context is decent at *this is not the same book*.
+  Deliberately not in this plan: the free rules produce a small enough pile that
   a person can do it once, and a wrong automatic merge is the expensive error.
   Revisit if the pile turns out to be large.
-- **Whether the reading list should stop copying fields.** The copy-not-join rule
-  is argued above and is right for history. It does mean a typo fixed on the
-  library row does not fix the log row, and at some point somebody will want a
-  *propagate this correction* button. That is a button, not a schema change, and
-  it can wait until it is asked for.
-- **Where the audiobooks live.** They are owned, they are not on the bookcase,
-  and no photograph will find them. The format column allows them; the import
-  will not produce them. Probably a second import from wherever they are listed,
-  which is the same parser and no new thinking.
-- **Whether `released` should be visible by default.** It is honest and it is
-  clutter. Currently: filtered out unless asked for, which is what the Cigar
-  Lounge does with smoked entries on the humidor page.
+- **Where the audiobooks live.** They are read, they are arguably owned, and no
+  photograph will find them. The format column allows them; the import will not
+  produce them. Probably a second import from wherever they are listed, which is
+  the same parser and no new thinking.
+- **Whether `released` should be visible by default.** Honest, and clutter.
+  Currently: filtered out unless asked for, which is what the Cigar Lounge does
+  with smoked entries on the humidor page.

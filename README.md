@@ -34,7 +34,7 @@ several people can share a project.
 | ✅ | Cedarhouse — the cigar lounge off Oxblood Foil and onto the shared paper tokens, with an editorial log page, facet chips and specimen plates |
 | ✅ | Blackletter — the word game, at five, six and seven letters. Schema, dictionary and workspace are live on the project |
 | ✅ | Cedarhouse's wishlist — a third cigar status, added straight from a lookup and moved off in one press. Migration applied 2026-08-17 |
-| ⬜ | The library — the bookcase captured from photographs, deduplicated on the way in, and one press from the reading list. Specified in `docs/reading-library-plan.md`; nothing built |
+| ⬜ | The library — every book in one registry, read state derived from the reading list, the bookcase captured from photographs and deduplicated on the way in. Specified in `docs/reading-library-plan.md`; nothing built |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.
 Its nav is whatever the visitor is a member of: signed out it offers one thing,
