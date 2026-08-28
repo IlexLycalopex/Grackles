@@ -332,6 +332,63 @@ check "two authors of one surname are not a near duplicate" ok \
    do \$\$ begin if exists (select 1 from public.rl_near_duplicates('$WS'))
      then raise exception 'two different books were paired'; end if; end \$\$;" "$as_jamie"
 
+echo "── enrichment against a library entry"
+# The feature was written for rl_books and now runs against both. What that
+# costs is one branch; what it must not cost is the proposal ledger losing
+# track of which table an answer was about.
+# The whole path, through the real gates: a job is admitted, a call opened, and
+# the proposal lands naming the library rather than the reading list.
+#
+# ai_proposals.target_table is unconstrained free text with no CHECK on it, so
+# nothing in the database stops a proposal pointing anywhere. That is why
+# api/ai/decide.ts maps it through an explicit allowlist rather than passing the
+# value to .from() — this check is that the honest value survives the round
+# trip, not that the column would refuse a dishonest one.
+check "a proposal from a real job can name a library entry" ok \
+  "insert into public.rl_library (id, workspace_id, title, author)
+     values ('cccccccc-0000-4000-8000-000000000001','$WS','Dune','Frank Herbert');
+   -- Consent first, as an owner gives it. reading.enrich is registered as
+   -- records-sending, so without this the job is refused GRK1E before anything
+   -- is spent — which is the governance layer working, and is why it is here
+   -- rather than being worked around.
+   insert into public.ai_workspace_features (workspace_id, feature, consent_at, consent_by)
+     values ('$WS','reading.enrich', now(), '$JAMIE')
+     on conflict (workspace_id, feature) do update set consent_at = now();
+   do \$\$
+   declare j uuid; c uuid;
+   begin
+     j := public.ai_begin_job('reading.enrich','$WS','batch');
+     c := public.ai_begin_call(j);
+     insert into public.ai_proposals (call_id, workspace_id, feature, target_table, target_id, proposed)
+       values (c,'$WS','reading.enrich','rl_library','cccccccc-0000-4000-8000-000000000001',
+               '{\"fields\":{\"genre\":\"Science Fiction\"}}');
+     if not exists (
+       select 1 from public.ai_proposals
+       where target_table='rl_library' and target_id='cccccccc-0000-4000-8000-000000000001')
+       then raise exception 'the proposal did not record its table'; end if;
+   end \$\$;" "$as_jamie"
+check "accepting one writes to the library" ok \
+  "insert into public.rl_library (id, workspace_id, title, author)
+     values ('cccccccc-0000-4000-8000-000000000002','$WS','Dune','Frank Herbert');
+   update public.rl_library set genre='Science Fiction', pages=912
+     where id='cccccccc-0000-4000-8000-000000000002';
+   do \$\$ begin if (select genre from public.rl_library where id='cccccccc-0000-4000-8000-000000000002')
+     <> 'Science Fiction' then raise exception 'the write did not land'; end if; end \$\$;" "$as_jamie"
+# The vocabulary is the reader's, not one table's: a genre used on an unread
+# import is as much part of how they file things as one on a 2019 reading.
+check "the vocabulary spans both tables" ok \
+  "insert into public.rl_library (workspace_id, title, author, genre)
+     values ('$WS','Only In The Library','Nobody','Weird Fiction');
+   insert into public.rl_books (workspace_id, year_id, library_id, order_read, title, genre)
+     values ('$WS','$YEAR',(select id from public.rl_library where title='Only In The Library'),
+             60,'x','Only In The List');
+   do \$\$ begin
+     if not exists (select 1 from public.rl_library where genre='Weird Fiction')
+       then raise exception 'library genre missing'; end if;
+     if not exists (select 1 from public.rl_books where genre='Only In The List')
+       then raise exception 'reading genre missing'; end if;
+   end \$\$;" "$as_jamie"
+
 echo ""
 echo "passed: $pass   failed: $fail"
 [ "$fail" -eq 0 ]

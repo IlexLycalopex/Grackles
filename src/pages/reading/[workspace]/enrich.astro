@@ -34,26 +34,31 @@ const years = await loadYears(supabase, workspace.id);
 // enqueued — and a page that promised a different number from what ran would be
 // worse than the duplication.
 const { count: thin } = await supabase
-  .from('rl_books')
+  .from('rl_library')
   .select('id', { count: 'exact', head: true })
   .eq('workspace_id', workspace.id)
   .or('genre.eq.,publisher_normalised.eq.,pages.is.null');
 
 const { data: proposals } = await supabase
   .from('ai_proposals')
-  .select('id, target_id, proposed, created_at')
+  .select('id, target_id, target_table, proposed, created_at')
   .eq('workspace_id', workspace.id)
   .eq('feature', 'reading.enrich')
   .is('outcome', null)
   .order('created_at', { ascending: false })
   .limit(50);
 
-// One query for the titles rather than fifty embedded joins.
-const bookIds = (proposals ?? []).map(p => p.target_id).filter((id): id is string => Boolean(id));
-const { data: books } = bookIds.length
-  ? await supabase.from('rl_books').select('id, title, author').in('id', bookIds)
-  : { data: [] };
-const titleFor = new Map((books ?? []).map(b => [b.id, b]));
+// One query per table rather than fifty embedded joins. Both, because a
+// proposal may be against a book in the library or against one reading of it,
+// and the review reads the same either way.
+const targets = (proposals ?? []).map(p => p.target_id).filter((id): id is string => Boolean(id));
+const [{ data: entries }, { data: books }] = targets.length
+  ? await Promise.all([
+      supabase.from('rl_library').select('id, title, author').in('id', targets),
+      supabase.from('rl_books').select('id, title, author').in('id', targets),
+    ])
+  : [{ data: [] }, { data: [] }];
+const titleFor = new Map([...(entries ?? []), ...(books ?? [])].map(b => [b.id, b]));
 
 // What was decided lately, so the page can say whether this is working without
 // anybody going to look at the ledger.
@@ -139,7 +144,7 @@ const cards: Card[] = (proposals ?? []).map(proposal => {
     <div class="page-header">
       <h1>Fill in the details</h1>
       <p class="subtitle">
-        {thin ?? 0} book{thin === 1 ? '' : 's'} missing a genre, a publisher or a page count.
+        {thin ?? 0} book{thin === 1 ? '' : 's'} in the library missing a genre, a publisher or a page count.
         {total > 0 && ` You have kept ${kept} of the last ${total} suggestions.`}
       </p>
     </div>

@@ -80,21 +80,43 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
       return new Response('Nothing was ticked.', { status: 400 });
     }
 
-    if (proposal.target_table !== 'rl_books' || !proposal.target_id) {
+    // Two tables now, and the allowlist is written out rather than trusted from
+    // the row: target_table decides which table an update is aimed at, and a
+    // value that arrived from anywhere but this app's own enqueue must not be
+    // able to point it somewhere new.
+    const table = proposal.target_table === 'rl_library' ? 'rl_library'
+      : proposal.target_table === 'rl_books' ? 'rl_books'
+      : null;
+
+    if (!table || !proposal.target_id) {
       return new Response('That proposal has nowhere to go.', { status: 400 });
     }
 
     // Asks for the row back and checks it got one, for the same reason every
     // delete in this app does: a write refused by row-level security does not
     // raise, it narrows the statement to zero rows and reports success.
-    const { data: saved, error } = await supabase
-      .from('rl_books')
-      // The fields were built from the proposal, which the validator already
-      // checked field by field. The cast is where that check is trusted, and
-      // it is one line rather than a shape assertion repeated per column.
-      .update(applied as Database['public']['Tables']['rl_books']['Update'])
-      .eq('id', proposal.target_id)
-      .select('id');
+    //
+    // Written as two branches rather than one call against a union of tables.
+    // Every field an enrichment proposes exists on both, so a single call would
+    // work at runtime — but its argument type is the *intersection*, which
+    // requires `never` for every column the two do not share, and the cast that
+    // silences that would also silence a real mistake later. Two lines is the
+    // cheaper honesty.
+    //
+    // The fields were built from the proposal, which the validator already
+    // checked field by field. The cast is where that check is trusted.
+    const { data: saved, error } =
+      table === 'rl_library'
+        ? await supabase
+            .from('rl_library')
+            .update(applied as Database['public']['Tables']['rl_library']['Update'])
+            .eq('id', proposal.target_id)
+            .select('id')
+        : await supabase
+            .from('rl_books')
+            .update(applied as Database['public']['Tables']['rl_books']['Update'])
+            .eq('id', proposal.target_id)
+            .select('id');
 
     if (error) return new Response('That could not be saved.', { status: 500 });
     if (!saved?.length) {

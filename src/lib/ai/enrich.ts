@@ -89,16 +89,27 @@ export async function loadVocabulary(
   supabase: Client,
   workspaceId: string
 ): Promise<{ genres: string[]; publishers: string[]; tags: string[] }> {
-  const { data } = await supabase
-    .from('rl_books')
-    .select('genre, publisher_normalised, tags')
-    .eq('workspace_id', workspaceId);
+  // Both tables, because the vocabulary is the reader's rather than any one
+  // table's: a genre used on a book nobody has read yet is as much a part of
+  // how they file things as one on a book they finished in 2019. Reading only
+  // rl_books would let the model mint "Sci-Fi" beside a library full of
+  // "Science Fiction".
+  const [{ data: books }, { data: entries }] = await Promise.all([
+    supabase
+      .from('rl_books')
+      .select('genre, publisher_normalised, tags')
+      .eq('workspace_id', workspaceId),
+    supabase
+      .from('rl_library')
+      .select('genre, publisher_normalised, tags')
+      .eq('workspace_id', workspaceId),
+  ]);
 
   const genres = new Set<string>();
   const publishers = new Set<string>();
   const tags = new Set<string>();
 
-  for (const row of data ?? []) {
+  for (const row of [...(books ?? []), ...(entries ?? [])]) {
     if (row.genre) genres.add(row.genre);
     if (row.publisher_normalised) publishers.add(row.publisher_normalised);
     for (const tag of row.tags ?? []) tags.add(tag);
@@ -280,21 +291,31 @@ export function mergeProposal(
  * One book: look it up, ask, check, and record what a person would have to
  * agree to.
  *
- * Nothing here writes to rl_books. The proposal is the deliverable, and a human
- * pressing accept is what makes it a change — which is also what turns an
+ * Nothing here writes to either table. The proposal is the deliverable, and a
+ * human pressing accept is what makes it a change — which is also what turns an
  * occasional wrong answer into a nuisance rather than a corrupted record.
  */
+export type EnrichTarget =
+  /** A book in the library — where most enrichment now happens. */
+  | { table: 'rl_library'; id: string }
+  /** A reading. Still enrichable: it keeps its own publisher and page count. */
+  | { table: 'rl_books'; id: string };
+
 export async function enrichOne(
   supabase: Client,
   job: JobHandle,
   workspaceId: string,
-  bookId: string,
+  target: EnrichTarget,
   vocabulary: { genres: string[]; publishers: string[]; tags: string[] }
 ): Promise<{ ok: boolean; callId?: string | null; error?: string }> {
+  // One branch, and it is the whole of what repointing this feature at a second
+  // table costs. The prompt, the candidate fetch, the validator, the proposal
+  // ledger, the budget envelope and the tick loop are all untouched — which is
+  // the dividend of the governance layer not being feature-specific.
   const { data: book } = await supabase
-    .from('rl_books')
+    .from(target.table)
     .select('id, title, author, publisher, genre, tags')
-    .eq('id', bookId)
+    .eq('id', target.id)
     .maybeSingle();
 
   if (!book) return { ok: false, error: 'that book is gone' };
@@ -340,8 +361,8 @@ export async function enrichOne(
     call_id: turn.callId,
     workspace_id: workspaceId,
     feature: 'reading.enrich',
-    target_table: 'rl_books',
-    target_id: bookId,
+    target_table: target.table,
+    target_id: target.id,
     proposed: { fields, why: parsed.value.why ?? '', confidence: parsed.value.confidence ?? '' } as unknown as Json,
   });
 

@@ -38,35 +38,56 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   const body = await request.json().catch(() => null);
   const yearId = body?.year_id ? String(body.year_id) : null;
 
-  // Thin books only: something is missing that this feature can supply. A book
+  /**
+   * What a run covers.
+   *
+   * The library by default, because that is where a thin book now is: an
+   * imported bookcase arrives as several hundred entries carrying a title and
+   * an author and nothing else, and it is the library entry that wants a cover
+   * and a page count, not any one reading of it.
+   *
+   * A year is still askable and still means the readings in that year, which is
+   * the right answer when somebody is looking at a year page.
+   */
+  const target: 'rl_library' | 'rl_books' = yearId ? 'rl_books' : 'rl_library';
+
+  // Thin books only: something is missing that this feature can supply. One
   // already carrying a genre, a publisher and a page count is one somebody has
   // already dealt with, and re-asking about it would be paying to confirm what
   // is in front of us.
-  let query = supabase
-    .from('rl_books')
-    .select('id')
-    .eq('workspace_id', workspace.id)
-    .or('genre.eq.,publisher_normalised.eq.,pages.is.null')
-    .order('order_read')
-    .limit(MOST);
+  const thin = 'genre.eq.,publisher_normalised.eq.,pages.is.null';
 
-  if (yearId) query = query.eq('year_id', yearId);
+  const { data: rows, error: rowsError } = yearId
+    ? await supabase
+        .from('rl_books')
+        .select('id')
+        .eq('workspace_id', workspace.id)
+        .eq('year_id', yearId)
+        .or(thin)
+        .order('order_read')
+        .limit(MOST)
+    : await supabase
+        .from('rl_library')
+        .select('id')
+        .eq('workspace_id', workspace.id)
+        .or(thin)
+        .order('added_at')
+        .limit(MOST);
 
-  const { data: books, error: booksError } = await query;
-  if (booksError) return json({ error: 'Could not read the reading list.' }, 500);
-  if (!books?.length) return json({ error: 'Nothing on this list needs filling in.' }, 400);
+  if (rowsError) return json({ error: 'Could not read the library.' }, 500);
+  if (!rows?.length) return json({ error: 'Nothing here needs filling in.' }, 400);
 
   const opened = await openJob({
     supabase,
     feature: 'reading.enrich',
     workspaceId: workspace.id,
     class: 'batch',
-    maxCalls: books.length + 10,
+    maxCalls: rows.length + 10,
     itemsTotal: 0,
     // The same selection, twice within the hour, is the same run. Somebody
     // double-clicking Start should not open a second batch against the first's
     // envelope.
-    idempotencyKey: `enrich:${yearId ?? 'all'}:${books.length}`,
+    idempotencyKey: `enrich:${target}:${yearId ?? 'all'}:${rows.length}`,
   });
 
   if (!opened.ok) {
@@ -78,12 +99,14 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
 
   const { data: added, error: enqueueError } = await supabase.rpc('ai_enqueue_items', {
     p_job: opened.jobId,
-    p_refs: books.map(b => ({ book_id: b.id })) as unknown as Json,
+    p_refs: rows.map(row =>
+      target === 'rl_library' ? { library_id: row.id } : { book_id: row.id }
+    ) as unknown as Json,
   });
 
   if (enqueueError) {
     return json({ error: 'The run could not be filled.' }, 500);
   }
 
-  return json({ job_id: opened.jobId, items: added ?? books.length });
+  return json({ job_id: opened.jobId, items: added ?? rows.length });
 };

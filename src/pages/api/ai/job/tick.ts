@@ -41,9 +41,18 @@ async function runnerFor(
   if (feature === 'reading.enrich') {
     const vocabulary = await loadVocabulary(supabase, workspaceId);
     return async (job, ref) => {
-      const bookId = (ref as { book_id?: string })?.book_id;
-      if (!bookId) return { ok: false, error: 'no book in this item' };
-      return enrichOne(supabase, job, workspaceId, bookId, vocabulary);
+      // An item names either a book in the library or a reading of one. Both
+      // shapes are accepted rather than one being migrated to the other,
+      // because a job enqueued before this change is still in flight and its
+      // items say `book_id`.
+      const item = ref as { library_id?: string; book_id?: string };
+      const target = item?.library_id
+        ? ({ table: 'rl_library', id: item.library_id } as const)
+        : item?.book_id
+          ? ({ table: 'rl_books', id: item.book_id } as const)
+          : null;
+      if (!target) return { ok: false, error: 'no book in this item' };
+      return enrichOne(supabase, job, workspaceId, target, vocabulary);
     };
   }
   return null;
