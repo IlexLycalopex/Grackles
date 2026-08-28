@@ -389,6 +389,72 @@ check "the vocabulary spans both tables" ok \
        then raise exception 'reading genre missing'; end if;
    end \$\$;" "$as_jamie"
 
+echo "── looking a book up"
+# The cap, in both directions, because the cigar version of this failed in the
+# direction nobody checked. Written as a correlated subquery inside the policy
+# on the table it counts, it is 42P17 — infinite recursion — and the symptom is
+# not a leaky cap but a table that refuses *every* insert, so no lookup could
+# ever be cached. It was asserted to work in three places before anybody ran it.
+check "a lookup can be cached at all" ok \
+  "insert into public.rl_book_reference (key, title, author, workspace_id, looked_up_by)
+     values ('second place|cusk r','Second Place','Rachel Cusk','$WS','$JAMIE');" "$as_jamie"
+# Persisted outside check(), which rolls back — Rob has to be able to see a row
+# that outlives the transaction that made it, which is the whole point of the
+# cache being shared rather than per-project.
+$PSQL -c "insert into public.rl_book_reference (key, title, author, workspace_id, looked_up_by)
+          values ('shared|row','Shared','Someone','$WS','$JAMIE') on conflict do nothing;" >/dev/null
+check "and the cache is readable by anyone signed in" ok \
+  "do \$\$ begin if not exists (select 1 from public.rl_book_reference where key='shared|row')
+     then raise exception 'a signed-in reader cannot see the shared cache'; end if; end \$\$;" "$as_rob"
+check "the cap refuses the fifty-first in a day" 42501 \
+  "insert into public.rl_book_reference (key, title, author, workspace_id, looked_up_by)
+     select 'bulk-' || g, 'Book ' || g, 'Someone', '$WS', '$JAMIE'
+     from generate_series(1, 50) g;
+   insert into public.rl_book_reference (key, title, author, workspace_id, looked_up_by)
+     values ('one too many','Too Many','Someone','$WS','$JAMIE');" "$as_jamie"
+check "yesterday's lookups do not count against today" ok \
+  "insert into public.rl_book_reference (key, title, author, workspace_id, looked_up_by, created_at)
+     select 'old-' || g, 'Book ' || g, 'Someone', '$WS', '$JAMIE', now() - interval '2 days'
+     from generate_series(1, 60) g;
+   insert into public.rl_book_reference (key, title, author, workspace_id, looked_up_by)
+     values ('today is fine','Fine','Someone','$WS','$JAMIE');" "$as_jamie"
+check "a lookup cannot be attributed to somebody else" 42501 \
+  "insert into public.rl_book_reference (key, title, author, workspace_id, looked_up_by)
+     values ('not mine','Not Mine','Someone','$WS','$ROB');" "$as_jamie"
+check "a viewer cannot spend on a project they only read" 42501 \
+  "insert into public.rl_book_reference (key, title, author, workspace_id, looked_up_by)
+     values ('theirs','Theirs','Someone','$WS','$ROB');" "$as_rob"
+# Insert-only is what makes a shared table safe to share.
+# Refused at the grant, not merely filtered by a policy: no UPDATE or DELETE was
+# ever granted on this table, so the answer is a hard 42501 rather than a
+# statement that quietly matches nothing. Stronger than a policy, and the reason
+# a shared cache is safe to share — one member cannot rewrite what another
+# member's lookup found, only add alongside it.
+check "nobody can rewrite what another lookup found" 42501 \
+  "update public.rl_book_reference set title='Rewritten' where key='shared|row';" "$as_jamie"
+check "and nobody can delete one" 42501 \
+  "delete from public.rl_book_reference where key='shared|row';" "$as_jamie"
+# There is no column for a model to put an invented ISBN in, but the columns
+# that do exist are bounded, because a plausible wrong number is the failure.
+check "an impossible year is refused" 23514 \
+  "insert into public.rl_book_reference (key, title, author, year_published, workspace_id, looked_up_by)
+     values ('bad year','Book','Someone', 20210, '$WS','$JAMIE');" "$as_jamie"
+check "an impossible page count is refused" 23514 \
+  "insert into public.rl_book_reference (key, title, author, pages, workspace_id, looked_up_by)
+     values ('bad pages','Book','Someone', 99999, '$WS','$JAMIE');" "$as_jamie"
+check "the same book is cached once" 23505 \
+  "insert into public.rl_book_reference (key, title, author, workspace_id, looked_up_by)
+     values ('same|book','Book','Someone','$WS','$JAMIE');
+   insert into public.rl_book_reference (key, title, author, workspace_id, looked_up_by)
+     values ('same|book','Book','Someone','$WS','$JAMIE');" "$as_jamie"
+check "the feature is registered and needs no consent" ok \
+  "do \$\$ begin
+     if not exists (select 1 from public.ai_features where key='reading.lookup' and enabled)
+       then raise exception 'reading.lookup is not registered'; end if;
+     if (select sends_records from public.ai_features where key='reading.lookup')
+       then raise exception 'a lookup should send nothing stored'; end if;
+   end \$\$;"
+
 echo ""
 echo "passed: $pass   failed: $fail"
 [ "$fail" -eq 0 ]

@@ -365,6 +365,57 @@ export type Database = {
         };
         Relationships: [];
       };
+      rl_book_reference: {
+        Row: {
+          id: string;
+          /** Canonical title + author, derived from the answer not the question. */
+          key: string;
+          query: string;
+          title: string;
+          author: string;
+          series: string;
+          series_index: number | null;
+          year_published: number | null;
+          confidence: string;
+          alternates: string[];
+          /** Catalogue facts. Never taken from a completion — see book-reference.ts. */
+          isbn: string;
+          pages: number | null;
+          publisher: string;
+          cover_url: string;
+          link_openlibrary: string;
+          model: string;
+          prompt_tokens: number;
+          completion_tokens: number;
+          workspace_id: string | null;
+          looked_up_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          key: string;
+          query?: string;
+          title?: string;
+          author?: string;
+          series?: string;
+          series_index?: number | null;
+          year_published?: number | null;
+          confidence?: string;
+          alternates?: string[];
+          isbn?: string;
+          pages?: number | null;
+          publisher?: string;
+          cover_url?: string;
+          link_openlibrary?: string;
+          model?: string;
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          workspace_id?: string | null;
+          looked_up_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['rl_book_reference']['Insert']>;
+        Relationships: [];
+      };
       rl_import_batches: {
         Row: {
           id: string;
@@ -484,6 +535,8 @@ export type Database = {
           source_batch_id: string | null;
           source_photo: string;
           confidence: string;
+          /** Which lookup this was filled from, when it was filled from one. */
+          reference_id: string | null;
           added_at: string;
           created_at: string;
           updated_at: string;
@@ -512,6 +565,7 @@ export type Database = {
           source_batch_id?: string | null;
           source_photo?: string;
           confidence?: string;
+          reference_id?: string | null;
           added_at?: string;
         };
         Update: Partial<Database['public']['Tables']['rl_library']['Insert']>;

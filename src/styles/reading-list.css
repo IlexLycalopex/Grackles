@@ -1471,3 +1471,27 @@ textarea.book-form__input { resize: vertical; line-height: 1.55; }
 .picker__hit:hover { background: var(--bg-hover); color: var(--accent); }
 .picker__note { display: block; margin-top: 2px; color: var(--text-faint); font-size: 0.74rem; }
 .picker__none { margin-top: 8px; color: var(--text-muted); font-size: 0.85rem; }
+
+/* ── Looking a book up ──────────────────────────────────────────────
+
+   Your own library first, and it is the part that costs nothing: the list under
+   the box is filtered from what the page already holds, on every keystroke.
+   Everything behind the button is the paid path, and the button says so. */
+
+.lookup { max-width: 44rem; margin-bottom: 32px; }
+.lookup__input { width: 100%; }
+.lookup__actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.lookup__hint { color: var(--text-faint); font-size: 0.82rem; line-height: 1.6; max-width: 56ch; }
+.lookup__status { margin-top: 14px; color: var(--text-muted); font-size: 0.88rem; }
+.lookup__mine { list-style: none; display: grid; gap: 6px; margin-bottom: 14px; font-size: 0.88rem; }
+.lookup__mine a { color: var(--accent); }
+.lookup__note { color: var(--text-faint); font-size: 0.8rem; }
+.lookup__card {
+  max-width: 44rem;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+}
+.lookup__buttons { display: flex; gap: 10px; flex-wrap: wrap; margin: 18px 0 12px; }
+.lookup__alts { color: var(--text-muted); font-size: 0.86rem; margin-top: 10px; }
