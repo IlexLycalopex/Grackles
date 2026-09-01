@@ -19,6 +19,20 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* `hidden` has to win.
+ *
+ * A UA stylesheet's [hidden] { display: none } is beaten by any author rule
+ * that sets display, because a class selector outranks it. `.lib-card` sets
+ * `display: flex`, so the library's read/unread segments and its search box
+ * updated the count and hid nothing at all — every book stayed on screen while
+ * the page said "124 of 260".
+ *
+ * wbpr.css carries this same rule with the same note, from the same bug wearing
+ * a different hat: there it was an empty bordered box where a hidden button
+ * should have been nothing. Three of this repo's five stylesheets now know
+ * about it; reading-list.css was the one that did not. */
+[hidden] { display: none !important; }
+
 html { background: var(--bg); color: var(--text); font-family: var(--font); scroll-behavior: smooth; }
 body { min-height: 100vh; }
 
