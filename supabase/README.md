@@ -29,6 +29,134 @@ The files in `migrations/` are the additions from 2026-08-05, in apply order:
 | `20260813120100_blackletter_rpcs` | The four functions that are the whole player-facing surface of the game |
 | `20260817120000_cigar_wishlist` | `wishlist` joins the cigar statuses; the date rules restated for three of them; `smoke_from_humidor` accepts a wish as a source |
 
+### The library (2026-08-28)
+
+| Migration | What it does |
+| --- | --- |
+| `20260828120000_reading_library` | `rl_library`, the identity fold (`app.rl_work_key` and its helpers), the read-state and title-mirror triggers, `rl_books.library_id` (nullable), RLS, and the two read-only reports the backfill is meant to be read through |
+| `20260828120100_reading_backfill` | Mints an entry per distinct work from the existing log, links every reading, recounts, then `library_id set not null` |
+| `20260828120200_reading_import` | `rl_import_batches`, `rl_import_rows`, and `rl_apply_import()` |
+| `20260828120300_reading_library_merge` | `rl_merge_library()` — the button on the other end of the near-duplicate report |
+| `20260828120400_reading_lookup` | `rl_book_reference`, `app.book_lookups_today()`, the daily cap, and the `reading.lookup` feature |
+| `20260828120500_reading_lookup_grants` | Withdraws the UPDATE/DELETE/TRUNCATE Supabase's default privileges had already granted, and takes `anon` off the new tables |
+| `20260828120600_reading_library_publisher` | Attaches `set_publisher_normalised()` to `rl_library` and backfills it |
+
+**Applied 2026-09-01.** 265 readings became 260 books, 136 of them read, 0
+orphans, one near-duplicate surfaced and left alone. Verified locally first
+against a cluster built from `tests/baseline.sql` + every migration in order;
+`tests/library.sh` (77 checks), `tests/import.sh` (20) and `tests/backfill.sh`
+(35) pass, and the four existing suites are unchanged.
+
+#### The two migrations the local suite could not have produced
+
+Both were found by reading state back off production after applying, which is
+why that is now the last step of applying anything.
+
+**The grants.** `20260828120400` said `grant select, insert … to authenticated`
+on `rl_book_reference` and assumed naming two privileges withheld the rest. It
+does not: Supabase's default privileges on `public` had already handed
+`authenticated` the full set, so the GRANT was additive on top of DELETE,
+UPDATE and TRUNCATE. This is `20260807150000_cigar_reference_grants` happening a
+second time to the same design. Nothing was exposed — there is no update or
+delete policy, so a tampering statement touches zero rows — but it made RLS the
+sole barrier on a table whose own comments call it insert-only.
+
+The reason the suite cannot see this class of bug is worth stating plainly:
+`tests/baseline.sql` creates the roles but not Supabase's `ALTER DEFAULT
+PRIVILEGES`, so locally the table was insert-only because nothing had granted
+more. **Revoke-shaped facts are invisible to the local suite.** Check them on
+production or not at all.
+
+**The publisher.** `rl_library` got a `publisher_normalised` column and nothing
+to fill it, so 241 entries carried a publisher and none carried the normalised
+form. Imprints would not have grouped — and, more expensively, `reading.enrich`
+selects thin rows as `genre = '' or publisher_normalised = '' or pages is null`,
+so every entry in the library read as thin and the page offered to spend money
+filling in 260 books that mostly already had a genre and a page count. Attaching
+the trigger took that from 260 to 26. Only visible against real data; the
+fixture has publishers on two rows and nothing that counts thin ones. There are
+now three checks in `library.sh` for it, including the enrich predicate itself.
+
+#### The invariant
+
+`rl_books.library_id` is `not null`. There is no path that creates a reading
+without a book, which is why the constraint goes on in the *second* migration
+rather than the first: it cannot be declared on a table whose every row violates
+it. The order inside that migration matters — mint, link, recount, check for
+orphans, and only then `set not null`. Until that last statement a bug in the
+fold is a row to fix; after it, it is a migration that will not apply.
+
+`on delete restrict` on the foreign key, not `set null` (which the invariant
+forbids) and not `cascade` (which would delete reading history to tidy up a
+shelf). A book that has been read cannot be deleted at all; `ownership =
+'released'` is what somebody actually wanted when they reached for delete.
+
+#### The fold exists twice
+
+`app.rl_work_key()` here and `workKey()` in `src/lib/library.ts`. The database
+is the authority — a title corrected by hand has to update the key — and the
+application needs the same answer to propose matches before writing anything.
+Both read `tests/fixtures/work-keys.json`, and `tests/library.sh` emits its
+assertions from that file, so the two cannot be improved apart.
+
+The accent map in `app.rl_fold()` is **generated**, not typed: every code point
+from U+00C0 to U+024F that NFD decomposes to a single ASCII letter, and only
+those. The first version was hand-written and silently folded *Susanna* to
+*Cusanna*, because a pair of plain ASCII letters had crept into the left-hand
+side of a `translate()`, which maps position by position. What the map leaves
+out is as deliberate as what it contains: ø, ł, đ, þ, ß and æ do not decompose,
+so the TypeScript half strips them entirely and this must too, by not listing
+them.
+
+#### Determinism
+
+Two bugs of the same family were found by testing against seeded data rather
+than an empty table, and both are worth remembering because neither shows up as
+an error:
+
+- The backfill took each book's title and author from the earliest reading
+  ordered by `created_at`, which **ties for every row imported in one
+  statement** — so the tie fell to a random uuid and "Bolaño" or "Bolano" won
+  about half the time each. Ordering is now by the dates, then `order_read`,
+  with the id present only so that no tie remains.
+- `rl_near_duplicates()` paired rows with `a.id < b.id`, which orders a pair at
+  random. It now compares `(title, id)`, which both de-duplicates the pair and
+  fixes which of the two comes back as `a`.
+
+#### The cap, written the way the cigar one had to be rewritten
+
+`app.book_lookups_today()` is `SECURITY DEFINER`, and it was written that way
+from the start rather than as a correlated subquery inside the policy on the
+table it counts. `20260807120000` did it the obvious way for cigars and got
+`42P17` — infinite recursion — and the symptom was not a leaky cap but a table
+that refused *every* insert, so no lookup could ever have been cached. It had
+been asserted to work in three places before anybody ran it.
+
+`tests/library.sh` checks it in both directions: the fiftieth lands, the
+fifty-first is refused, and yesterday's do not count against today.
+
+#### Error codes
+
+| Code | Meaning |
+| --- | --- |
+| `GRK30` | No such import |
+| `GRK31` | That import has already been applied |
+| `GRK32` | No such book, when merging |
+| `GRK33` | Those two books cannot be merged |
+
+#### A note on the baseline
+
+`tests/baseline.sql` carried a five-column stub of `rl_books` — id,
+workspace_id, year_id, order_read, title — so no migration touching any other
+column could be exercised against it. It is the same class of gap the file's own
+`touch_updated_at` note records. It now carries the real shape, taken from the
+two places in the repository that mirror production by hand:
+`src/lib/database.types.ts` for the columns, and the `CONSTRAINTS` table in
+`src/lib/records/save.ts` for the constraint names. The
+`rl_normalise_publisher()` trigger there is reconstructed from documented
+behaviour rather than copied from production, which has no migration in this
+repository, and it says so in a comment.
+
 ### What changed conceptually
 
 Before: membership of a workspace was the only fact recorded about a person,

@@ -1,0 +1,56 @@
+{
+  "note": [
+    "The one place the identity fold is written down. Read by",
+    "src/lib/library.test.ts and by supabase/tests/library.sh, so the",
+    "TypeScript half and app.rl_work_key() cannot drift into disagreeing",
+    "without a test going red. Adding a case here adds it to both.",
+    "",
+    "`keys` pins the exact output. `same` and `different` pin the intent,",
+    "which is what actually matters: the string could change shape without",
+    "any of these pairs changing sides."
+  ],
+
+  "keys": [
+    { "title": "The Dispossessed", "author": "Ursula K. Le Guin", "key": "the dispossessed|le guin u" },
+    { "title": "2666", "author": "Roberto Bolaño", "key": "2666|bolano r" },
+    { "title": "Chew Vol 9 Chicken Tenders", "author": "John Layman", "key": "chew chicken tenders#9|layman j" },
+    { "title": "Piranesi", "author": "Susanna Clarke", "key": "piranesi|clarke s" },
+    { "title": "The Trial", "author": "Franz Kafka", "key": "the trial|kafka f" },
+    { "title": "Untitled", "author": "", "key": "untitled|" }
+  ],
+
+  "same": [
+    ["The Dispossessed", "Ursula K. Le Guin", "The Dispossessed", "Le Guin, Ursula K."],
+    ["The Dispossessed", "Ursula K. Le Guin", "The Dispossessed", "Ursula Le Guin"],
+    ["2666", "Roberto Bolaño", "2666", "Roberto Bolano"],
+    ["The Hobbit", "J. R. R. Tolkien", "The Hobbit", "John Ronald Reuel Tolkien"],
+    ["Dune", "Frank Herbert", "Dune (Penguin Classics)", "Frank Herbert"],
+    ["Neuromancer", "William Gibson", "Neuromancer - 40th Anniversary Edition", "William Gibson"],
+    ["Chew Vol 9 Chicken Tenders", "John Layman", "Chew Volume 9: Chicken Tenders", "Layman, John"],
+    ["The Fifth Season", "N. K. Jemisin", "The Fifth Season", "Jemisin, N.K."],
+    ["Perdido Street Station", "China Miéville", "Perdido Street Station", "China Mieville"],
+    ["Kindred", "Octavia E. Butler", "Kindred", "Octavia Butler & Someone Else"],
+    ["The Sellout", "Paul Beatty", "The Sellout", "Paul Beatty, Jr."],
+    ["Piranesi", "Susanna Clarke", "Piranesi", "S. Clarke"]
+  ],
+
+  "different": [
+    ["Chew Vol 3 Just Desserts", "John Layman", "Chew Vol 9 Chicken Tenders", "John Layman"],
+    ["Blindness", "José Saramago", "Blindness", "Henry Green"],
+    ["The Trial", "Franz Kafka", "The Castle", "Franz Kafka"],
+    ["Ghosts", "César Aira", "Ghosts", "Edith Wharton"],
+    ["The Left Hand of Darkness", "Ursula K. Le Guin", "The Left Hand of Darkness", "Ursula Todd"]
+  ],
+
+  "ambiguous": [
+    ["The Trial", "Franz Kafka", "Trial", "Franz Kafka"],
+    ["The Dispossessed", "Ursula K. Le Guin", "The Dispossessed: An Ambiguous Utopia", "Ursula Le Guin"],
+    ["The Fifth Season", "N. K. Jemisin", "Fifth Season", "Nora Jemisin"]
+  ],
+
+  "notAmbiguous": [
+    ["Chew Vol 3 Just Desserts", "John Layman", "Chew Vol 9 Chicken Tenders", "John Layman"],
+    ["Blindness", "", "Blindness", "José Saramago"],
+    ["The Trial", "Franz Kafka", "The Castle", "Franz Kafka"]
+  ]
+}

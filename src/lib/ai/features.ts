@@ -19,6 +19,7 @@ export const FEATURE_KEYS = [
   'wbpr.desk',
   'wbpr.writeup',
   'reading.enrich',
+  'reading.lookup',
   'cigars.lookup',
   'platform.search',
   'platform.golden',
@@ -73,6 +74,12 @@ export const FEATURES: FeatureNote[] = [
     app: 'reading-list',
     class: 'batch',
     what: 'Facts from OpenLibrary, genre and tags from your own vocabulary. Proposals, not writes.',
+  },
+  {
+    key: 'reading.lookup',
+    app: 'reading-list',
+    class: 'single',
+    what: 'One bounded call asking which book somebody means, when the free catalogues have missed. It answers with a better query, never with facts.',
   },
 ];
 

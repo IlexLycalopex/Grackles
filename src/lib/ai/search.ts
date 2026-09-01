@@ -78,14 +78,20 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
  * Blackletter is absent for a different reason: a game is a word, six guesses
  * and a result, and "which games did I lose" is a scoreboard rather than a
  * search. It has one, and it is free.
+ *
+ * `books` and `library` are both here and are not a duplication: one is the
+ * readings — a year, a position, the dates it took — and the other is the books
+ * themselves, most of which have never been read. "What did I read in 2019" and
+ * "what do I own and have not read" are different questions against different
+ * tables, and collapsing them would make the second unanswerable.
  */
 export const SOURCES: Source[] = [
   {
     key: 'books',
     app: 'reading-list',
     table: 'rl_books',
-    label: 'books',
-    what: 'Books read, being read, or lined up to read.',
+    label: 'readings',
+    what: 'Readings: books read, being read, or lined up to read, each in a particular year. For books somebody owns rather than has read, use library.',
     title: 'title',
     subtitle: 'author',
     fields: [
@@ -105,6 +111,38 @@ export const SOURCES: Source[] = [
       { column: 'notes', type: 'text', what: 'The reader\'s own notes.' },
     ],
     href: (row, slug) => `/reading/${slug}/book/${row.id}`,
+  },
+  {
+    key: 'library',
+    app: 'reading-list',
+    table: 'rl_library',
+    label: 'books',
+    what: 'Every book owned, wanted or once owned — read or not.',
+    title: 'title',
+    subtitle: 'author',
+    fields: [
+      { column: 'title', type: 'text', what: 'The book\'s title.' },
+      { column: 'author', type: 'text', what: 'Who wrote it.' },
+      { column: 'series', type: 'text', what: 'The series it belongs to.' },
+      { column: 'genre', type: 'text', what: 'Genre, in the reader\'s own vocabulary.' },
+      { column: 'publisher_normalised', type: 'text', what: 'Publisher, normalised.' },
+      { column: 'pages', type: 'number', what: 'Page count.' },
+      { column: 'year_published', type: 'number', what: 'Year first published.' },
+      // The reason this source is worth having, and the reason `read` is a
+      // maintained column rather than a join computed at query time: "which
+      // unread science fiction do I own" is one filter here and would otherwise
+      // not be expressible at all.
+      { column: 'read', type: 'boolean', what: 'True when it has been read. Books read before this list existed are marked by hand.' },
+      { column: 'reading', type: 'boolean', what: 'True while it is being read right now.' },
+      { column: 'times_read', type: 'number', what: 'How many times it has been finished. 0 means never.' },
+      { column: 'last_read_on', type: 'date', what: 'When it was last finished. Null means never, or long enough ago that it was not recorded.' },
+      { column: 'ownership', type: 'enum', values: ['owned', 'wanted', 'released', 'none'], what: 'Whether it is on the shelf, wanted, gone, or was never owned.' },
+      { column: 'format', type: 'text', what: 'print, audio or graphic.' },
+      { column: 'added_at', type: 'date', what: 'When it joined the library.' },
+      { column: 'isbn', type: 'text', what: 'ISBN.' },
+      { column: 'notes', type: 'text', what: 'The reader\'s own notes.' },
+    ],
+    href: (row, slug) => `/reading/${slug}/library/${row.id}`,
   },
   {
     key: 'cigars',

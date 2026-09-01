@@ -1,0 +1,156 @@
+---
+import type { LibraryEntry } from '../../lib/reading-list';
+import { searchableText } from '../../lib/library';
+
+/**
+ * Finding a book you already have.
+ *
+ * The one press the whole project exists for. Under the invariant a reading
+ * cannot be created out of nothing, so this is the way onto a year: type three
+ * letters, see your own books, press one.
+ *
+ * It costs nothing and must go on costing nothing. Every entry is already on
+ * the page; this filters what is in front of you. No debounce against an
+ * endpoint, no lookup, no model — a book already owned should reach the reading
+ * list faster than it could be typed.
+ */
+
+interface Props {
+  entries: LibraryEntry[];
+  /** Where a chosen entry goes. The form posts back to the page it is on. */
+  chosenId: string | null;
+}
+
+const { entries, chosenId } = Astro.props;
+const chosen = chosenId ? entries.find(e => e.id === chosenId) ?? null : null;
+
+/** Only what the filter needs, so the page does not carry the whole library twice. */
+const searchable = entries.map(e => ({
+  id: e.id,
+  title: e.title,
+  author: e.author,
+  read: e.read,
+  times: e.times_read,
+  pages: e.pages,
+  own: e.ownership,
+  text: searchableText(e),
+}));
+---
+
+<div class="picker" data-picker>
+  {chosen ? (
+    <div class="picker__chosen">
+      <div>
+        <strong>{chosen.title}</strong>
+        {chosen.author && <span class="lib-muted"> — {chosen.author}</span>}
+        <div class="lib-muted">
+          {chosen.read ? `Read${chosen.times_read > 1 ? ` ${chosen.times_read} times` : ''}` : 'Not read'}
+          {chosen.pages ? ` · ${chosen.pages}pp` : ''}
+        </div>
+      </div>
+      <button class="rl-button rl-button--quiet" type="submit" name="intent" value="unchoose">
+        Choose a different book
+      </button>
+    </div>
+  ) : (
+    <>
+      <label class="rl-field">
+        <span>Which book?</span>
+        <input
+          type="search"
+          class="picker__search"
+          placeholder="Start typing a title or an author…"
+          autocomplete="off"
+          aria-label="Search your library"
+          data-picker-search
+        />
+      </label>
+
+      <ul class="picker__results" data-picker-results hidden></ul>
+      <p class="picker__none" data-picker-none hidden>
+        Nothing in your library matches that. Fill the details in below and it
+        will be added as a new book.
+      </p>
+
+      {/* Rendered rather than fetched: the library is already on this page, and
+          a type-ahead against an endpoint would be a network round trip to
+          answer a question the browser can already answer.
+
+          A data attribute rather than a <script type="application/json">,
+          because a script tag carrying an attribute is treated as `is:inline`
+          and stops being processed — which is a confusing way to lose the
+          module below. */}
+      <div hidden data-picker-data={JSON.stringify(searchable)}></div>
+    </>
+  )}
+</div>
+
+<script>
+  // Every word has to appear somewhere, the same rule as matchesQuery() in
+  // lib/library.ts — so a second word narrows rather than widens.
+  const fold = (value: string) =>
+    value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+  for (const picker of document.querySelectorAll<HTMLElement>('[data-picker]')) {
+    const search = picker.querySelector<HTMLInputElement>('[data-picker-search]');
+    const results = picker.querySelector<HTMLUListElement>('[data-picker-results]');
+    const none = picker.querySelector<HTMLElement>('[data-picker-none]');
+    const data = picker.querySelector<HTMLElement>('[data-picker-data]');
+    if (!search || !results || !data) continue;
+
+    const entries = JSON.parse(data.dataset.pickerData ?? '[]') as {
+      id: string; title: string; author: string; read: boolean;
+      times: number; pages: number | null; own: string; text: string;
+    }[];
+    const folded = entries.map(e => ({ ...e, hay: fold(e.text) }));
+
+    search.addEventListener('input', () => {
+      const words = fold(search.value).split(' ').filter(Boolean);
+      results.replaceChildren();
+
+      if (!words.length) {
+        results.hidden = true;
+        if (none) none.hidden = true;
+        return;
+      }
+
+      const hits = folded.filter(e => words.every(w => e.hay.includes(w))).slice(0, 12);
+      for (const hit of hits) {
+        const li = document.createElement('li');
+        const button = document.createElement('button');
+        button.type = 'submit';
+        button.name = 'library_id';
+        button.value = hit.id;
+        button.className = 'picker__hit';
+
+        const title = document.createElement('strong');
+        title.textContent = hit.title;
+        button.append(title);
+
+        if (hit.author) {
+          const author = document.createElement('span');
+          author.className = 'lib-muted';
+          author.textContent = ` — ${hit.author}`;
+          button.append(author);
+        }
+
+        // Said out loud, because choosing a book you have already read should be
+        // a decision rather than a surprise.
+        const note = document.createElement('span');
+        note.className = 'picker__note';
+        note.textContent = [
+          hit.read ? (hit.times > 1 ? `read ${hit.times}×` : 'already read') : 'unread',
+          hit.own === 'owned' ? '' : hit.own === 'wanted' ? 'wanted' : hit.own === 'released' ? 'gone' : 'not owned',
+          hit.pages ? `${hit.pages}pp` : '',
+        ].filter(Boolean).join(' · ');
+        button.append(note);
+
+        li.append(button);
+        results.append(li);
+      }
+
+      results.hidden = hits.length === 0;
+      if (none) none.hidden = hits.length > 0;
+    });
+  }
+</script>

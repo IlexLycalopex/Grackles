@@ -2,7 +2,9 @@
 import RlLayout from '../../../../layouts/RlLayout.astro';
 import BookFields from '../../../../components/rl/BookFields.astro';
 import { requireWrite } from '../../../../lib/workspace';
-import { currentYear, loadYears } from '../../../../lib/reading-list';
+import LibraryPicker from '../../../../components/rl/LibraryPicker.astro';
+import { currentYear, loadLibrary, loadYears } from '../../../../lib/reading-list';
+import { keyOf } from '../../../../lib/library';
 import { readBook } from '../../../../lib/records/book';
 import { fillCover, fillFromLookup } from '../../../../lib/book-lookup';
 import { describeWriteError } from '../../../../lib/records/save';
@@ -56,19 +58,40 @@ async function nextPosition(yearId: string): Promise<number> {
   return (data?.order_read ?? 0) + 1;
 }
 
+const entries = await loadLibrary(supabase, workspace.id);
+
 let error: string | null = null;
 let notice: string | null = null;
 let submitted: FormData | null = null;
 
+/**
+ * Which book this is a reading of.
+ *
+ * Under the invariant there is no path that creates a reading without one, so
+ * this page has two shapes: pick a book already in the library, or fill the
+ * details in and have the book minted alongside the reading. Either way a
+ * library entry exists before an rl_books row does.
+ */
+let chosenId: string | null = Astro.url.searchParams.get('library') || null;
+
 if (Astro.request.method === 'POST') {
   submitted = await Astro.request.formData();
+  const intent = String(submitted.get('intent') ?? '');
+  const picked = String(submitted.get('library_id') ?? '');
+
+  if (picked) chosenId = picked;
+  if (intent === 'unchoose') chosenId = null;
+
+  // Choosing from the picker is not a save. It re-renders the form with the
+  // book's details filled in, so what gets written is still reviewed first.
+  const choosing = Boolean(picked) || intent === 'unchoose';
 
   // A lookup fills the blanks of what was typed and stops. The form re-renders
   // from `submitted` either way, so the fetched values arrive by the same route
   // a rejected save does.
-  if (submitted.get('intent') === 'lookup') {
+  if (intent === 'lookup') {
     notice = await fillFromLookup(submitted);
-  } else {
+  } else if (!choosing) {
     const parsed = readBook(submitted);
 
     if (!parsed.ok) {
@@ -78,20 +101,89 @@ if (Astro.request.method === 'POST') {
       // the way past. It never fails the save.
       const values = await fillCover(parsed.values);
 
-      const { error: writeError } = await supabase
-        .from('rl_books')
-        .insert({ workspace_id: workspace.id, ...values });
+      // The book first, always. Where one was picked it already exists; where
+      // one was not, the fold decides whether this is a book the library
+      // already holds — so typing a title you own by hand joins that book
+      // rather than minting a second copy of it.
+      let libraryId = chosenId;
 
-      if (writeError) {
-        error = describeWriteError(writeError, 'rl_books insert');
-      } else {
-        return Astro.redirect(
-          `${base}/${years.find(y => y.id === parsed.values.year_id)?.year ?? year.year}`
-        );
+      if (!libraryId) {
+        const key = keyOf({ title: values.title, author: values.author });
+        const existing = entries.find(e => keyOf(e) === key);
+
+        if (existing) {
+          libraryId = existing.id;
+          notice = `“${existing.title}” was already in your library, so this is a reading of that.`;
+        } else {
+          const { data: minted, error: mintError } = await supabase
+            .from('rl_library')
+            .insert({
+              workspace_id: workspace.id,
+              title: values.title,
+              author: values.author,
+              format: values.format,
+              year_published: values.year_published,
+              pages: values.pages,
+              publisher: values.publisher,
+              genre: values.genre,
+              tags: values.tags,
+              isbn: values.isbn,
+              cover_url: values.cover_url,
+              link_openlibrary: values.link_openlibrary,
+              source: 'manual',
+              // A book added because it is being read is a book in hand.
+              ownership: 'owned',
+            })
+            .select('id')
+            .single();
+
+          if (mintError) error = describeWriteError(mintError, 'rl_library insert');
+          else libraryId = minted?.id ?? null;
+        }
+      }
+
+      if (!error && libraryId) {
+        const { error: writeError } = await supabase
+          .from('rl_books')
+          .insert({ workspace_id: workspace.id, library_id: libraryId, ...values });
+
+        if (writeError) {
+          error = describeWriteError(writeError, 'rl_books insert');
+        } else {
+          return Astro.redirect(
+            `${base}/${years.find(y => y.id === parsed.values.year_id)?.year ?? year.year}`
+          );
+        }
       }
     }
   }
 }
+
+const chosen = chosenId ? entries.find(e => e.id === chosenId) ?? null : null;
+
+/**
+ * The picked book's details, as the form's starting values.
+ *
+ * Copied into the reading rather than read through the join, deliberately: this
+ * records the edition being read now, and replacing the copy on the shelf in
+ * five years must not rewrite what this says about the one read today.
+ */
+const fromLibrary = chosen && !submitted?.get('title')
+  ? {
+      title: chosen.title,
+      author: chosen.author,
+      pages: chosen.pages,
+      year_published: chosen.year_published,
+      publisher: chosen.publisher ?? '',
+      genre: chosen.genre ?? '',
+      tags: chosen.tags,
+      isbn: chosen.isbn ?? '',
+      cover_url: chosen.cover_url ?? '',
+      description: chosen.description ?? '',
+      format: chosen.format,
+      link_openlibrary: chosen.link_openlibrary,
+    }
+  : null;
 
 const orderRead = await nextPosition(year.id);
 ---
@@ -109,8 +201,22 @@ const orderRead = await nextPosition(year.id);
     {notice && <p class="form-notice" role="status">{notice}</p>}
 
     <form method="POST" class="book-form">
+      {entries.length > 0 && (
+        <>
+          <LibraryPicker entries={entries} chosenId={chosenId} />
+          {!chosen && (
+            <p class="book-form__hint">
+              Every reading is a reading of a book in your library. Pick one
+              above, or fill the details in below and the book will be added
+              alongside it.
+            </p>
+          )}
+        </>
+      )}
+      {chosenId && <input type="hidden" name="library_id" value={chosenId} />}
+
       <BookFields
-        book={null}
+        book={fromLibrary}
         years={years}
         defaults={{ yearId: year.id, orderRead, comingUp: planning }}
         submitted={submitted}

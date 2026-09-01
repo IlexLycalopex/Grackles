@@ -1,0 +1,391 @@
+---
+import RlLayout from '../../../../layouts/RlLayout.astro';
+import ConfirmDelete from '../../../../components/ConfirmDelete.astro';
+import { requireWrite, resolveWorkspace } from '../../../../lib/workspace';
+import { loadEntry, loadYears, OWNERSHIPS, OWNERSHIP_LABELS } from '../../../../lib/reading-list';
+import { readChoiceOf, readLibraryEntry, READ_CHOICES } from '../../../../lib/records/library';
+import { BOOK_FORMATS } from '../../../../lib/records/book';
+import { describeDeleteError, describeWriteError, NOTHING_DELETED } from '../../../../lib/records/save';
+import { fieldValue } from '../../../../lib/forms';
+
+export const prerender = false;
+
+/**
+ * One book: what it is, what it has to do with you, and its readings.
+ *
+ * The readings are shown and linked but not edited here — a reading belongs to
+ * a year and is edited on its own page. What this page owns is the book:
+ * its identity, whether you have it, and whether you have read it.
+ */
+
+const { supabase, user } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+const entryId = Astro.params.entry!;
+
+const workspace = await resolveWorkspace(supabase, 'reading-list', wsSlug, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const base = `/reading/${workspace.slug}`;
+const years = await loadYears(supabase, workspace.id);
+
+// The same two-step every other record on the site uses: a link to ?delete=1
+// renders a confirmation, and only its POST destroys anything. A GET that
+// deletes is one link prefetcher away from emptying the library.
+const confirmingDelete = Astro.url.searchParams.get('delete') === '1';
+
+let error: string | null = null;
+let notice: string | null = null;
+let submitted: FormData | null = null;
+
+if (Astro.request.method === 'POST') {
+  const gate = await requireWrite(supabase, 'reading-list', wsSlug, user?.id ?? null, Astro.url.pathname);
+  if (!gate.ok) return gate.response;
+
+  submitted = await Astro.request.formData();
+  const intent = String(submitted.get('intent') ?? 'save');
+
+  if (intent === 'delete') {
+    // A book that has been read cannot be deleted — the foreign key is ON
+    // DELETE RESTRICT, deliberately, because deleting it would take reading
+    // history with it. The sentence below says what to do instead.
+    const { data: removed, error: deleteError } = await supabase
+      .from('rl_library')
+      .delete()
+      .eq('id', entryId)
+      .select('id');
+
+    if (deleteError) {
+      error =
+        deleteError.code === '23503'
+          ? 'This book has readings on the list, so it cannot be deleted. Mark it as gone instead — that keeps the history and takes it off the shelf.'
+          : describeDeleteError(deleteError, 'library entry');
+    } else if (!removed?.length) {
+      error = NOTHING_DELETED;
+    } else {
+      return Astro.redirect(`${base}/library`);
+    }
+  } else if (intent === 'merge') {
+    const other = String(submitted.get('other_id') ?? '');
+    const { error: rpcError } = await supabase.rpc('rl_merge_library', {
+      p_keep: entryId,
+      p_drop: other,
+    });
+    if (rpcError) {
+      error =
+        rpcError.code === 'GRK33'
+          ? 'Those two cannot be merged.'
+          : 'That merge could not be done, so nothing has changed.';
+    } else {
+      notice = 'Merged. Every reading of both is now on this one.';
+      submitted = null;
+    }
+  } else {
+    const parsed = readLibraryEntry(submitted);
+    if (!parsed.ok) {
+      error = parsed.error;
+    } else {
+      const { error: writeError } = await supabase
+        .from('rl_library')
+        .update(parsed.values)
+        .eq('id', entryId);
+      if (writeError) error = describeWriteError(writeError, 'library entry');
+      else {
+        notice = 'Saved.';
+        submitted = null;
+      }
+    }
+  }
+}
+
+const entry = await loadEntry(supabase, entryId);
+if (!entry) return new Response('Not found', { status: 404 });
+
+/**
+ * The readings of this book, with the year each belongs to.
+ *
+ * Read through `any` at the boundary, the same way `toBook()` in
+ * lib/reading-list.ts does: database.types.ts declares no relationship between
+ * rl_books and rl_years, so the embedded select is correct SQL that the
+ * generated types cannot describe.
+ */
+interface Reading {
+  id: string;
+  order_read: number;
+  date_finished: string | null;
+  format: string;
+  reading: boolean;
+  coming_up: boolean;
+  year: number | null;
+}
+
+const { data: readingRows } = await supabase
+  .from('rl_books')
+  .select('id, order_read, date_started, date_finished, format, pages, publisher, notes, reading, coming_up, rl_years(year)')
+  .eq('library_id', entryId)
+  .order('order_read');
+
+const readings: Reading[] = ((readingRows ?? []) as any[]).map(r => ({
+  id: r.id,
+  order_read: r.order_read,
+  date_finished: r.date_finished,
+  format: r.format,
+  reading: r.reading,
+  coming_up: r.coming_up,
+  year: r.rl_years?.year ?? null,
+}));
+
+// The near-duplicates of this one specifically, so the merge is offered where
+// somebody is already looking at the book rather than only on a report.
+const { data: near } = workspace.canWrite
+  ? await supabase.rpc('rl_near_duplicates', { p_workspace: workspace.id })
+  : { data: [] };
+
+const twins = ((near ?? []) as { a_id: string; a_title: string; a_author: string; b_id: string; b_title: string; b_author: string }[])
+  .filter(row => row.a_id === entryId || row.b_id === entryId)
+  .map(row => (row.a_id === entryId
+    ? { id: row.b_id, title: row.b_title, author: row.b_author }
+    : { id: row.a_id, title: row.a_title, author: row.a_author }));
+
+const value = (key: string, stored: string | number | null | undefined) =>
+  fieldValue(submitted, key, stored);
+
+const readChoice = submitted
+  ? String(submitted.get('read_state') ?? 'auto')
+  : readChoiceOf(entry.read_override);
+
+const READ_LABELS: Record<string, string> = {
+  auto: entry.times_read > 0
+    ? `Follow the reading list — read, ${entry.times_read} time${entry.times_read === 1 ? '' : 's'}`
+    : 'Follow the reading list — no finished reading, so unread',
+  read: 'Read — I read this before it was on the list',
+  unread: 'Not read — ignore what the list says',
+};
+---
+
+<RlLayout
+  title={`${entry.title} · ${workspace.name}`}
+  description={entry.author}
+  workspace={workspace}
+  years={years}
+>
+  <div class="container">
+    <div class="page-header">
+      <h1>{entry.title}</h1>
+      <p class="subtitle">
+        {entry.author}
+        {entry.series && ` · ${entry.series}${entry.series_index !== null ? ` ${entry.series_index}` : ''}`}
+      </p>
+    </div>
+
+    {notice && <p class="import-notice">{notice}</p>}
+    {error && <p class="import-error">{error}</p>}
+
+    <div class="lib-entry">
+      <div class="lib-entry__side">
+        {entry.cover_url
+          ? <img class="lib-entry__cover" src={entry.cover_url} alt="" width="180" height="270" />
+          : <div class="lib-entry__cover lib-entry__cover--blank">{entry.title.slice(0, 1)}</div>}
+
+        <dl class="lib-facts">
+          <dt>Read</dt>
+          <dd>
+            {entry.read ? 'Yes' : 'Not yet'}
+            {entry.times_read > 0 && ` · ${entry.times_read} time${entry.times_read === 1 ? '' : 's'}`}
+            {entry.last_read_on && ` · last ${new Date(entry.last_read_on).toLocaleDateString('en-GB')}`}
+            {entry.read_override !== null && <span class="lib-muted"> (set by hand)</span>}
+          </dd>
+          <dt>Copy</dt>
+          <dd>{OWNERSHIP_LABELS[entry.ownership]}</dd>
+          <dt>Added</dt>
+          <dd>{new Date(entry.added_at).toLocaleDateString('en-GB')}</dd>
+          {entry.source_photo && (<><dt>Photograph</dt><dd class="lib-mono">{entry.source_photo}</dd></>)}
+        </dl>
+
+        <h2 class="lib-heading">Readings</h2>
+        {readings.length ? (
+          <ul class="lib-readings">
+            {readings.map(r => {
+              return (
+                <li>
+                  <a href={`${base}/book/${r.id}`}>
+                    {r.year ?? '—'}
+                    <span class="lib-muted">
+                      {r.date_finished
+                        ? ` · finished ${new Date(r.date_finished).toLocaleDateString('en-GB')}`
+                        : r.reading ? ' · reading now'
+                        : r.coming_up ? ' · coming up'
+                        : ' · not finished'}
+                      {r.format !== 'print' && ` · ${r.format}`}
+                    </span>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p class="lib-muted">No readings on the list.</p>
+        )}
+      </div>
+
+      <div class="lib-entry__main">
+        {workspace.canWrite ? (
+          <form method="POST" class="book-form">
+            <div class="book-form__row">
+              <label class="book-form__field">
+                <span class="book-form__label">Title</span>
+                <input class="book-form__input" name="title" value={value('title', entry.title)} required />
+              </label>
+              <label class="book-form__field">
+                <span class="book-form__label">Author</span>
+                <input class="book-form__input" name="author" value={value('author', entry.author)} />
+              </label>
+            </div>
+            <p class="book-form__hint">
+              Changing either of these re-decides what counts as the same book,
+              and renames this book on every reading of it.
+            </p>
+
+            <div class="book-form__row">
+              <label class="book-form__field">
+                <span class="book-form__label">Series</span>
+                <input class="book-form__input" name="series" value={value('series', entry.series)} />
+              </label>
+              <label class="book-form__field">
+                <span class="book-form__label">Volume</span>
+                <input class="book-form__input" name="series_index" type="number" min="0"
+                       value={value('series_index', entry.series_index)} />
+              </label>
+              <label class="book-form__field">
+                <span class="book-form__label">Format</span>
+                <select class="book-form__input" name="format">
+                  {BOOK_FORMATS.map(f => (
+                    <option value={f} selected={value('format', entry.format) === f}>{f}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div class="book-form__row">
+              <label class="book-form__field">
+                <span class="book-form__label">Have you read it</span>
+                <select class="book-form__input" name="read_state">
+                  {READ_CHOICES.map(c => (
+                    <option value={c} selected={readChoice === c}>{READ_LABELS[c]}</option>
+                  ))}
+                </select>
+              </label>
+              <label class="book-form__field">
+                <span class="book-form__label">The copy</span>
+                <select class="book-form__input" name="ownership">
+                  {OWNERSHIPS.map(o => (
+                    <option value={o} selected={value('ownership', entry.ownership) === o}>
+                      {OWNERSHIP_LABELS[o]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div class="book-form__row">
+              <label class="book-form__field">
+                <span class="book-form__label">Pages</span>
+                <input class="book-form__input" name="pages" type="number" min="1" value={value('pages', entry.pages)} />
+              </label>
+              <label class="book-form__field">
+                <span class="book-form__label">Published</span>
+                <input class="book-form__input" name="year_published" type="number" value={value('year_published', entry.year_published)} />
+              </label>
+              <label class="book-form__field">
+                <span class="book-form__label">Publisher</span>
+                <input class="book-form__input" name="publisher" value={value('publisher', entry.publisher)} />
+              </label>
+            </div>
+
+            <div class="book-form__row">
+              <label class="book-form__field">
+                <span class="book-form__label">Genre</span>
+                <input class="book-form__input" name="genre" value={value('genre', entry.genre)} />
+              </label>
+              <label class="book-form__field">
+                <span class="book-form__label">Tags</span>
+                <input class="book-form__input" name="tags" value={submitted ? String(submitted.get('tags') ?? '') : entry.tags.join(', ')} />
+              </label>
+              <label class="book-form__field">
+                <span class="book-form__label">ISBN</span>
+                <input class="book-form__input" name="isbn" value={value('isbn', entry.isbn)} />
+              </label>
+            </div>
+
+            <label class="book-form__field">
+              <span class="book-form__label">Cover</span>
+              <input class="book-form__input" name="cover_url" value={value('cover_url', entry.cover_url)} />
+            </label>
+            <label class="book-form__field">
+              <span class="book-form__label">OpenLibrary</span>
+              <input class="book-form__input" name="link_openlibrary" value={value('link_openlibrary', entry.link_openlibrary)} />
+            </label>
+            <label class="book-form__field">
+              <span class="book-form__label">Description</span>
+              <textarea class="book-form__input" name="description" rows="4">{value('description', entry.description)}</textarea>
+            </label>
+            <label class="book-form__field">
+              <span class="book-form__label">Notes</span>
+              <textarea class="book-form__input" name="notes" rows="3">{value('notes', entry.notes)}</textarea>
+            </label>
+
+            <div class="book-form__actions">
+              <button class="book-form__submit" type="submit" name="intent" value="save">Save</button>
+              <a class="book-form__cancel" href={`${base}/library`}>Back to the library</a>
+            </div>
+          </form>
+        ) : (
+          <p class="import-note">{entry.description}</p>
+        )}
+
+        {workspace.canWrite && twins.length > 0 && (
+          <div class="lib-merge">
+            <h2 class="lib-heading">Possibly the same book</h2>
+            <p class="import-note">
+              Close to this one without being the same, so nothing has been
+              merged. Merging moves every reading onto this entry, keeps the
+              fuller value of each field, and deletes the other.
+            </p>
+            {twins.map(twin => (
+              <form method="POST" class="lib-merge__row">
+                <input type="hidden" name="intent" value="merge" />
+                <input type="hidden" name="other_id" value={twin.id} />
+                <span>
+                  <a href={`${base}/library/${twin.id}`}>{twin.title}</a>
+                  {twin.author && <span class="lib-muted"> — {twin.author}</span>}
+                </span>
+                <button class="rl-button rl-button--quiet" type="submit">Merge into this one</button>
+              </form>
+            ))}
+          </div>
+        )}
+
+        {workspace.canWrite && confirmingDelete && (
+          <ConfirmDelete
+            prefix="book-form"
+            title={entry.author ? `${entry.title} — ${entry.author}` : entry.title}
+            detail={
+              readings.length
+                ? `${readings.length} reading${readings.length === 1 ? '' : 's'} on the list`
+                : 'No readings on the list'
+            }
+            consequences={
+              readings.length
+                ? ['This book has readings, so it cannot be deleted at all. Mark it as gone instead — that keeps the history and takes it off the shelf.']
+                : ['The book goes; nothing else refers to it.']
+            }
+            cancelHref={`${base}/library/${entry.id}`}
+          />
+        )}
+
+        {workspace.canWrite && !confirmingDelete && (
+          <a class="book-form__delete" href={`${base}/library/${entry.id}?delete=1`}>Delete this book</a>
+        )}
+      </div>
+    </div>
+  </div>
+</RlLayout>
