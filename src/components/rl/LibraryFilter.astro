@@ -1,0 +1,82 @@
+---
+/**
+ * Read, unread, all — and then everything else.
+ *
+ * Read state is three segments across the top rather than a facet in a panel,
+ * because in a library that is mostly read it is the only question anybody
+ * arrives with. Everything under it narrows what the segment already chose.
+ *
+ * All of it filters what the page has already loaded. That is right while a
+ * library is a few thousand entries and wrong past that; the matcher lives in
+ * lib/library.ts so that day is a change of caller rather than a rewrite.
+ */
+
+interface Props {
+  genres: string[];
+  authors: string[];
+  counts: { all: number; read: number; unread: number };
+}
+
+const { genres, authors, counts } = Astro.props;
+---
+
+<div class="lib-filter">
+  <div class="lib-segments" role="group" aria-label="Read state">
+    <button type="button" class="lib-segment is-active" data-state="unread">
+      Unread <span>{counts.unread}</span>
+    </button>
+    <button type="button" class="lib-segment" data-state="read">
+      Read <span>{counts.read}</span>
+    </button>
+    <button type="button" class="lib-segment" data-state="all">
+      All <span>{counts.all}</span>
+    </button>
+  </div>
+
+  <div class="lib-controls">
+    <input
+      type="search"
+      id="lib-search"
+      class="lib-search"
+      placeholder="Title, author, series, tag, ISBN…"
+      aria-label="Search the library"
+      autocomplete="off"
+    />
+
+    <select id="lib-ownership" class="lib-select" aria-label="Ownership">
+      <option value="owned">On the shelf</option>
+      <option value="">Wherever it is</option>
+      <option value="wanted">Wanted</option>
+      <option value="released">Gone</option>
+      <option value="none">Never owned</option>
+    </select>
+
+    <select id="lib-format" class="lib-select" aria-label="Format">
+      <option value="">Any format</option>
+      <option value="print">Print</option>
+      <option value="audio">Audio</option>
+      <option value="graphic">Graphic</option>
+    </select>
+
+    {genres.length > 0 && (
+      <select id="lib-genre" class="lib-select" aria-label="Genre">
+        <option value="">Any genre</option>
+        {genres.map(g => <option value={g}>{g}</option>)}
+      </select>
+    )}
+
+    {authors.length > 0 && (
+      <select id="lib-author" class="lib-select" aria-label="Author">
+        <option value="">Any author</option>
+        {authors.map(a => <option value={a}>{a}</option>)}
+      </select>
+    )}
+
+    <label class="lib-wall-toggle">
+      <input type="checkbox" id="lib-wall" />
+      <span>Covers</span>
+    </label>
+  </div>
+
+  <p class="lib-count" id="lib-count" aria-live="polite"></p>
+</div>

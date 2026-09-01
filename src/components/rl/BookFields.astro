@@ -10,8 +10,20 @@ import { BOOK_FORMATS } from '../../lib/records/book';
  * paragraph long, and nobody wants to scroll past it to reach the notes. The
  * column keeps whatever was fetched, and editing here leaves it alone.
  */
+
+/**
+ * What this needs of a book, which is less than a Book.
+ *
+ * The add form now fills these from a *library entry* when one is picked, and a
+ * library entry has no year, no position and no dates — it is a book, not a
+ * reading of one. Widening the prop is honest about that; the alternative was a
+ * cast at the call site, which would have made the next person believe a
+ * library entry is a Book.
+ */
+export type BookDefaults = Partial<Book>;
+
 interface Props {
-  book: Book | null;
+  book: BookDefaults | null;
   years: YearData[];
   /** For a new book: the year it is being added to and its position in it. */
   defaults?: { yearId?: string; orderRead?: number; comingUp?: boolean };
@@ -125,7 +137,7 @@ const format = v('format', book?.format, 'print');
 
 <label class="book-form__field">
   <span class="book-form__label">Tags</span>
-  <input class="book-form__input" type="text" name="tags" value={v('tags', book?.tags.join(', '))} placeholder="comma, separated" />
+  <input class="book-form__input" type="text" name="tags" value={v('tags', book?.tags?.join(', '))} placeholder="comma, separated" />
 </label>
 
 <label class="book-form__field">
@@ -162,10 +174,10 @@ const format = v('format', book?.format, 'print');
 <div class="book-form__row">
   <label class="book-form__field">
     <span class="book-form__label">Open Library</span>
-    <input class="book-form__input" type="url" name="link_openlibrary" value={v('link_openlibrary', book?.links.openlibrary)} />
+    <input class="book-form__input" type="url" name="link_openlibrary" value={v('link_openlibrary', book?.links?.openlibrary)} />
   </label>
   <label class="book-form__field">
     <span class="book-form__label">Wikipedia</span>
-    <input class="book-form__input" type="url" name="link_wikipedia" value={v('link_wikipedia', book?.links.wikipedia)} />
+    <input class="book-form__input" type="url" name="link_wikipedia" value={v('link_wikipedia', book?.links?.wikipedia)} />
   </label>
 </div>

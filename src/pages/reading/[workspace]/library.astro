@@ -1,0 +1,246 @@
+---
+import RlLayout from '../../../layouts/RlLayout.astro';
+import LibraryCard from '../../../components/rl/LibraryCard.astro';
+import LibraryFilter from '../../../components/rl/LibraryFilter.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import {
+  currentYear, facetsOf, libraryStats, loadLibrary, loadYears,
+} from '../../../lib/reading-list';
+import { describeWriteError } from '../../../lib/records/save';
+
+export const prerender = false;
+
+/**
+ * The library.
+ *
+ * Every book, read or not, owned or not — and the default view is the one
+ * question a mostly-read library exists to answer: what is on the bookcase that
+ * I have not read. Everything else is a narrowing of that.
+ *
+ * Readable by anyone who can read the project, because it is a reading record
+ * like the year pages. The controls are only rendered to somebody who could act
+ * on them.
+ */
+
+const { supabase, user } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const workspace = await resolveWorkspace(supabase, 'reading-list', wsSlug, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const base = `/reading/${workspace.slug}`;
+const years = await loadYears(supabase, workspace.id);
+
+let error: string | null = null;
+let notice: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  if (!workspace.canWrite) return new Response('Forbidden', { status: 403 });
+
+  const form = await Astro.request.formData();
+  const intent = String(form.get('intent') ?? '');
+  const entryId = String(form.get('entry_id') ?? '');
+
+  if (entryId && (intent === 'mark-read' || intent === 'mark-unread')) {
+    // The override, not a fabricated reading. A book read in 2003 and never
+    // logged has no year, no dates and no position, and inventing them would
+    // break every count on the site to express something one column says
+    // exactly.
+    const { error: writeError } = await supabase
+      .from('rl_library')
+      .update({ read_override: intent === 'mark-read' ? true : false })
+      .eq('id', entryId);
+    if (writeError) error = describeWriteError(writeError, 'library read override');
+  }
+
+  if (entryId && intent === 'add-to-year') {
+    const year = currentYear(years);
+    if (!year) {
+      error = 'There is no year to add this to yet.';
+    } else {
+      const { data: entry } = await supabase
+        .from('rl_library')
+        .select('title, author, pages, year_published, publisher, genre, tags, isbn, cover_url, description, format, link_openlibrary')
+        .eq('id', entryId)
+        .maybeSingle();
+
+      if (!entry) {
+        error = 'That book could not be found.';
+      } else {
+        // The next free position, read at the moment of writing. Two people
+        // adding at once both see the same number and the second loses to the
+        // unique index — which is the right outcome, and describeWriteError
+        // has a sentence for it.
+        const { data: last } = await supabase
+          .from('rl_books')
+          .select('order_read')
+          .eq('year_id', year.id)
+          .order('order_read', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        // The particulars are copied rather than joined: this reading records
+        // the edition read *now*, and replacing the copy on the shelf later
+        // must not rewrite what this says. Title and author are the exception —
+        // a trigger mirrors those down, because identity has to be single-valued.
+        const { error: writeError } = await supabase.from('rl_books').insert({
+          workspace_id: workspace.id,
+          year_id: year.id,
+          library_id: entryId,
+          order_read: (last?.order_read ?? 0) + 1,
+          title: entry.title,
+          author: entry.author,
+          pages: entry.pages,
+          year_published: entry.year_published,
+          publisher: entry.publisher,
+          genre: entry.genre,
+          tags: entry.tags,
+          isbn: entry.isbn,
+          cover_url: entry.cover_url,
+          description: entry.description,
+          format: entry.format,
+          link_openlibrary: entry.link_openlibrary,
+          coming_up: true,
+        });
+
+        if (writeError) error = describeWriteError(writeError, 'library add to year');
+        else notice = `“${entry.title}” is on ${year.year}.`;
+      }
+    }
+  }
+}
+
+const entries = await loadLibrary(supabase, workspace.id);
+const stats = libraryStats(entries);
+
+const genres = facetsOf(entries, e => e.genre);
+const authors = facetsOf(entries, e => e.author);
+
+// Where an import lands, so the first thing somebody sees after applying one is
+// what it did.
+const added = Number(Astro.url.searchParams.get('added') ?? 0);
+const confirmed = Number(Astro.url.searchParams.get('confirmed') ?? 0);
+if (added || confirmed) {
+  notice = [
+    added ? `${added} book${added === 1 ? '' : 's'} added` : '',
+    confirmed ? `${confirmed} confirmed as owned` : '',
+  ].filter(Boolean).join(', ') + '.';
+}
+---
+
+<RlLayout
+  title={`Library · ${workspace.name}`}
+  description="Every book, read or not"
+  workspace={workspace}
+  years={years}
+>
+  <div class="container">
+    <div class="page-header">
+      <h1>Library</h1>
+      <p class="subtitle">
+        {stats.total} book{stats.total === 1 ? '' : 's'}.
+        {stats.pile > 0 && (
+          <>
+            {' '}<strong>{stats.pile}</strong> on the shelf and unread
+            {stats.pilePages > 0 && ` — ${stats.pilePages.toLocaleString('en-GB')} pages`}
+            {stats.pilePct !== null && `, ${stats.pilePct}% of what you own`}.
+          </>
+        )}
+        {stats.wanted > 0 && ` ${stats.wanted} wanted.`}
+      </p>
+    </div>
+
+    {notice && <p class="import-notice">{notice}</p>}
+    {error && <p class="import-error">{error}</p>}
+
+    {entries.length === 0 ? (
+      <p class="import-note">
+        Nothing here yet. Every book you have read is added automatically the
+        first time the library is built; the rest arrives from
+        {workspace.canWrite ? <> an <a href={`${base}/import`}>import</a></> : ' an import'} of
+        your bookcase.
+      </p>
+    ) : (
+      <>
+        <LibraryFilter
+          genres={genres}
+          authors={authors}
+          counts={{ all: stats.total, read: stats.read, unread: stats.unread }}
+        />
+
+        <div class="lib-grid" id="lib-grid">
+          {entries.map(entry => (
+            <LibraryCard entry={entry} base={base} canWrite={workspace.canWrite} />
+          ))}
+        </div>
+
+        <p class="lib-empty" id="lib-empty" hidden>Nothing matches that.</p>
+      </>
+    )}
+  </div>
+</RlLayout>
+
+<script>
+  // Filtering what the page already holds. No network, no cost, and it stays
+  // right until the library outgrows loading everything — at which point the
+  // matcher moves to Postgres and this becomes a form submit.
+  const grid = document.getElementById('lib-grid');
+  if (grid) {
+    const cards = [...grid.querySelectorAll<HTMLElement>('.lib-card')];
+    const search = document.getElementById('lib-search') as HTMLInputElement;
+    const ownership = document.getElementById('lib-ownership') as HTMLSelectElement;
+    const format = document.getElementById('lib-format') as HTMLSelectElement;
+    const genre = document.getElementById('lib-genre') as HTMLSelectElement | null;
+    const author = document.getElementById('lib-author') as HTMLSelectElement | null;
+    const wall = document.getElementById('lib-wall') as HTMLInputElement;
+    const count = document.getElementById('lib-count');
+    const empty = document.getElementById('lib-empty');
+    const segments = [...document.querySelectorAll<HTMLButtonElement>('.lib-segment')];
+
+    let state = 'unread';
+
+    // The same rule as matchesQuery() in lib/library.ts: every word has to
+    // appear somewhere, so a second word narrows rather than widens.
+    const fold = (value: string) =>
+      value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+    function apply() {
+      const words = fold(search.value).split(' ').filter(Boolean);
+      let shown = 0;
+
+      for (const card of cards) {
+        const isRead = card.dataset.read === 'true';
+        const okState = state === 'all' || (state === 'read' ? isRead : !isRead);
+        const okOwn = !ownership.value || card.dataset.ownership === ownership.value;
+        const okFormat = !format.value || card.dataset.format === format.value;
+        const okGenre = !genre?.value || card.dataset.genre === genre.value;
+        const okAuthor = !author?.value || card.dataset.author === author.value;
+        const hay = fold(card.dataset.search ?? '');
+        const okWords = words.every(word => hay.includes(word));
+
+        const visible = okState && okOwn && okFormat && okGenre && okAuthor && okWords;
+        card.hidden = !visible;
+        if (visible) shown++;
+      }
+
+      if (count) count.textContent = shown === cards.length ? '' : `${shown} of ${cards.length}`;
+      if (empty) empty.hidden = shown > 0;
+    }
+
+    for (const segment of segments) {
+      segment.addEventListener('click', () => {
+        segments.forEach(s => s.classList.toggle('is-active', s === segment));
+        state = segment.dataset.state ?? 'all';
+        apply();
+      });
+    }
+
+    for (const control of [search, ownership, format, genre, author]) {
+      control?.addEventListener('input', apply);
+    }
+
+    wall?.addEventListener('change', () => grid.classList.toggle('lib-grid--wall', wall.checked));
+
+    apply();
+  }
+</script>

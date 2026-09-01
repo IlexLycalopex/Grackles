@@ -158,8 +158,14 @@ test('every column offered to the model is one the validator accepts', () => {
 test('no source offers a column that would identify a project or a person', () => {
   for (const source of SOURCES) {
     for (const field of source.fields) {
+      // `owner(?!ship)` rather than `owner`, and the lookahead is doing real
+      // work in both directions. It has to keep matching `owner_id`, which a
+      // word boundary would not — `_` is a word character, so /\bowner\b/
+      // misses the exact column this guard exists for. And it has to stop
+      // matching rl_library.ownership, which says whether a *copy* is on the
+      // shelf, wanted, gone or was never owned, and names nobody.
       assert.ok(
-        !/workspace|owner|user_id|payer|created_by/.test(field.column),
+        !/workspace|owner(?!ship)|user_id|payer|created_by/.test(field.column),
         `${source.key}.${field.column} would let a plan ask about whose records these are`
       );
     }
@@ -169,4 +175,52 @@ test('no source offers a column that would identify a project or a person', () =
 test('the cache key ignores spacing and case but not words', () => {
   assert.equal(cacheKeyFor('  Books   I never   Finished '), cacheKeyFor('books i never finished'));
   assert.notEqual(cacheKeyFor('books i finished'), cacheKeyFor('books i never finished'));
+});
+
+/**
+ * The question the library exists to answer, as a plan.
+ *
+ * This is the whole return on making `read` a maintained column in the schema
+ * rather than a join computed at query time: it reduces to one filter that the
+ * plan validator already knows how to check and `runPlan` already knows how to
+ * run. As a view it would have needed the search runner to learn about views.
+ */
+test('which unread science fiction do I own', () => {
+  const checked = checkPlan({
+    source: 'library',
+    filters: [
+      { column: 'read', op: 'eq', value: false },
+      { column: 'ownership', op: 'eq', value: 'owned' },
+      { column: 'genre', op: 'contains', value: 'Science Fiction' },
+    ],
+    order: { column: 'added_at', direction: 'asc' },
+    limit: 20,
+  });
+  assert.equal(checked.ok, true);
+});
+
+test('ownership only accepts the four states a copy can be in', () => {
+  const bad = checkPlan({
+    source: 'library',
+    filters: [{ column: 'ownership', op: 'eq', value: 'borrowed' }],
+    limit: 5,
+  });
+  assert.equal(bad.ok, false);
+});
+
+test('the readings and the library are separate things to search', () => {
+  const keys = SOURCES.map(s => s.key);
+  assert.ok(keys.includes('books'), 'the readings are searchable');
+  assert.ok(keys.includes('library'), 'the library is searchable');
+
+  // The distinction has to survive into what the model is told, or it will pick
+  // one when the question meant the other.
+  const vocab = vocabulary();
+  assert.match(vocab, /library — Every book owned/);
+  assert.match(vocab, /read boolean/);
+});
+
+test('a library result points at the book, not at a reading of it', () => {
+  const library = SOURCES.find(s => s.key === 'library')!;
+  assert.equal(library.href({ id: 'abc' }, 'my-list'), '/reading/my-list/library/abc');
 });

@@ -1,0 +1,375 @@
+---
+import RlLayout from '../../../layouts/RlLayout.astro';
+import { requireWrite } from '../../../lib/workspace';
+import { loadLibrary, loadYears, currentYear } from '../../../lib/reading-list';
+import { keyOf, searchableText } from '../../../lib/library';
+import { describeWriteError } from '../../../lib/records/save';
+
+export const prerender = false;
+
+/**
+ * The reference desk, and the buy-guard.
+ *
+ * Standing in a bookshop with a book in your hand, the first question is not
+ * "what is this" but "do I already own it, and have I read it" — and that
+ * question is answered here without a network request, from the library the
+ * page already holds. It is the cheapest thing in the whole plan and, on the
+ * stated problem of a shelf with duplicates on it, the most useful.
+ *
+ * Only when your own records have nothing does anything else happen, and even
+ * then three of the four stages behind the button are free.
+ */
+
+const { supabase, user } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const gate = await requireWrite(
+  supabase, 'reading-list', wsSlug, user?.id ?? null, Astro.url.pathname + Astro.url.search
+);
+if (!gate.ok) return gate.response;
+const { workspace } = gate;
+
+const base = `/reading/${workspace.slug}`;
+const years = await loadYears(supabase, workspace.id);
+const entries = await loadLibrary(supabase, workspace.id);
+
+let error: string | null = null;
+let notice: string | null = null;
+
+/**
+ * A result becomes a URL rather than being handed across in a form.
+ *
+ * The shape the cigar desk arrived at when it was built, and for the same two
+ * reasons: the page is then shareable, and prefilling happens server-side from
+ * the row rather than client-side from a query string — so it also works
+ * without JavaScript, which the panel's own fill does not.
+ */
+const referenceId = Astro.url.searchParams.get('reference');
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const intent = String(form.get('intent') ?? '');
+  const id = String(form.get('reference_id') ?? '');
+
+  if (id && (intent === 'add-shelf' || intent === 'add-wanted' || intent === 'add-year')) {
+    const { data: ref } = await supabase
+      .from('rl_book_reference')
+      .select('id, title, author, series, series_index, year_published, isbn, pages, publisher, cover_url, link_openlibrary')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (!ref) {
+      error = 'That lookup could not be found.';
+    } else {
+      // The fold decides, not the button. Pressing "add" on a book already in
+      // the library must join it rather than mint a second copy — which is the
+      // same rule the add-book form follows, and the reason the reference key
+      // and the library key are the same fold.
+      const key = keyOf({ title: ref.title, author: ref.author, series_index: ref.series_index });
+      const existing = entries.find(e => keyOf(e) === key);
+
+      let entryId = existing?.id ?? null;
+
+      if (existing) {
+        notice = `“${ref.title}” is already in your library.`;
+        if (intent !== 'add-year') {
+          await supabase
+            .from('rl_library')
+            .update({ ownership: intent === 'add-wanted' ? 'wanted' : 'owned' })
+            .eq('id', existing.id);
+        }
+      } else {
+        const { data: made, error: writeError } = await supabase
+          .from('rl_library')
+          .insert({
+            workspace_id: workspace.id,
+            title: ref.title,
+            author: ref.author,
+            series: ref.series,
+            series_index: ref.series_index,
+            year_published: ref.year_published,
+            pages: ref.pages,
+            publisher: ref.publisher,
+            isbn: ref.isbn,
+            cover_url: ref.cover_url,
+            link_openlibrary: ref.link_openlibrary,
+            ownership: intent === 'add-wanted' ? 'wanted' : 'owned',
+            source: 'lookup',
+            reference_id: ref.id,
+          })
+          .select('id')
+          .single();
+
+        if (writeError) error = describeWriteError(writeError, 'rl_library from lookup');
+        else {
+          entryId = made?.id ?? null;
+          notice = intent === 'add-wanted'
+            ? `“${ref.title}” is on the wishlist.`
+            : `“${ref.title}” is in your library.`;
+        }
+      }
+
+      if (!error && entryId && intent === 'add-year') {
+        const year = currentYear(years);
+        if (!year) error = 'There is no year to add this to yet.';
+        else return Astro.redirect(`${base}/book/new?year=${year.year}&library=${entryId}`);
+      }
+    }
+  }
+}
+
+const { data: reference } = referenceId
+  ? await supabase
+      .from('rl_book_reference')
+      .select('id, title, author, series, series_index, year_published, confidence, alternates, isbn, pages, publisher, cover_url, link_openlibrary, created_at')
+      .eq('id', referenceId)
+      .maybeSingle()
+  : { data: null };
+
+/** Whether the looked-up book is one already held, for the buy-guard line. */
+const alreadyHave = reference
+  ? entries.find(e =>
+      keyOf(e) === keyOf({ title: reference.title, author: reference.author, series_index: reference.series_index })
+    ) ?? null
+  : null;
+
+const searchable = entries.map(e => ({
+  id: e.id,
+  title: e.title,
+  author: e.author,
+  read: e.read,
+  times: e.times_read,
+  own: e.ownership,
+  text: searchableText(e),
+}));
+---
+
+<RlLayout
+  title={`Look a book up · ${workspace.name}`}
+  description="Do I own it, have I read it, and what is it"
+  workspace={workspace}
+  years={years}
+>
+  <div class="container">
+    <div class="page-header">
+      <h1>Look a book up</h1>
+      <p class="subtitle">
+        Your own library first — that costs nothing and answers most of it.
+      </p>
+    </div>
+
+    {notice && <p class="import-notice">{notice}</p>}
+    {error && <p class="import-error">{error}</p>}
+
+    <div class="lookup" data-lookup>
+      <label class="rl-field">
+        <span>Title, author, or roughly what you remember</span>
+        <input
+          type="search"
+          class="lookup__input"
+          placeholder="the new rachel cusk"
+          autocomplete="off"
+          data-lookup-query
+        />
+      </label>
+
+      <div class="lookup__actions">
+        <button class="rl-button rl-button--quiet" type="button" data-lookup-scan hidden>
+          Scan a barcode
+        </button>
+        {/* The paid stage, and it says so. Never a keystroke: a debounced
+            type-ahead against this would spend money answering queries somebody
+            is halfway through writing. */}
+        <button class="rl-button" type="button" data-lookup-go>Search the catalogues</button>
+      </div>
+      <p class="lookup__hint">
+        The catalogues are free. If they have nothing, the model is asked which
+        book you mean — and then the catalogue is asked again with its answer,
+        so the page count and the ISBN always come from the catalogue.
+      </p>
+
+      <h2 class="lib-heading" data-lookup-mine-heading hidden>In your library</h2>
+      <ul class="lookup__mine" data-lookup-mine></ul>
+
+      <p class="lookup__status" data-lookup-status hidden></p>
+      <div class="lookup__result" data-lookup-result hidden></div>
+
+      <div hidden data-lookup-data={JSON.stringify(searchable)}></div>
+      <div hidden data-lookup-endpoint={`/api/reading/${workspace.slug}/lookup`} data-lookup-base={base}></div>
+    </div>
+
+    {reference && (
+      <div class="lookup__card">
+        <h2 class="lib-heading">{reference.title}</h2>
+        <p class="subtitle">
+          {reference.author}
+          {reference.series && ` · ${reference.series}${reference.series_index !== null ? ` ${reference.series_index}` : ''}`}
+        </p>
+
+        {alreadyHave && (
+          <p class="import-note import-note--warn">
+            You already have this: <a href={`${base}/library/${alreadyHave.id}`}>{alreadyHave.title}</a>
+            {alreadyHave.read ? ' — and you have read it.' : ' — unread.'}
+          </p>
+        )}
+
+        <dl class="lib-facts">
+          {reference.year_published && (<><dt>First published</dt><dd>{reference.year_published}</dd></>)}
+          {reference.pages && (<><dt>Pages</dt><dd>{reference.pages}</dd></>)}
+          {reference.publisher && (<><dt>Publisher</dt><dd>{reference.publisher}</dd></>)}
+          {reference.isbn && (<><dt>ISBN</dt><dd class="lib-mono">{reference.isbn}</dd></>)}
+          <dt>How sure</dt>
+          <dd>{reference.confidence}</dd>
+        </dl>
+
+        {reference.alternates.length > 0 && (
+          <p class="lookup__alts">
+            Or did you mean: {reference.alternates.join(', ')}
+          </p>
+        )}
+
+        <form method="POST" class="lookup__buttons">
+          <input type="hidden" name="reference_id" value={reference.id} />
+          <button class="rl-button" type="submit" name="intent" value="add-shelf">Add to the library</button>
+          <button class="rl-button rl-button--quiet" type="submit" name="intent" value="add-wanted">Want it</button>
+          <button class="rl-button rl-button--quiet" type="submit" name="intent" value="add-year">Add and read it next</button>
+        </form>
+
+        <p class="lookup__hint">
+          The page count, the ISBN and the publisher came from OpenLibrary. The
+          model was asked only which book this is.
+        </p>
+      </div>
+    )}
+  </div>
+</RlLayout>
+
+<script>
+  const fold = (value: string) =>
+    value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+  const panel = document.querySelector<HTMLElement>('[data-lookup]');
+  if (panel) {
+    const input = panel.querySelector<HTMLInputElement>('[data-lookup-query]')!;
+    const go = panel.querySelector<HTMLButtonElement>('[data-lookup-go]')!;
+    const scan = panel.querySelector<HTMLButtonElement>('[data-lookup-scan]')!;
+    const mine = panel.querySelector<HTMLUListElement>('[data-lookup-mine]')!;
+    const mineHeading = panel.querySelector<HTMLElement>('[data-lookup-mine-heading]')!;
+    const status = panel.querySelector<HTMLElement>('[data-lookup-status]')!;
+    const endpoint = panel.querySelector<HTMLElement>('[data-lookup-endpoint]')!;
+
+    const entries = JSON.parse(
+      panel.querySelector<HTMLElement>('[data-lookup-data]')!.dataset.lookupData ?? '[]'
+    ) as { id: string; title: string; author: string; read: boolean; times: number; own: string; text: string }[];
+    const folded = entries.map(e => ({ ...e, hay: fold(e.text) }));
+    const base = endpoint.dataset.lookupBase ?? '';
+
+    // Stage 0, and it runs on every keystroke because it costs nothing: no
+    // network, no model, just the library already on this page. This is the
+    // buy-guard, and it is the reason to open this page in a shop.
+    function showMine() {
+      const words = fold(input.value).split(' ').filter(Boolean);
+      mine.replaceChildren();
+      if (!words.length) { mineHeading.hidden = true; return; }
+
+      const hits = folded.filter(e => words.every(w => e.hay.includes(w))).slice(0, 6);
+      for (const hit of hits) {
+        const li = document.createElement('li');
+        const link = document.createElement('a');
+        link.href = `${base}/library/${hit.id}`;
+        link.textContent = hit.title + (hit.author ? ` — ${hit.author}` : '');
+        const note = document.createElement('span');
+        note.className = 'lookup__note';
+        note.textContent = ` · ${hit.read ? (hit.times > 1 ? `read ${hit.times}×` : 'read') : 'unread'}` +
+          (hit.own === 'owned' ? ' · on the shelf' : hit.own === 'wanted' ? ' · wanted' : hit.own === 'released' ? ' · gone' : '');
+        li.append(link, note);
+        mine.append(li);
+      }
+      mineHeading.hidden = hits.length === 0;
+    }
+
+    input.addEventListener('input', showMine);
+
+    // Stages 1 to 3, on a press. Never on a keystroke.
+    go.addEventListener('click', async () => {
+      const query = input.value.trim();
+      if (!query) return;
+
+      go.disabled = true;
+      go.textContent = 'Looking…';
+      status.hidden = false;
+      status.textContent = 'Asking the catalogues…';
+
+      try {
+        const response = await fetch(endpoint.dataset.lookupEndpoint!, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query }),
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body?.error ?? 'That could not be looked up.');
+
+        // A saved result becomes a URL, so the page reloads onto it and the
+        // buttons are rendered server-side from the row.
+        if (body.match?.id) { window.location.href = `?reference=${body.match.id}`; return; }
+
+        status.textContent =
+          `${body.match.title}${body.match.author ? ` — ${body.match.author}` : ''}` +
+          ` · found in ${body.source === 'cache' ? 'the shared cache' : 'the catalogue'}`;
+      } catch (cause) {
+        status.textContent = cause instanceof Error ? cause.message : 'That could not be looked up.';
+      } finally {
+        go.disabled = false;
+        go.textContent = 'Search the catalogues';
+      }
+    });
+
+    /**
+     * A barcode is an ISBN, and an ISBN is an exact catalogue lookup.
+     *
+     * Built before the model path is leaned on, because it makes that path
+     * rare: pointing a phone at the back of a book is faster than typing and
+     * lands on a definite answer rather than a probable one. BarcodeDetector
+     * is not everywhere, so the button only appears where it exists.
+     */
+    if ('BarcodeDetector' in window) {
+      scan.hidden = false;
+      scan.addEventListener('click', async () => {
+        let stream: MediaStream | null = null;
+        try {
+          const Detector = (window as any).BarcodeDetector;
+          const detector = new Detector({ formats: ['ean_13', 'isbn_13' ] });
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+
+          const video = document.createElement('video');
+          video.srcObject = stream;
+          video.setAttribute('playsinline', '');
+          await video.play();
+
+          status.hidden = false;
+          status.textContent = 'Point the camera at the barcode…';
+
+          // Up to ten seconds of looking, then give up rather than hold the
+          // camera open on a page somebody has stopped watching.
+          const deadline = Date.now() + 10_000;
+          while (Date.now() < deadline) {
+            const codes = await detector.detect(video);
+            if (codes.length) {
+              input.value = codes[0].rawValue;
+              showMine();
+              status.textContent = `Barcode ${codes[0].rawValue}. Press search.`;
+              return;
+            }
+            await new Promise(r => setTimeout(r, 300));
+          }
+          status.textContent = 'No barcode found. Type the title instead.';
+        } catch {
+          status.hidden = false;
+          status.textContent = 'The camera could not be opened.';
+        } finally {
+          stream?.getTracks().forEach(track => track.stop());
+        }
+      });
+    }
+  }
+</script>

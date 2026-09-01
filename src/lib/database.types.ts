@@ -365,6 +365,212 @@ export type Database = {
         };
         Relationships: [];
       };
+      rl_book_reference: {
+        Row: {
+          id: string;
+          /** Canonical title + author, derived from the answer not the question. */
+          key: string;
+          query: string;
+          title: string;
+          author: string;
+          series: string;
+          series_index: number | null;
+          year_published: number | null;
+          confidence: string;
+          alternates: string[];
+          /** Catalogue facts. Never taken from a completion — see book-reference.ts. */
+          isbn: string;
+          pages: number | null;
+          publisher: string;
+          cover_url: string;
+          link_openlibrary: string;
+          model: string;
+          prompt_tokens: number;
+          completion_tokens: number;
+          workspace_id: string | null;
+          looked_up_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          key: string;
+          query?: string;
+          title?: string;
+          author?: string;
+          series?: string;
+          series_index?: number | null;
+          year_published?: number | null;
+          confidence?: string;
+          alternates?: string[];
+          isbn?: string;
+          pages?: number | null;
+          publisher?: string;
+          cover_url?: string;
+          link_openlibrary?: string;
+          model?: string;
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          workspace_id?: string | null;
+          looked_up_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['rl_book_reference']['Insert']>;
+        Relationships: [];
+      };
+      rl_import_batches: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          filename: string;
+          content_hash: string;
+          rows_total: number;
+          rows_accepted: number;
+          read_default: boolean;
+          status: string;
+          uploaded_by: string | null;
+          created_at: string;
+          applied_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          filename?: string;
+          content_hash: string;
+          rows_total?: number;
+          rows_accepted?: number;
+          read_default?: boolean;
+          status?: string;
+          uploaded_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['rl_import_batches']['Insert']>;
+        Relationships: [];
+      };
+      rl_import_rows: {
+        Row: {
+          id: string;
+          batch_id: string;
+          workspace_id: string;
+          position: number;
+          raw: Json;
+          title: string;
+          author: string;
+          work_key: string;
+          verdict: string;
+          match_library_id: string | null;
+          decision: string;
+          read_decision: boolean | null;
+          series: string;
+          series_index: number | null;
+          year_published: number | null;
+          pages: number | null;
+          publisher: string;
+          isbn: string;
+          genre: string;
+          tags: string[];
+          format: string;
+          source_photo: string;
+          notes: string;
+          library_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          batch_id: string;
+          workspace_id: string;
+          position: number;
+          raw?: Json;
+          title?: string;
+          author?: string;
+          work_key?: string;
+          verdict?: string;
+          match_library_id?: string | null;
+          decision?: string;
+          read_decision?: boolean | null;
+          series?: string;
+          series_index?: number | null;
+          year_published?: number | null;
+          pages?: number | null;
+          publisher?: string;
+          isbn?: string;
+          genre?: string;
+          tags?: string[];
+          format?: string;
+          source_photo?: string;
+          notes?: string;
+          library_id?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['rl_import_rows']['Insert']>;
+        Relationships: [];
+      };
+      rl_library: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          /** Identity, set by trigger. Never sent by a form. */
+          work_key: string;
+          title: string;
+          author: string;
+          series: string;
+          series_index: number | null;
+          format: string;
+          ownership: string;
+          /** coalesce(read_override, times_read > 0), maintained by trigger. */
+          read: boolean;
+          /** Null follows the readings; true is a book read before the log existed. */
+          read_override: boolean | null;
+          reading: boolean;
+          times_read: number;
+          last_read_on: string | null;
+          year_published: number | null;
+          pages: number | null;
+          publisher: string;
+          publisher_normalised: string;
+          genre: string;
+          tags: string[];
+          isbn: string;
+          cover_url: string;
+          description: string;
+          notes: string;
+          link_openlibrary: string;
+          source: string;
+          source_batch_id: string | null;
+          source_photo: string;
+          confidence: string;
+          /** Which lookup this was filled from, when it was filled from one. */
+          reference_id: string | null;
+          added_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          title: string;
+          author?: string;
+          series?: string;
+          series_index?: number | null;
+          format?: string;
+          ownership?: string;
+          read_override?: boolean | null;
+          year_published?: number | null;
+          pages?: number | null;
+          publisher?: string;
+          genre?: string;
+          tags?: string[];
+          isbn?: string;
+          cover_url?: string;
+          description?: string;
+          notes?: string;
+          link_openlibrary?: string;
+          source?: string;
+          source_batch_id?: string | null;
+          source_photo?: string;
+          confidence?: string;
+          reference_id?: string | null;
+          added_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['rl_library']['Insert']>;
+        Relationships: [];
+      };
       rl_books: {
         Row: {
           id: string;
@@ -390,6 +596,8 @@ export type Database = {
           coming_up: boolean;
           link_openlibrary: string;
           link_wikipedia: string;
+          /** The book this is a reading of. Not null once the backfill has run. */
+          library_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -399,6 +607,7 @@ export type Database = {
           year_id: string;
           order_read: number;
           title: string;
+          library_id?: string | null;
           author?: string;
           pages?: number | null;
           date_started?: string | null;
@@ -1261,6 +1470,37 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
+      /**
+       * Applies a staged import in one transaction: added rows become library
+       * entries, confirmed rows are marked owned, skipped rows write nothing.
+       *
+       * GRK30 no such import, GRK31 already applied, 23505 two rows in the
+       * batch are the same book — in which case nothing at all was written.
+       */
+      /**
+       * Entries close enough to be the same book without folding to the same
+       * key — "The Trial" against "Trial". Offered to a person; never merged
+       * by anything but somebody pressing a button.
+       */
+      rl_near_duplicates: {
+        Args: { p_workspace?: string | null };
+        Returns: {
+          a_id: string; a_title: string; a_author: string; a_read: boolean;
+          b_id: string; b_title: string; b_author: string; b_read: boolean;
+        }[];
+      };
+      /**
+       * Moves every reading onto p_keep, takes the fuller value of each field,
+       * and deletes p_drop. GRK32 no such book, GRK33 they cannot be merged.
+       */
+      rl_merge_library: {
+        Args: { p_keep: string; p_drop: string };
+        Returns: { moved: number; kept: string };
+      };
+      rl_apply_import: {
+        Args: { p_batch: string };
+        Returns: { added: number; confirmed: number };
+      };
       /**
        * Redeems membership, creation rights, or both. workspace_id is null
        * when the invite only granted the right to create.

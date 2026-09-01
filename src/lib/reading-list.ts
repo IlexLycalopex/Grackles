@@ -331,3 +331,161 @@ function paceFor(target: number, counted: number, today: Date) {
   return { expected, delta: counted - expected };
 }
 
+
+// ── The library ─────────────────────────────────────────────────────
+
+/**
+ * A book, as against a reading of one.
+ *
+ * The two are deliberately separate types even though they share most of their
+ * field names: a `Book` has a year and a position in it, and a `LibraryEntry`
+ * has an owner and a read state. Merging them into one optional-everything
+ * interface would make every page that handles either have to ask which it had.
+ */
+export interface LibraryEntry {
+  id: string;
+  title: string;
+  author: string;
+  series: string;
+  series_index: number | null;
+  format: 'print' | 'audio' | 'graphic';
+  ownership: Ownership;
+  /** coalesce(read_override, times_read > 0) — maintained by the database. */
+  read: boolean;
+  /** Null follows the readings; true is a book read before the log existed. */
+  read_override: boolean | null;
+  reading: boolean;
+  times_read: number;
+  last_read_on: string | null;
+  year_published: number | null;
+  pages: number | null;
+  publisher: string | null;
+  publisher_normalised: string | null;
+  genre: string | null;
+  tags: string[];
+  isbn: string | null;
+  cover_url: string | null;
+  description: string | null;
+  notes: string | null;
+  link_openlibrary: string;
+  source: string;
+  source_photo: string;
+  added_at: string;
+}
+
+export const OWNERSHIPS = ['owned', 'wanted', 'released', 'none'] as const;
+export type Ownership = (typeof OWNERSHIPS)[number];
+
+/** What each ownership state is called where a person reads it. */
+export const OWNERSHIP_LABELS: Record<Ownership, string> = {
+  owned: 'On the shelf',
+  wanted: 'Wanted',
+  released: 'Gone',
+  none: 'Never owned',
+};
+
+const LIBRARY_COLUMNS = `
+  id, title, author, series, series_index, format, ownership,
+  read, read_override, reading, times_read, last_read_on,
+  year_published, pages, publisher, publisher_normalised, genre, tags,
+  isbn, cover_url, description, notes, link_openlibrary,
+  source, source_photo, added_at
+`;
+
+function toEntry(row: any): LibraryEntry {
+  return {
+    ...row,
+    author: row.author ?? '',
+    series: row.series ?? '',
+    format: (['print', 'audio', 'graphic'] as const).includes(row.format) ? row.format : 'print',
+    ownership: (OWNERSHIPS as readonly string[]).includes(row.ownership)
+      ? (row.ownership as Ownership)
+      // Same reasoning as toStatus() above: a value this build has not heard of
+      // is read as the one that hides nothing and claims nothing.
+      : 'owned',
+    tags: row.tags ?? [],
+    publisher: row.publisher || null,
+    genre: row.genre || null,
+    isbn: row.isbn || null,
+    cover_url: row.cover_url || null,
+    description: row.description || null,
+    notes: row.notes || null,
+    link_openlibrary: row.link_openlibrary ?? '',
+    source_photo: row.source_photo ?? '',
+  };
+}
+
+export async function loadLibrary(
+  supabase: SupabaseClient<Database>,
+  workspaceId: string
+): Promise<LibraryEntry[]> {
+  const { data } = await supabase
+    .from('rl_library')
+    .select(LIBRARY_COLUMNS)
+    .eq('workspace_id', workspaceId)
+    .order('author')
+    .order('series_index', { nullsFirst: true })
+    .order('title');
+
+  return (data ?? []).map(toEntry);
+}
+
+export async function loadEntry(
+  supabase: SupabaseClient<Database>,
+  entryId: string
+): Promise<LibraryEntry | null> {
+  const { data } = await supabase
+    .from('rl_library')
+    .select(LIBRARY_COLUMNS)
+    .eq('id', entryId)
+    .maybeSingle();
+  return data ? toEntry(data) : null;
+}
+
+export interface LibraryStats {
+  total: number;
+  owned: number;
+  read: number;
+  unread: number;
+  /** Owned and unread — the pile, and the point of the whole exercise. */
+  pile: number;
+  pilePages: number;
+  wanted: number;
+  /** Of what is owned, the proportion still unread. Null when nothing is owned. */
+  pilePct: number | null;
+}
+
+/**
+ * The library in numbers.
+ *
+ * `pile` is the figure that matters and it is deliberately the intersection
+ * rather than either axis alone: books read but not owned are history, and
+ * books owned and read are the majority and are not a question. What somebody
+ * wants to know is how much of what is on the bookcase is still ahead of them.
+ */
+export function libraryStats(entries: LibraryEntry[]): LibraryStats {
+  const owned = entries.filter(e => e.ownership === 'owned');
+  const pile = owned.filter(e => !e.read);
+  return {
+    total: entries.length,
+    owned: owned.length,
+    read: entries.filter(e => e.read).length,
+    unread: entries.filter(e => !e.read).length,
+    pile: pile.length,
+    pilePages: pile.reduce((sum, e) => sum + (e.pages ?? 0), 0),
+    wanted: entries.filter(e => e.ownership === 'wanted').length,
+    pilePct: owned.length ? Math.round((pile.length / owned.length) * 100) : null,
+  };
+}
+
+/** The distinct values of a field, commonest first, for a filter. */
+export function facetsOf(entries: LibraryEntry[], key: (e: LibraryEntry) => string | null): string[] {
+  const counts = new Map<string, number>();
+  for (const entry of entries) {
+    const value = key(entry);
+    if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([value]) => value);
+}

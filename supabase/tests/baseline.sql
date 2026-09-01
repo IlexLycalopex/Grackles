@@ -265,19 +265,89 @@ create table public.rl_years (
   unique (workspace_id, year)
 );
 
+-- The reading list as production actually has it.
+--
+-- This was a five-column stub, which was enough while nothing tested against
+-- it and became a hole the moment a migration attached a trigger to a column
+-- the baseline did not have — the same class of gap the touch_updated_at note
+-- above records. The columns and the constraint names are taken from the two
+-- places in the repository that mirror production by hand:
+-- src/lib/database.types.ts, and the CONSTRAINTS table in
+-- src/lib/records/save.ts that turns each name into a sentence.
 create table public.rl_books (
   id           uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces (id) on delete cascade,
   year_id      uuid not null references public.rl_years (id) on delete cascade,
   order_read   integer not null check (order_read >= 1),
-  title        text not null check (title <> ''),
+  title        text not null constraint rl_books_title_check check (title <> ''),
+  author       text not null default '',
+  pages        integer constraint rl_books_pages_check check (pages is null or pages > 0),
+  date_started  date,
+  date_finished date,
+  format       text not null default 'print' check (format in ('print', 'audio', 'graphic')),
+  year_published integer,
+  genre        text not null default '',
+  publisher    text not null default '',
+  publisher_normalised text not null default '',
+  cover_url    text not null default '',
+  isbn         text not null default '',
+  description  text not null default '',
+  tags         text[] not null default '{}',
+  notes        text not null default '',
+  reading      boolean not null default false,
+  coming_up    boolean not null default false,
+  link_openlibrary text not null default '',
+  link_wikipedia   text not null default '',
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  constraint rl_books_dates_ordered
+    check (date_started is null or date_finished is null or date_started <= date_finished),
   unique (year_id, order_read)
 );
+
+create trigger rl_books_touch before update on public.rl_books
+  for each row execute function public.touch_updated_at();
+
 
 create table public.rl_publisher_aliases (
   alias     text primary key,
   canonical text
 );
+
+-- Imprints of one house group together on the normalised name while the entry
+-- goes on showing what is printed on the book. records/book.ts documents this
+-- as "filled in by a trigger on write", which is why the form never sends it.
+--
+-- The names are production's, read back off it: public.set_publisher_normalised()
+-- delegating to app.canonical_publisher(). The earlier version of this baseline
+-- invented both, which meant a migration attaching production's trigger to a
+-- second table could not be tested here at all — the function it named did not
+-- exist locally. The *bodies* are still reconstructed from documented behaviour
+-- rather than copied, and should not be treated as a transcript.
+create function app.canonical_publisher(value text) returns text
+language sql stable
+set search_path to 'public', 'pg_temp'
+as $$
+  select coalesce(
+    (select canonical from public.rl_publisher_aliases
+      where lower(alias) = lower(trim(coalesce(value, '')))),
+    trim(coalesce(value, ''))
+  )
+$$;
+
+create function public.set_publisher_normalised() returns trigger
+language plpgsql security definer
+set search_path to 'public', 'pg_temp'
+as $$
+begin
+  new.publisher_normalised := app.canonical_publisher(new.publisher);
+  return new;
+end;
+$$;
+
+create trigger rl_books_normalise_publisher
+  before insert or update of publisher on public.rl_books
+  for each row execute function public.set_publisher_normalised();
 
 create table public.lp_contributors (
   id           uuid primary key default gen_random_uuid(),

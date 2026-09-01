@@ -1,0 +1,328 @@
+---
+import RlLayout from '../../../layouts/RlLayout.astro';
+import ImportRow from '../../../components/rl/ImportRow.astro';
+import { requireWrite } from '../../../lib/workspace';
+import { loadYears } from '../../../lib/reading-list';
+import { VERDICTS, type Verdict } from '../../../lib/library-import';
+
+export const prerender = false;
+
+/**
+ * Importing a bookcase.
+ *
+ * Two halves on one page: uploading a file, and deciding what came back. The
+ * second is where the time goes, and the layout says so — the ambiguous rows
+ * are pinned to the top because they are the only ones that need a person, and
+ * the several hundred behind them want one press between them.
+ *
+ * Nothing on this page writes to the library. Every control edits a staging
+ * row; `Apply` calls the one function that turns them into books.
+ */
+
+const { supabase, user } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const gate = await requireWrite(
+  supabase, 'reading-list', wsSlug, user?.id ?? null, Astro.url.pathname + Astro.url.search
+);
+if (!gate.ok) return gate.response;
+const { workspace } = gate;
+
+const base = `/reading/${workspace.slug}`;
+const years = await loadYears(supabase, workspace.id);
+
+const batchId = Astro.url.searchParams.get('batch');
+
+// Decisions are posted back here rather than to an API route: this is a form
+// on a page, it re-renders afterwards, and a route would need to reconstruct
+// where to send them back to.
+let notice: string | null = null;
+let error: string | null = null;
+
+if (Astro.request.method === 'POST' && batchId) {
+  const form = await Astro.request.formData();
+  const intent = String(form.get('intent') ?? '');
+
+  if (intent === 'decide') {
+    const decisions = form.getAll('decision').map(String);
+    const ids = form.getAll('row_id').map(String);
+    // One statement per distinct decision rather than one per row: a batch of
+    // eight hundred would otherwise be eight hundred round trips.
+    const byDecision = new Map<string, string[]>();
+    ids.forEach((id, i) => {
+      const decision = decisions[i];
+      if (!decision) return;
+      byDecision.set(decision, [...(byDecision.get(decision) ?? []), id]);
+    });
+    for (const [decision, rowIds] of byDecision) {
+      await supabase.from('rl_import_rows').update({ decision }).in('id', rowIds);
+    }
+    // The read switch travels with the same form so one press settles both.
+    await supabase
+      .from('rl_import_batches')
+      .update({ read_default: form.get('read_default') !== null })
+      .eq('id', batchId);
+    notice = 'Saved. Nothing has been written to the library yet.';
+  }
+
+  if (intent === 'apply') {
+    const { data, error: rpcError } = await supabase.rpc('rl_apply_import', { p_batch: batchId });
+    if (rpcError) {
+      error =
+        rpcError.code === '23505'
+          ? 'Two rows in this import are the same book. Nothing was written — mark one of them to skip and apply again.'
+          : rpcError.code === 'GRK31'
+            ? 'That import has already been applied.'
+            : 'That import could not be applied, so nothing has changed.';
+    } else {
+      const { added = 0, confirmed = 0 } = (data ?? {}) as { added?: number; confirmed?: number };
+      return Astro.redirect(`${base}/library?added=${added}&confirmed=${confirmed}`);
+    }
+  }
+
+  if (intent === 'abandon') {
+    await supabase.from('rl_import_batches').update({ status: 'abandoned' }).eq('id', batchId);
+    return Astro.redirect(`${base}/import`);
+  }
+}
+
+const { data: batch } = batchId
+  ? await supabase
+      .from('rl_import_batches')
+      .select('id, filename, rows_total, rows_accepted, read_default, status, created_at')
+      .eq('id', batchId)
+      .maybeSingle()
+  : { data: null };
+
+const { data: rows } = batch
+  ? await supabase
+      .from('rl_import_rows')
+      .select(
+        'id, position, title, author, verdict, decision, read_decision, series_index, pages, year_published, publisher, genre, isbn, format, source_photo, raw, match_library_id'
+      )
+      .eq('batch_id', batch.id)
+      .order('position')
+  : { data: null };
+
+// What each matched entry says, so an ambiguous row can be shown against the
+// thing it might be rather than against an id.
+const matchIds = [...new Set((rows ?? []).map(r => r.match_library_id).filter((id): id is string => !!id))];
+const { data: matches } = matchIds.length
+  ? await supabase.from('rl_library').select('id, title, author, read, ownership').in('id', matchIds)
+  : { data: [] };
+const matchFor = new Map((matches ?? []).map(m => [m.id, m]));
+
+const counts = Object.fromEntries(VERDICTS.map(v => [v, 0])) as Record<Verdict, number>;
+for (const row of rows ?? []) counts[row.verdict as Verdict]++;
+
+/**
+ * Ambiguous first, and then in the order the file had them.
+ *
+ * The only ordering decision on the page, and it is the whole ergonomics of
+ * reviewing eight hundred rows: the pile that needs a person is small and must
+ * not be somewhere in the middle of the pile that does not.
+ */
+const ordered = [...(rows ?? [])].sort((a, b) => {
+  const rank = (v: string) => (v === 'ambiguous' ? 0 : 1);
+  return rank(a.verdict) - rank(b.verdict) || a.position - b.position;
+});
+
+const recent = !batch
+  ? (
+      await supabase
+        .from('rl_import_batches')
+        .select('id, filename, rows_total, rows_accepted, status, created_at')
+        .eq('workspace_id', workspace.id)
+        .order('created_at', { ascending: false })
+        .limit(10)
+    ).data
+  : null;
+
+const VERDICT_NOTE: Record<Verdict, string> = {
+  ambiguous: 'Close to something already in the library, but not the same. These are the only rows that need you.',
+  new: 'Not in the library. These will be added.',
+  known: 'Already in the library. Confirming marks the book as owned and attaches the photograph — it changes nothing else.',
+  duplicate_in_batch: 'The same book appears earlier in this file — a second copy, or the same spine photographed twice.',
+  unreadable: 'No title could be read from this row.',
+};
+---
+
+<RlLayout
+  title={`Import · ${workspace.name}`}
+  description="A bookcase, from photographs"
+  workspace={workspace}
+  years={years}
+>
+  <div class="container">
+    {!batch && (
+      <>
+        <div class="page-header">
+          <h1>Import a bookcase</h1>
+          <p class="subtitle">
+            A list of books from photographs. Nothing is written until you have looked at it.
+          </p>
+        </div>
+
+        <form method="POST" action={`/api/reading/${workspace.slug}/import`} enctype="multipart/form-data" class="import-upload" id="upload">
+          <p class="import-note">
+            A CSV, a TSV, or JSON. Only a <strong>title</strong> column is required;
+            author, pages, publisher, ISBN, genre, tags, format and a photograph
+            name are all read if they are there, under whatever they are called.
+            Anything this does not recognise is kept and shown to you rather than
+            dropped.
+          </p>
+
+          <label class="rl-field">
+            <span>The file</span>
+            <input type="file" name="file" accept=".csv,.tsv,.txt,.json,.jsonl,text/csv,application/json" />
+          </label>
+
+          <label class="rl-field">
+            <span>Or paste it</span>
+            <textarea name="pasted" rows="6" placeholder="title,author&#10;Piranesi,Susanna Clarke"></textarea>
+          </label>
+
+          <label class="import-switch">
+            <input type="checkbox" name="read_default" checked />
+            <span>
+              <strong>These are books I have already read.</strong>
+              The photographs know what is on the bookcase; they do not know what
+              you have read. Any row that does not say for itself takes this.
+            </span>
+          </label>
+
+          <button class="rl-button" type="submit">Read the file</button>
+          <p class="import-error" id="upload-error" hidden></p>
+        </form>
+
+        {recent && recent.length > 0 && (
+          <>
+            <h2 class="import-heading">Earlier imports</h2>
+            <ul class="import-history">
+              {recent.map(b => (
+                <li>
+                  <a href={`${base}/import?batch=${b.id}`}>{b.filename || 'pasted'}</a>
+                  <span class="import-muted">
+                    {b.rows_total} row{b.rows_total === 1 ? '' : 's'} ·{' '}
+                    {b.status === 'applied' ? `${b.rows_accepted} kept` : b.status} ·{' '}
+                    {new Date(b.created_at).toLocaleDateString('en-GB')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </>
+    )}
+
+    {batch && (
+      <>
+        <div class="page-header">
+          <h1>{batch.status === 'applied' ? 'This import has been applied' : 'What the file says'}</h1>
+          <p class="subtitle">
+            {batch.filename || 'pasted'} — {batch.rows_total} row{batch.rows_total === 1 ? '' : 's'}
+            {batch.status === 'applied' && ` · ${batch.rows_accepted} kept`}
+          </p>
+        </div>
+
+        {notice && <p class="import-notice">{notice}</p>}
+        {error && <p class="import-error">{error}</p>}
+
+        <ul class="import-counts">
+          {VERDICTS.filter(v => counts[v] > 0).map(v => (
+            <li class={`import-count import-count--${v}`}>
+              <strong>{counts[v]}</strong>
+              <span>{v.replace(/_/g, ' ')}</span>
+            </li>
+          ))}
+        </ul>
+
+        {counts.ambiguous > 0 && batch.status === 'review' && (
+          <p class="import-note import-note--warn">
+            {counts.ambiguous} row{counts.ambiguous === 1 ? ' is' : 's are'} close to
+            something already in the library without being the same. Nothing is
+            merged automatically — a wrong merge is a book that has quietly become
+            a different book, and it is not recoverable. These are pinned to the top.
+          </p>
+        )}
+
+        <form method="POST" class="import-review">
+          <input type="hidden" name="intent" value="decide" />
+
+          {batch.status === 'review' && (
+            <div class="import-bar">
+              <label class="import-switch import-switch--inline">
+                <input type="checkbox" name="read_default" checked={batch.read_default} />
+                <span>Undecided rows are books I have already read</span>
+              </label>
+              <div class="import-bar__actions">
+                <button class="rl-button rl-button--quiet" type="submit">Save decisions</button>
+                <button class="rl-button" type="submit" name="intent" value="apply" formnovalidate>
+                  Apply this import
+                </button>
+              </div>
+            </div>
+          )}
+
+          <table class="import-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Book</th>
+                <th>What it is</th>
+                <th>Do</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ordered.map(row => (
+                <ImportRow
+                  row={row}
+                  match={row.match_library_id ? matchFor.get(row.match_library_id) ?? null : null}
+                  note={VERDICT_NOTE[row.verdict as Verdict]}
+                  frozen={batch.status !== 'review'}
+                />
+              ))}
+            </tbody>
+          </table>
+        </form>
+
+        {batch.status === 'review' && (
+          <form method="POST" class="import-abandon">
+            <input type="hidden" name="intent" value="abandon" />
+            <button class="rl-button rl-button--quiet" type="submit">Abandon this import</button>
+          </form>
+        )}
+      </>
+    )}
+  </div>
+</RlLayout>
+
+<script>
+  // The upload posts to an API route so that a file too large or a header row
+  // nobody recognised comes back as a sentence rather than a 400 page. On
+  // success it becomes a normal navigation to the review.
+  const form = document.getElementById('upload') as HTMLFormElement | null;
+  const problem = document.getElementById('upload-error');
+
+  form?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = form.querySelector('button[type=submit]') as HTMLButtonElement;
+    button.disabled = true;
+    button.textContent = 'Reading…';
+    if (problem) problem.hidden = true;
+
+    try {
+      const response = await fetch(form.action, { method: 'POST', body: new FormData(form) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body?.error ?? 'That could not be read.');
+      window.location.href = `?batch=${body.batch_id}`;
+    } catch (cause) {
+      if (problem) {
+        problem.textContent = cause instanceof Error ? cause.message : 'That could not be read.';
+        problem.hidden = false;
+      }
+      button.disabled = false;
+      button.textContent = 'Read the file';
+    }
+  });
+</script>

@@ -1,0 +1,85 @@
+---
+import type { LibraryEntry } from '../../lib/reading-list';
+import { OWNERSHIP_LABELS } from '../../lib/reading-list';
+import { searchableText } from '../../lib/library';
+
+/**
+ * One book in the library.
+ *
+ * Carries its own searchable text and its facets as data attributes, so the
+ * filter box is a pass over the DOM rather than a round trip — the same
+ * arrangement CigarCard has, for the same reason: the page has already loaded
+ * every entry, and filtering what is in front of you should not involve the
+ * network.
+ */
+
+interface Props {
+  entry: LibraryEntry;
+  base: string;
+  canWrite: boolean;
+}
+
+const { entry, base, canWrite } = Astro.props;
+
+const state = entry.reading ? 'reading' : entry.read ? 'read' : 'unread';
+const when = entry.last_read_on
+  ? new Date(entry.last_read_on).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+  : null;
+---
+
+<article
+  class={`lib-card lib-card--${state} lib-card--own-${entry.ownership}`}
+  data-search={searchableText(entry)}
+  data-read={String(entry.read)}
+  data-reading={String(entry.reading)}
+  data-ownership={entry.ownership}
+  data-format={entry.format}
+  data-genre={entry.genre ?? ''}
+  data-author={entry.author}
+>
+  <a class="lib-card__cover" href={`${base}/library/${entry.id}`}>
+    {entry.cover_url
+      ? <img src={entry.cover_url} alt="" loading="lazy" width="80" height="120" />
+      : <span class="lib-card__blank" aria-hidden="true">{entry.title.slice(0, 1)}</span>}
+  </a>
+
+  <div class="lib-card__body">
+    <a class="lib-card__title" href={`${base}/library/${entry.id}`}>{entry.title}</a>
+    {entry.author && <div class="lib-card__author">{entry.author}</div>}
+
+    <div class="lib-card__meta">
+      <span class={`lib-state lib-state--${state}`}>
+        {entry.reading ? 'Reading' : entry.read ? 'Read' : 'Unread'}
+      </span>
+      {entry.times_read > 1 && <span class="lib-muted">{entry.times_read}×</span>}
+      {when && <span class="lib-muted">{when}</span>}
+      {entry.ownership !== 'owned' && (
+        <span class="lib-own">{OWNERSHIP_LABELS[entry.ownership]}</span>
+      )}
+      {entry.pages && <span class="lib-muted">{entry.pages}pp</span>}
+      {entry.format !== 'print' && <span class="lib-muted">{entry.format}</span>}
+    </div>
+  </div>
+
+  {canWrite && (
+    <form method="POST" class="lib-card__quick">
+      <input type="hidden" name="entry_id" value={entry.id} />
+      {/* The one press the whole project exists for: a book already owned onto
+          this year's list without being typed again. */}
+      <button
+        class="lib-quick"
+        type="submit"
+        name="intent"
+        value="add-to-year"
+        title="Put this on the reading list"
+      >Add to year</button>
+      <button
+        class="lib-quick lib-quick--toggle"
+        type="submit"
+        name="intent"
+        value={entry.read ? 'mark-unread' : 'mark-read'}
+        title={entry.read ? 'Mark as not read' : 'Mark as already read'}
+      >{entry.read ? 'Unread' : 'Read'}</button>
+    </form>
+  )}
+</article>
