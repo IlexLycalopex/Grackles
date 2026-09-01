@@ -38,11 +38,44 @@ The files in `migrations/` are the additions from 2026-08-05, in apply order:
 | `20260828120200_reading_import` | `rl_import_batches`, `rl_import_rows`, and `rl_apply_import()` |
 | `20260828120300_reading_library_merge` | `rl_merge_library()` — the button on the other end of the near-duplicate report |
 | `20260828120400_reading_lookup` | `rl_book_reference`, `app.book_lookups_today()`, the daily cap, and the `reading.lookup` feature |
+| `20260828120500_reading_lookup_grants` | Withdraws the UPDATE/DELETE/TRUNCATE Supabase's default privileges had already granted, and takes `anon` off the new tables |
+| `20260828120600_reading_library_publisher` | Attaches `set_publisher_normalised()` to `rl_library` and backfills it |
 
-**Not yet applied to the live project.** Verified locally against a cluster
-built from `tests/baseline.sql` + every migration in order; `tests/library.sh`
-(74 checks), `tests/import.sh` (20) and `tests/backfill.sh` (35) all pass, and
-the four existing suites are unchanged.
+**Applied 2026-09-01.** 265 readings became 260 books, 136 of them read, 0
+orphans, one near-duplicate surfaced and left alone. Verified locally first
+against a cluster built from `tests/baseline.sql` + every migration in order;
+`tests/library.sh` (77 checks), `tests/import.sh` (20) and `tests/backfill.sh`
+(35) pass, and the four existing suites are unchanged.
+
+#### The two migrations the local suite could not have produced
+
+Both were found by reading state back off production after applying, which is
+why that is now the last step of applying anything.
+
+**The grants.** `20260828120400` said `grant select, insert … to authenticated`
+on `rl_book_reference` and assumed naming two privileges withheld the rest. It
+does not: Supabase's default privileges on `public` had already handed
+`authenticated` the full set, so the GRANT was additive on top of DELETE,
+UPDATE and TRUNCATE. This is `20260807150000_cigar_reference_grants` happening a
+second time to the same design. Nothing was exposed — there is no update or
+delete policy, so a tampering statement touches zero rows — but it made RLS the
+sole barrier on a table whose own comments call it insert-only.
+
+The reason the suite cannot see this class of bug is worth stating plainly:
+`tests/baseline.sql` creates the roles but not Supabase's `ALTER DEFAULT
+PRIVILEGES`, so locally the table was insert-only because nothing had granted
+more. **Revoke-shaped facts are invisible to the local suite.** Check them on
+production or not at all.
+
+**The publisher.** `rl_library` got a `publisher_normalised` column and nothing
+to fill it, so 241 entries carried a publisher and none carried the normalised
+form. Imprints would not have grouped — and, more expensively, `reading.enrich`
+selects thin rows as `genre = '' or publisher_normalised = '' or pages is null`,
+so every entry in the library read as thin and the page offered to spend money
+filling in 260 books that mostly already had a genre and a page count. Attaching
+the trigger took that from 260 to 26. Only visible against real data; the
+fixture has publishers on two rows and nothing that counts thin ones. There are
+now three checks in `library.sh` for it, including the enrich predicate itself.
 
 #### The invariant
 

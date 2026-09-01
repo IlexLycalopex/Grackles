@@ -1,13 +1,13 @@
 # The library
 
-> **Built.** All seven steps, on `claude/reading-list-upgrade-spec-6mee3k`. The
-> migrations are written and verified against a local cluster built from
-> `tests/baseline.sql` plus every migration in order — they are **not yet
-> applied to the live project**. `README.md` describes what it does; this
-> document is the argument for why, kept as it was written plus the notes below
-> on what the building changed.
+> **Built and live.** All seven steps. The migrations were **applied to the
+> production project on 2026-09-01**: 265 readings became 260 books, 136 of them
+> read, 124 on the shelf and unread, 0 orphans. `README.md` describes what it
+> does; this document is the argument for why, kept as it was written plus the
+> notes below on what the building changed.
 >
-> What the estimate got wrong, and what it got right, is at the bottom.
+> What the estimate got wrong, and what it got right, is at the bottom — along
+> with the two bugs that only appeared once it met real data.
 
 
 The plan for capturing what is actually on the bookcase, getting it into the
@@ -1130,3 +1130,62 @@ afternoon with a camera.
 **Step 2's calendar time is still review, not writing.** 469 lines, and the part
 that matters is somebody reading `app.rl_backfill_report()` against their own
 four hundred books before running the migration that cannot be run twice.
+
+
+---
+
+## What applying it found
+
+Two migrations exist that the plan did not anticipate, and neither could have
+been produced by the local test suite. Both were caught by reading state back
+off production *after* applying — which is now the last step of applying
+anything, rather than an afterthought.
+
+**Revoke-shaped facts are invisible to the local suite.** `tests/baseline.sql`
+creates the roles but not Supabase's `ALTER DEFAULT PRIVILEGES`, which hand
+`authenticated` the full set on every new table in `public`. So
+`grant select, insert` on `rl_book_reference` was additive on top of DELETE,
+UPDATE and TRUNCATE that were already there — while locally the same statement
+produced a table that really was insert-only, and the suite's "nobody can
+rewrite what another lookup found" passed for the wrong reason. Nothing was
+exposed, because the table has no update or delete policy, but RLS was the sole
+barrier on a table whose comments call it insert-only twice over. This is
+`20260807150000_cigar_reference_grants` repeating itself, which is the second
+time this repository has learned it.
+
+**A column with nothing to fill it looks like a column that works.**
+`rl_library.publisher_normalised` was created and never populated: 241 entries
+had a publisher, none had the normalised form. The visible cost was imprints
+not grouping. The expensive one was that `reading.enrich` picks its batch with
+`genre = '' or publisher_normalised = '' or pages is null`, so *every* book in
+the library read as thin and the page offered to spend money re-filling 260
+books that mostly already had a genre and a page count. Attaching production's
+own `set_publisher_normalised()` took that from 260 to 26.
+
+The fixture could not have caught it: it has publishers on two rows and nothing
+that counts thin ones. What would have caught it is asserting the *predicate the
+feature actually uses* rather than the columns it reads — which is now the third
+of three checks added for it.
+
+### What the numbers came out as
+
+| | |
+|---|---|
+| Readings | 265 |
+| Books | 260 |
+| Collapsed into a re-read | 5 |
+| Read | 136 |
+| Unread | 124 |
+| On the shelf and unread | 124 — 42,906 pages |
+| Currently reading | 2 |
+| Near-duplicates surfaced | 1, correctly left alone |
+| Thin enough to enrich | 26 |
+
+The dry run predicted 260 books, 136 read and 124 unread before the backfill
+ran, and the backfill produced exactly those numbers.
+
+The one near-duplicate was *The Massive Volume 4* against *The Massive: Black
+Pacific* — different volumes of one series, flagged only because one carries a
+volume number and the other does not. Surfaced, not merged, and the right answer
+is to leave it. That is the design working: a wrong merge is a book that has
+quietly become a different book, and it is not recoverable.

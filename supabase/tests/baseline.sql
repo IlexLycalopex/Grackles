@@ -308,35 +308,46 @@ create table public.rl_books (
 create trigger rl_books_touch before update on public.rl_books
   for each row execute function public.touch_updated_at();
 
+
+create table public.rl_publisher_aliases (
+  alias     text primary key,
+  canonical text
+);
+
 -- Imprints of one house group together on the normalised name while the entry
 -- goes on showing what is printed on the book. records/book.ts documents this
 -- as "filled in by a trigger on write", which is why the form never sends it.
 --
--- The body here is reconstructed from that behaviour rather than copied from
--- production, which has no migration in this repository. It is close enough to
--- test against and should not be treated as a transcript.
-create function public.rl_normalise_publisher() returns trigger
-language plpgsql
+-- The names are production's, read back off it: public.set_publisher_normalised()
+-- delegating to app.canonical_publisher(). The earlier version of this baseline
+-- invented both, which meant a migration attaching production's trigger to a
+-- second table could not be tested here at all — the function it named did not
+-- exist locally. The *bodies* are still reconstructed from documented behaviour
+-- rather than copied, and should not be treated as a transcript.
+create function app.canonical_publisher(value text) returns text
+language sql stable
+set search_path to 'public', 'pg_temp'
+as $$
+  select coalesce(
+    (select canonical from public.rl_publisher_aliases
+      where lower(alias) = lower(trim(coalesce(value, '')))),
+    trim(coalesce(value, ''))
+  )
+$$;
+
+create function public.set_publisher_normalised() returns trigger
+language plpgsql security definer
 set search_path to 'public', 'pg_temp'
 as $$
 begin
-  new.publisher_normalised := coalesce(
-    (select canonical from public.rl_publisher_aliases
-      where lower(alias) = lower(trim(new.publisher))),
-    trim(new.publisher)
-  );
+  new.publisher_normalised := app.canonical_publisher(new.publisher);
   return new;
 end;
 $$;
 
 create trigger rl_books_normalise_publisher
   before insert or update of publisher on public.rl_books
-  for each row execute function public.rl_normalise_publisher();
-
-create table public.rl_publisher_aliases (
-  alias     text primary key,
-  canonical text
-);
+  for each row execute function public.set_publisher_normalised();
 
 create table public.lp_contributors (
   id           uuid primary key default gen_random_uuid(),

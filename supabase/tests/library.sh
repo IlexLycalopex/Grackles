@@ -455,6 +455,35 @@ check "the feature is registered and needs no consent" ok \
        then raise exception 'a lookup should send nothing stored'; end if;
    end \$\$;"
 
+echo "── publishers"
+# Found on production, not here: rl_library had the column and nothing to fill
+# it, so every entry looked "thin" to reading.enrich — which selects on
+# publisher_normalised = '' — and the page offered to spend money re-filling 260
+# books that already had a genre and a page count. 260 thin became 26 once the
+# trigger was attached.
+check "the library normalises a publisher on write" ok \
+  "insert into public.rl_library (workspace_id, title, author, publisher)
+     values ('$WS','Normalised','Someone','  Gollancz ');
+   do \$\$ begin if (select publisher_normalised from public.rl_library where title='Normalised') <> 'Gollancz'
+     then raise exception 'publisher_normalised is [%]',
+       (select publisher_normalised from public.rl_library where title='Normalised'); end if; end \$\$;" "$as_jamie"
+check "and re-normalises when the publisher is corrected" ok \
+  "insert into public.rl_library (id, workspace_id, title, author, publisher)
+     values ('dddddddd-0000-4000-8000-000000000001','$WS','Normalised','Someone','Wrong Press');
+   update public.rl_library set publisher='Gollancz' where id='dddddddd-0000-4000-8000-000000000001';
+   do \$\$ begin if (select publisher_normalised from public.rl_library where id='dddddddd-0000-4000-8000-000000000001') <> 'Gollancz'
+     then raise exception 'not re-normalised'; end if; end \$\$;" "$as_jamie"
+# The predicate the enrich route actually uses, so a book that is filled in does
+# not read as thin. This is the assertion that would have caught it.
+check "a filled-in book does not count as thin" ok \
+  "insert into public.rl_library (workspace_id, title, author, publisher, genre, pages)
+     values ('$WS','Complete','Someone','Gollancz','Science Fiction',300);
+   do \$\$ begin if exists (
+       select 1 from public.rl_library
+       where title='Complete'
+         and (genre = '' or publisher_normalised = '' or pages is null))
+     then raise exception 'a complete book still reads as thin to reading.enrich'; end if; end \$\$;" "$as_jamie"
+
 echo ""
 echo "passed: $pass   failed: $fail"
 [ "$fail" -eq 0 ]
