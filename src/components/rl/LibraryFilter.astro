@@ -15,9 +15,11 @@ interface Props {
   genres: string[];
   authors: string[];
   counts: { all: number; read: number; unread: number };
+  /** Only somebody who could act on a selection is offered one. */
+  canWrite: boolean;
 }
 
-const { genres, authors, counts } = Astro.props;
+const { genres, authors, counts, canWrite } = Astro.props;
 ---
 
 <div class="lib-filter">
@@ -76,6 +78,16 @@ const { genres, authors, counts } = Astro.props;
       <input type="checkbox" id="lib-wall" />
       <span>Covers</span>
     </label>
+
+    {/* "All" here means everything the filters are showing, not the whole
+        library — pressing it under "unread, on the shelf" should not quietly
+        select 260 books. */}
+    {canWrite && (
+      <label class="lib-wall-toggle" title="Select everything shown">
+        <input type="checkbox" id="lib-select-all" />
+        <span>Select all shown</span>
+      </label>
+    )}
   </div>
 
   <p class="lib-count" id="lib-count" aria-live="polite"></p>

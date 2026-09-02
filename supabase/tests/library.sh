@@ -484,6 +484,55 @@ check "a filled-in book does not count as thin" ok \
          and (genre = '' or publisher_normalised = '' or pages is null))
      then raise exception 'a complete book still reads as thin to reading.enrich'; end if; end \$\$;" "$as_jamie"
 
+echo "── bulk read state"
+# The library page updates a selection with one statement. The ids come from a
+# form, and a form can be edited, so the update is scoped to the project as well
+# as to the ids — RLS would refuse another project's rows anyway, and this makes
+# that refusal a no-op rather than a partial write.
+check "a selection can be marked read in one statement" ok \
+  "insert into public.rl_library (id, workspace_id, title, author) values
+     ('eeeeeeee-0000-4000-8000-000000000001','$WS','Bulk One','Someone'),
+     ('eeeeeeee-0000-4000-8000-000000000002','$WS','Bulk Two','Someone'),
+     ('eeeeeeee-0000-4000-8000-000000000003','$WS','Bulk Three','Someone');
+   update public.rl_library set read_override = true
+     where workspace_id = '$WS'
+       and id in ('eeeeeeee-0000-4000-8000-000000000001','eeeeeeee-0000-4000-8000-000000000002');
+   do \$\$ begin
+     if (select count(*) from public.rl_library
+         where id in ('eeeeeeee-0000-4000-8000-000000000001','eeeeeeee-0000-4000-8000-000000000002')
+           and read) <> 2 then raise exception 'the selection was not marked read'; end if;
+     if (select read from public.rl_library where id='eeeeeeee-0000-4000-8000-000000000003')
+       then raise exception 'a book outside the selection was changed'; end if;
+   end \$\$;" "$as_jamie"
+check "and no reading is invented for any of them" ok \
+  "insert into public.rl_library (id, workspace_id, title, author)
+     values ('eeeeeeee-0000-4000-8000-000000000004','$WS','Bulk Four','Someone');
+   update public.rl_library set read_override = true
+     where workspace_id = '$WS' and id = 'eeeeeeee-0000-4000-8000-000000000004';
+   do \$\$ begin
+     if (select times_read from public.rl_library where id='eeeeeeee-0000-4000-8000-000000000004') <> 0
+       then raise exception 'a reading was invented'; end if;
+     if (select last_read_on from public.rl_library where id='eeeeeeee-0000-4000-8000-000000000004') is not null
+       then raise exception 'a date was invented'; end if;
+   end \$\$;" "$as_jamie"
+# Three states, not two. Clearing hands the book back to its readings, which is
+# a different answer from "not read" and the only way out of an override.
+check "clearing an override returns the book to its readings" ok \
+  "insert into public.rl_library (id, workspace_id, title, author, read_override)
+     values ('eeeeeeee-0000-4000-8000-000000000005','$WS','Bulk Five','Someone', false);
+   insert into public.rl_books (workspace_id, year_id, library_id, order_read, title, date_finished)
+     values ('$WS','$YEAR','eeeeeeee-0000-4000-8000-000000000005',70,'x','2019-01-01');
+   do \$\$ begin if (select read from public.rl_library where id='eeeeeeee-0000-4000-8000-000000000005')
+     then raise exception 'the override of false was ignored'; end if; end \$\$;
+   update public.rl_library set read_override = null
+     where workspace_id = '$WS' and id = 'eeeeeeee-0000-4000-8000-000000000005';
+   do \$\$ begin if not (select read from public.rl_library where id='eeeeeeee-0000-4000-8000-000000000005')
+     then raise exception 'clearing did not hand the book back to its readings'; end if; end \$\$;" "$as_jamie"
+check "a stranger's selection changes nothing" ok \
+  "update public.rl_library set read_override = true where workspace_id = '$WS';
+   do \$\$ begin if exists (select 1 from public.rl_library where workspace_id='$WS' and read_override is true)
+     then raise exception 'a stranger changed read state'; end if; end \$\$;" "$as_rob"
+
 echo ""
 echo "passed: $pass   failed: $fail"
 [ "$fail" -eq 0 ]

@@ -62,6 +62,16 @@ const when = entry.last_read_on
   </div>
 
   {canWrite && (
+    <label class="lib-card__pick" title="Select this book">
+      {/* Outside the quick-action form on purpose: this checkbox belongs to the
+          bulk form that wraps the whole grid, and a checkbox inside a nested
+          form would be submitted by the wrong one. */}
+      <input type="checkbox" name="entry_id" value={entry.id} form="lib-bulk" data-lib-pick />
+      <span class="visually-hidden">Select {entry.title}</span>
+    </label>
+  )}
+
+  {canWrite && (
     <form method="POST" class="lib-card__quick">
       <input type="hidden" name="entry_id" value={entry.id} />
       {/* The one press the whole project exists for: a book already owned onto

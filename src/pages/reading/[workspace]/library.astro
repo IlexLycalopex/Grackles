@@ -41,6 +41,42 @@ if (Astro.request.method === 'POST') {
   const intent = String(form.get('intent') ?? '');
   const entryId = String(form.get('entry_id') ?? '');
 
+  /**
+   * Bulk read state.
+   *
+   * The same override the single-book buttons set, applied to a selection —
+   * still never a fabricated reading. `clear` hands the question back to the
+   * readings, which is the only way to undo an override once it is on.
+   */
+  if (intent === 'bulk-read' || intent === 'bulk-unread' || intent === 'bulk-clear') {
+    const ids = form.getAll('entry_id').map(String).filter(Boolean);
+    if (!ids.length) {
+      error = 'Nothing was selected.';
+    } else {
+      const override = intent === 'bulk-read' ? true : intent === 'bulk-unread' ? false : null;
+      // Scoped to this project as well as to the ids. The ids come from a form
+      // and a form can be edited; RLS would refuse another project's rows
+      // anyway, and this makes the refusal a no-op rather than a partial write.
+      const { data: changed, error: writeError } = await supabase
+        .from('rl_library')
+        .update({ read_override: override })
+        .eq('workspace_id', workspace.id)
+        .in('id', ids)
+        .select('id');
+
+      if (writeError) error = describeWriteError(writeError, 'library bulk read state');
+      else {
+        const n = changed?.length ?? 0;
+        notice =
+          n === 0
+            ? 'Nothing changed — those books may no longer be yours to edit.'
+            : intent === 'bulk-clear'
+              ? `${n} book${n === 1 ? '' : 's'} back to following the reading list.`
+              : `${n} book${n === 1 ? '' : 's'} marked ${intent === 'bulk-read' ? 'read' : 'not read'}.`;
+      }
+    }
+  }
+
   if (entryId && (intent === 'mark-read' || intent === 'mark-unread')) {
     // The override, not a fabricated reading. A book read in 2003 and never
     // logged has no year, no dates and no position, and inventing them would
@@ -166,7 +202,23 @@ if (added || confirmed) {
           genres={genres}
           authors={authors}
           counts={{ all: stats.total, read: stats.read, unread: stats.unread }}
+          canWrite={workspace.canWrite}
         />
+
+        {workspace.canWrite && (
+          <form method="POST" id="lib-bulk" class="lib-bulk" hidden>
+            <span class="lib-bulk__count" data-bulk-count>None selected</span>
+            <div class="lib-bulk__actions">
+              <button class="rl-button" type="submit" name="intent" value="bulk-read">Mark read</button>
+              <button class="rl-button rl-button--quiet" type="submit" name="intent" value="bulk-unread">Mark not read</button>
+              {/* The only way back out of an override, and worth its own button:
+                  clearing it hands the book to its readings again, which is a
+                  different answer from "not read". */}
+              <button class="rl-button rl-button--quiet" type="submit" name="intent" value="bulk-clear">Follow the list</button>
+              <button class="rl-button rl-button--quiet" type="button" data-bulk-clear>Deselect</button>
+            </div>
+          </form>
+        )}
 
         <div class="lib-grid" id="lib-grid">
           {entries.map(entry => (
@@ -196,6 +248,7 @@ if (added || confirmed) {
     const count = document.getElementById('lib-count');
     const empty = document.getElementById('lib-empty');
     const segments = [...document.querySelectorAll<HTMLButtonElement>('.lib-segment')];
+    const selectAll = document.getElementById('lib-select-all') as HTMLInputElement | null;
 
     let state = 'unread';
 
@@ -221,10 +274,17 @@ if (added || confirmed) {
         const visible = okState && okOwn && okFormat && okGenre && okAuthor && okWords;
         card.hidden = !visible;
         if (visible) shown++;
+        else {
+          // Filtered out means deselected. A selection you cannot see is one
+          // you will forget you made.
+          const pick = card.querySelector<HTMLInputElement>('[data-lib-pick]');
+          if (pick) pick.checked = false;
+        }
       }
 
       if (count) count.textContent = shown === cards.length ? '' : `${shown} of ${cards.length}`;
       if (empty) empty.hidden = shown > 0;
+      refreshBulk();
     }
 
     for (const segment of segments) {
@@ -238,6 +298,51 @@ if (added || confirmed) {
     for (const control of [search, ownership, format, genre, author]) {
       control?.addEventListener('input', apply);
     }
+
+    /**
+     * Selecting books to act on together.
+     *
+     * Two rules, both from the filter existing. **Select-all means what is
+     * showing**, not the whole library — pressing it while "unread, on the
+     * shelf" is chosen should not quietly select 260 books. And **filtering
+     * something out deselects it**, because a selection you cannot see is a
+     * selection you will forget you made, and the next press would apply to it.
+     */
+    const bulk = document.getElementById('lib-bulk') as HTMLFormElement | null;
+    const bulkCount = document.querySelector<HTMLElement>('[data-bulk-count]');
+    const bulkDeselect = document.querySelector<HTMLButtonElement>('[data-bulk-clear]');
+    const picks = () => [...grid.querySelectorAll<HTMLInputElement>('[data-lib-pick]')];
+    /** The card a checkbox belongs to, typed so `hidden` is reachable. */
+    const cardOf = (pick: HTMLInputElement) => pick.closest<HTMLElement>('.lib-card')!;
+    const chosen = () => picks().filter(p => p.checked && !cardOf(p).hidden);
+
+    function refreshBulk() {
+      if (!bulk) return;
+      const n = chosen().length;
+      bulk.hidden = n === 0;
+      if (bulkCount) bulkCount.textContent = `${n} selected`;
+      if (selectAll) {
+        const shown = picks().filter(p => !cardOf(p).hidden);
+        selectAll.checked = shown.length > 0 && n === shown.length;
+        selectAll.indeterminate = n > 0 && n < shown.length;
+      }
+    }
+
+    grid.addEventListener('change', event => {
+      if ((event.target as HTMLElement).matches('[data-lib-pick]')) refreshBulk();
+    });
+
+    selectAll?.addEventListener('change', () => {
+      for (const pick of picks()) {
+        if (!cardOf(pick).hidden) pick.checked = selectAll.checked;
+      }
+      refreshBulk();
+    });
+
+    bulkDeselect?.addEventListener('click', () => {
+      for (const pick of picks()) pick.checked = false;
+      refreshBulk();
+    });
 
     wall?.addEventListener('change', () => grid.classList.toggle('lib-grid--wall', wall.checked));
 
