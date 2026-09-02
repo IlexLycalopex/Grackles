@@ -44,9 +44,8 @@ alter table public.rl_books
 
 -- One definition, in one place, because it is now asked in four.
 --
--- Deliberately without a `set search_path`: it touches no object, so it has
--- nothing to be confused about, and leaving it inlinable keeps the counting
--- query below a plain aggregate.
+-- Shipped without a `set search_path` and pinned an hour later by
+-- 20260902130100, which is where the reasoning for both is written down.
 create or replace function app.rl_reading_finished(
   p_reading boolean, p_coming_up boolean, p_abandoned boolean
 ) returns boolean
