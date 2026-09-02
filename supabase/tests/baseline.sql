@@ -377,6 +377,12 @@ create table public.lp_season_contributors (
   primary key (season_id, contributor_id)
 );
 
+-- The picks, as production actually has them.
+--
+-- This was a nine-column stub. Like the rl_books one above it, that was enough
+-- while nothing tested against it and became a hole the moment something did:
+-- tests/search-columns.sh reported lp_selections.notes missing, which was true
+-- here and false in production. Columns read back off the live project.
 create table public.lp_selections (
   id             uuid primary key default gen_random_uuid(),
   workspace_id   uuid not null references public.workspaces (id) on delete cascade,
@@ -387,6 +393,13 @@ create table public.lp_selections (
   album          text not null default '',
   artist         text not null default '',
   status         text not null check (status in ('completed', 'upcoming')),
+  artwork_url    text not null default '',
+  link_wikipedia text not null default '',
+  link_spotify   text not null default '',
+  link_youtube   text not null default '',
+  notes          text not null default '',
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
   unique (season_id, week, contributor_id)
 );
 

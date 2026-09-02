@@ -61,6 +61,22 @@ export interface Source {
   /** Beneath the title, where there is one. */
   subtitle?: string;
   fields: Field[];
+  /**
+   * Columns `href` reads that are not otherwise selected.
+   *
+   * This exists because the first version did not. `runPlan` asked every source
+   * for `slug` unconditionally, on the reasoning that it titles a cigar's URL
+   * and is "harmless everywhere else" — and it is not harmless, it is fatal.
+   * Only cl_cigars and wbpr_broadcasts have the column at all, so a search of
+   * the books, the albums or the library asked for a column that does not
+   * exist and Postgres refused the whole query. Three of the five sources
+   * could never have returned a row.
+   *
+   * Naming the need per source is what makes that undeclarable rather than
+   * merely fixed: a source whose href reaches for a column now has to say so,
+   * and supabase/tests/search-columns.sh checks every name against the table.
+   */
+  hrefNeeds?: readonly string[];
   /** Where a row lives, given the project's slug. */
   href: (row: Record<string, unknown>, slug: string) => string;
 }
@@ -170,6 +186,7 @@ export const SOURCES: Source[] = [
       { column: 'pairing', type: 'text', what: 'What it was drunk with.' },
       { column: 'note', type: 'text', what: 'Any other note.' },
     ],
+    hrefNeeds: ['slug'],
     href: (row, slug) => `/cigars/${slug}/cigar/${row.slug}`,
   },
   {
@@ -236,6 +253,17 @@ export interface Plan {
   source: string;
   filters: Condition[];
   order?: { column: string; direction: 'asc' | 'desc' };
+  /**
+   * Columns the answer should show beside each row.
+   *
+   * A result card shows the columns the question *filtered* on, which answers
+   * "which books have I not read" and not "how many times have I read this
+   * one" — there the filter is the title and the interesting column is
+   * `times_read`, which nothing would have displayed. So a plan may name what
+   * the question is actually about, and it is checked against the same
+   * allowlist as everything else.
+   */
+  show?: string[];
   limit: number;
 }
 
@@ -244,6 +272,9 @@ export const MOST = 50;
 
 /** The most conditions one question may turn into. */
 const MOST_FILTERS = 6;
+
+/** The most columns one answer may carry beside a row before it is a table. */
+const MOST_SHOWN = 4;
 
 export type Checked =
   | { ok: true; plan: Plan; source: Source }
@@ -304,6 +335,19 @@ export function checkPlan(raw: unknown): Checked {
     filters.push({ column: field.column, op, value });
   }
 
+  const show: string[] = [];
+  if (p.show !== undefined && p.show !== null) {
+    if (!Array.isArray(p.show)) return { ok: false, reason: 'the columns to show were not a list' };
+    for (const item of p.show.slice(0, MOST_SHOWN)) {
+      const name = String(item);
+      // Refused rather than dropped, for the reason every other refusal here is
+      // whole: a plan quietly missing the column the question was about answers
+      // a different question and looks right doing it.
+      if (!fields.has(name)) return { ok: false, reason: `${source.label} have no ${name}` };
+      show.push(name);
+    }
+  }
+
   let order: Plan['order'];
   if (p.order && typeof p.order === 'object') {
     const o = p.order as Record<string, unknown>;
@@ -315,7 +359,7 @@ export function checkPlan(raw: unknown): Checked {
   const asked = Number(p.limit);
   const limit = Number.isFinite(asked) ? Math.min(Math.max(1, Math.trunc(asked)), MOST) : 20;
 
-  return { ok: true, plan: { source: source.key, filters, order, limit }, source };
+  return { ok: true, plan: { source: source.key, filters, order, show, limit }, source };
 }
 
 /**
@@ -380,6 +424,7 @@ export const SEARCH_SYSTEM = `You turn a question about somebody's own records i
     { "column": "year_published", "op": "gte", "value": 1990 }
   ],
   "order": { "column": "date_started", "direction": "desc" },
+  "show": ["pages"],
   "limit": 20
 }
 
@@ -398,6 +443,8 @@ Dates are "YYYY-MM-DD". A question about a year becomes two conditions, gte Janu
 Only the columns listed above exist. If the question needs one that is not there, get as close as the listed columns allow rather than inventing a name: a plan naming a column that does not exist is refused outright and the person gets nothing.
 
 Do not filter by project, person, or owner. You cannot see whose records these are and you do not need to — the app only ever searches what the person asking is already allowed to read.
+
+"show" names up to ${MOST_SHOWN} columns to display beside each result, and it is how a question about a *value* gets answered. "How many times have I read this" filters on the title and shows "times_read"; without it the answer is the title handed back. Leave it out when the question is only "which ones".
 
 "limit" is at most ${MOST}. Use a small one for a question that wants a specific answer and a larger one for a question that wants a list.
 
@@ -429,6 +476,22 @@ export interface Hit {
  * row in somebody else's private lounge is not filtered out here — it never
  * arrives.
  */
+/**
+ * Every column a search of this source would select.
+ *
+ * Split out so it can be checked against the real table without running a
+ * search — which is the check that was missing.
+ */
+export function columnsFor(source: Source, plan?: Plan): string[] {
+  const columns = new Set<string>(['id', source.title]);
+  if (source.subtitle) columns.add(source.subtitle);
+  for (const c of source.hrefNeeds ?? []) columns.add(c);
+  for (const field of source.fields) columns.add(field.column);
+  for (const c of plan?.filters.map(f => f.column) ?? []) columns.add(c);
+  if (plan?.order) columns.add(plan.order.column);
+  return [...columns];
+}
+
 export async function runPlan(
   supabase: Client,
   plan: Plan,
@@ -437,10 +500,12 @@ export async function runPlan(
   const asked = new Set(plan.filters.map(f => f.column));
   const columns = new Set<string>(['id', source.title]);
   if (source.subtitle) columns.add(source.subtitle);
-  // `slug` titles the URL for a cigar; harmless everywhere else and cheaper to
-  // ask for always than to special-case.
-  columns.add('slug');
+  // What this source's href reads, and nothing more. Asking every table for a
+  // column two of them have is how three of these sources came to refuse every
+  // query — see hrefNeeds above.
+  for (const c of source.hrefNeeds ?? []) columns.add(c);
   for (const c of asked) columns.add(c);
+  for (const c of plan.show ?? []) columns.add(c);
   if (plan.order) columns.add(plan.order.column);
 
   let query = supabase
@@ -487,7 +552,10 @@ export async function runPlan(
       href: source.href(row, String(ws.slug ?? '')),
       project: String(ws.name ?? ''),
       app: (ws.app ?? source.app) as AppSlug,
-      matched: [...asked]
+      // What the question narrowed on, plus what it was about. A book found by
+      // title and asked about by count needs the count shown, or the answer is
+      // the question repeated back.
+      matched: [...new Set([...asked, ...(plan.show ?? [])])]
         .filter(c => c !== source.title && c !== source.subtitle)
         .map(c => ({ label: labels.get(c)?.replace(/\.$/, '') ?? c, value: show(row[c]) }))
         .filter(m => m.value !== ''),

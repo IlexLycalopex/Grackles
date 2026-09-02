@@ -224,3 +224,52 @@ test('a library result points at the book, not at a reading of it', () => {
   const library = SOURCES.find(s => s.key === 'library')!;
   assert.equal(library.href({ id: 'abc' }, 'my-list'), '/reading/my-list/library/abc');
 });
+
+/**
+ * A question about a value, not about which books.
+ *
+ * "How many times have I read this" filters on the title and is *about*
+ * times_read — and a card that only shows what was filtered on would hand the
+ * title back as the answer.
+ */
+test('a plan can name the columns the answer is about', () => {
+  const checked = checkPlan({
+    source: 'library',
+    filters: [{ column: 'title', op: 'contains', value: 'The Living Mountain' }],
+    show: ['times_read', 'last_read_on'],
+    limit: 5,
+  });
+  assert.equal(checked.ok, true);
+  assert.deepEqual(checked.ok && checked.plan.show, ['times_read', 'last_read_on']);
+});
+
+test('a column to show is checked like any other', () => {
+  const checked = checkPlan({
+    source: 'library',
+    filters: [],
+    show: ['how_much_i_liked_it'],
+    limit: 5,
+  });
+  assert.equal(checked.ok, false);
+});
+
+test('a malformed show list is refused rather than ignored', () => {
+  assert.equal(checkPlan({ source: 'library', filters: [], show: 'times_read', limit: 5 }).ok, false);
+});
+
+test('asking for no columns to show is fine', () => {
+  const checked = checkPlan({ source: 'library', filters: [], limit: 5 });
+  assert.equal(checked.ok, true);
+  assert.deepEqual(checked.ok && checked.plan.show, []);
+});
+
+test('the columns shown are capped, so an answer stays an answer', () => {
+  const checked = checkPlan({
+    source: 'library',
+    filters: [],
+    show: ['pages', 'genre', 'isbn', 'format', 'year_published', 'publisher_normalised'],
+    limit: 5,
+  });
+  assert.equal(checked.ok, true);
+  assert.equal(checked.ok && checked.plan.show!.length, 4);
+});

@@ -79,6 +79,24 @@ You answer with JSON and nothing else — no prose, no code fence, no explanatio
   "act": null
 }
 
+A question about a *value* rather than about which books needs "show", which
+names up to four columns to display beside each result:
+
+{
+  "say": "Checking how many times you have read that.",
+  "find": {
+    "source": "library",
+    "filters": [{ "column": "title", "op": "contains", "value": "The Living Mountain" }],
+    "show": ["times_read", "last_read_on"],
+    "limit": 5
+  },
+  "act": null
+}
+
+Without it the answer to "how many times have I read this" is the title handed
+back, because the app only shows the columns the question narrowed on. Leave it
+out when the question is only "which ones".
+
 WHAT YOU CAN SEARCH.
 
 ${vocabulary()}
