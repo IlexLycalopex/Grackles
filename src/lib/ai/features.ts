@@ -20,6 +20,7 @@ export const FEATURE_KEYS = [
   'wbpr.writeup',
   'reading.enrich',
   'reading.lookup',
+  'reading.chat',
   'cigars.lookup',
   'platform.search',
   'platform.golden',
@@ -74,6 +75,12 @@ export const FEATURES: FeatureNote[] = [
     app: 'reading-list',
     class: 'batch',
     what: 'Facts from OpenLibrary, genre and tags from your own vocabulary. Proposals, not writes.',
+  },
+  {
+    key: 'reading.chat',
+    app: 'reading-list',
+    class: 'single',
+    what: 'One turn of a conversation with the reading list. The model writes a search; the app runs it and renders the rows. No record is sent, and any change is offered as a button rather than made.',
   },
   {
     key: 'reading.lookup',

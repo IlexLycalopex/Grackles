@@ -78,6 +78,11 @@ const { user } = Astro.locals;
               following either of these would reach a page whose every button is
               refused. */}
           {workspace.canWrite && (
+            <a href={`${base}/ask`} class={`site-nav__pill${pathname.startsWith(`${base}/ask`) ? ' active' : ''}`}>
+              Ask
+            </a>
+          )}
+          {workspace.canWrite && (
             <a href={`${base}/lookup`} class={`site-nav__pill${pathname.startsWith(`${base}/lookup`) ? ' active' : ''}`}>
               Look up
             </a>

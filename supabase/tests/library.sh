@@ -533,6 +533,32 @@ check "a stranger's selection changes nothing" ok \
    do \$\$ begin if exists (select 1 from public.rl_library where workspace_id='$WS' and read_override is true)
      then raise exception 'a stranger changed read state'; end if; end \$\$;" "$as_rob"
 
+echo "── asking the reading list"
+# The property the whole window rests on, held where it is actually enforced:
+# the feature is registered as sending nothing stored, so no project has to
+# consent and no record can be sent without that becoming a lie.
+check "the chat is registered and sends nothing stored" ok \
+  "do \$\$ begin
+     if not exists (select 1 from public.ai_features where key='reading.chat' and enabled)
+       then raise exception 'reading.chat is not registered'; end if;
+     if (select sends_records from public.ai_features where key='reading.chat')
+       then raise exception 'the chat is marked as sending records'; end if;
+   end \$\$;"
+check "it is switched on for the reading lists that exist" ok \
+  "do \$\$ begin
+     if not exists (select 1 from public.ai_workspace_features where feature='reading.chat' and enabled)
+       then raise exception 'not switched on anywhere'; end if;
+   end \$\$;"
+# One call per turn. A conversation is many jobs of one rather than one job of
+# many, so a window somebody leaves open holds no reservation against the month.
+check "a turn is one bounded call" ok \
+  "do \$\$ begin
+     if (select default_max_calls from public.ai_features where key='reading.chat') <> 1
+       then raise exception 'a turn may make more than one call'; end if;
+   end \$\$;"
+check "a viewer cannot open a chat job" GRK13 \
+  "select public.ai_begin_job('reading.chat','$WS');" "$as_rob"
+
 echo ""
 echo "passed: $pass   failed: $fail"
 [ "$fail" -eq 0 ]

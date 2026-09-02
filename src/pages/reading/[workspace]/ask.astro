@@ -1,0 +1,222 @@
+---
+import RlLayout from '../../../layouts/RlLayout.astro';
+import { requireWrite } from '../../../lib/workspace';
+import { loadYears } from '../../../lib/reading-list';
+
+export const prerender = false;
+
+/**
+ * A window you can talk to.
+ *
+ * The rows are rendered here, by this page, from what the app looked up — the
+ * model never sees them and never describes them. What it writes is the one
+ * line above the results saying what it is doing, composed before anything was
+ * looked up, which is exactly what makes it safe to print.
+ *
+ * `ask` beats `[year]` because static segments win in Astro's routing, the same
+ * as `enrich` and `library`. That is load-bearing across this app and worth not
+ * undoing by accident.
+ */
+
+const { supabase, user } = Astro.locals;
+const wsSlug = Astro.params.workspace!;
+
+const gate = await requireWrite(
+  supabase, 'reading-list', wsSlug, user?.id ?? null, Astro.url.pathname
+);
+if (!gate.ok) return gate.response;
+const { workspace } = gate;
+
+const base = `/reading/${workspace.slug}`;
+const years = await loadYears(supabase, workspace.id);
+
+const EXAMPLES = [
+  'What have I not read that I own?',
+  'Which audiobooks did I never finish?',
+  'Show me the shortest unread books',
+  'What did I read in 2022?',
+  'Anything by Le Guin I have not got to?',
+];
+---
+
+<RlLayout
+  title={`Ask · ${workspace.name}`}
+  description="Ask the reading list a question"
+  workspace={workspace}
+  years={years}
+>
+  <div class="container">
+    <div class="page-header">
+      <h1>Ask</h1>
+      <p class="subtitle">
+        Say what you are looking for. The answer is your books, not a paragraph about them.
+      </p>
+    </div>
+
+    <div class="chat" data-chat data-endpoint={`/api/reading/${workspace.slug}/chat`} data-base={base}>
+      <div class="chat__log" data-chat-log role="log" aria-live="polite" aria-label="Conversation">
+        <div class="chat__intro">
+          <p class="chat__said">
+            Ask me about your library — what you own, what you have read, what you
+            have not got to. I write the search; the app runs it and shows you the
+            books. I never see them, so I will not tell you what is in them.
+          </p>
+          <ul class="chat__examples">
+            {EXAMPLES.map(e => (
+              <li><button type="button" class="chat__example" data-chat-example>{e}</button></li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <form class="chat__ask" data-chat-form>
+        <input
+          type="text"
+          class="chat__input"
+          name="question"
+          placeholder="What have I not read?"
+          autocomplete="off"
+          maxlength="300"
+          aria-label="Ask about your reading list"
+          data-chat-input
+        />
+        <button class="rl-button" type="submit" data-chat-send>Ask</button>
+      </form>
+      <p class="chat__note">
+        Each question is one call to the model. It is told the shape of your
+        library — the column names — and what you typed, and nothing else: no
+        titles, no counts, none of your books.
+      </p>
+    </div>
+  </div>
+</RlLayout>
+
+<script>
+  const found = document.querySelector<HTMLElement>('[data-chat]');
+  if (found) {
+    // Bound inside the guard: the async handler below closes over it, and a
+    // narrowing from an `if` does not survive into a closure.
+    const panel = found;
+    const log = panel.querySelector<HTMLElement>('[data-chat-log]')!;
+    const form = panel.querySelector<HTMLFormElement>('[data-chat-form]')!;
+    const input = panel.querySelector<HTMLInputElement>('[data-chat-input]')!;
+    const send = panel.querySelector<HTMLButtonElement>('[data-chat-send]')!;
+    const endpoint = panel.dataset.endpoint!;
+    const base = panel.dataset.base!;
+
+    /**
+     * What goes back to the model next turn.
+     *
+     * Questions, and the line it said it would do. Never a result — that is the
+     * property the whole feature rests on, and keeping the results out of this
+     * array is where it is actually enforced on the client.
+     */
+    const history: { question: string; said: string }[] = [];
+
+    const el = (tag: string, cls?: string, text?: string) => {
+      const node = document.createElement(tag);
+      if (cls) node.className = cls;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+
+    function add(node: HTMLElement) {
+      log.append(node);
+      node.scrollIntoView({ block: 'nearest' });
+    }
+
+    function renderHits(hits: any[], label: string) {
+      const wrap = el('div', 'chat__hits');
+      wrap.append(el('p', 'chat__count', `${hits.length} ${hits.length === 1 ? label.replace(/s$/, '') : label}`));
+
+      const list = el('ul', 'chat__list');
+      for (const hit of hits) {
+        const li = el('li', 'chat__hit');
+        const link = el('a', 'chat__hit-title') as HTMLAnchorElement;
+        link.href = hit.href;
+        link.textContent = hit.title;
+        li.append(link);
+        if (hit.subtitle) li.append(el('span', 'chat__hit-sub', ` — ${hit.subtitle}`));
+        // Why this one matched, from the columns the question actually asked
+        // about. The app says it; the model is not consulted.
+        for (const m of hit.matched ?? []) {
+          li.append(el('span', 'chat__hit-why', ` · ${m.label}: ${m.value}`));
+        }
+        list.append(li);
+      }
+      wrap.append(list);
+      return wrap;
+    }
+
+    /**
+     * The offer. A form, so pressing it is an ordinary post to the library —
+     * the same path the bulk bar uses. Nothing here writes; this only carries
+     * the ids that were shown, so what gets changed is what was looked at.
+     */
+    function renderOffer(offer: any) {
+      const wrap = el('form', 'chat__offer') as HTMLFormElement;
+      wrap.method = 'POST';
+      wrap.action = `${base}/library`;
+      const intent = { 'mark-read': 'bulk-read', 'mark-unread': 'bulk-unread', 'clear-override': 'bulk-clear' }[offer.action as string];
+      wrap.append(Object.assign(document.createElement('input'), { type: 'hidden', name: 'intent', value: intent }));
+      for (const id of offer.ids) {
+        wrap.append(Object.assign(document.createElement('input'), { type: 'hidden', name: 'entry_id', value: id }));
+      }
+      wrap.append(el('span', 'chat__offer-text', `Change these ${offer.count}?`));
+      const go = el('button', 'rl-button', `${offer.label} · ${offer.count}`) as HTMLButtonElement;
+      go.type = 'submit';
+      wrap.append(go);
+      wrap.append(el('span', 'chat__offer-note', 'Nothing changes until you press it.'));
+      return wrap;
+    }
+
+    async function ask(question: string) {
+      input.value = '';
+      panel.querySelector('.chat__intro')?.remove();
+      add(el('p', 'chat__you', question));
+
+      send.disabled = true;
+      const thinking = el('p', 'chat__said chat__said--waiting', 'Working out what to look for…');
+      add(thinking);
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question, history }),
+        });
+        const body = await response.json();
+        thinking.remove();
+
+        if (!response.ok) {
+          add(el('p', 'chat__error', body?.error ?? 'That could not be answered.'));
+          return;
+        }
+
+        add(el('p', 'chat__said', body.say));
+        history.push({ question, said: body.say });
+
+        if (body.hits?.length) add(renderHits(body.hits, body.label ?? 'results'));
+        else if (body.plan) add(el('p', 'chat__empty', 'Nothing matched that.'));
+
+        if (body.offer) add(renderOffer(body.offer));
+      } catch {
+        thinking.remove();
+        add(el('p', 'chat__error', 'That could not be answered.'));
+      } finally {
+        send.disabled = false;
+        input.focus();
+      }
+    }
+
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      const question = input.value.trim();
+      if (question) ask(question);
+    });
+
+    for (const example of panel.querySelectorAll<HTMLButtonElement>('[data-chat-example]')) {
+      example.addEventListener('click', () => ask(example.textContent!.trim()));
+    }
+  }
+</script>
