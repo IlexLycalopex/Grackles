@@ -1,5 +1,6 @@
 ---
 import '../styles/reading-list.css';
+import NavToggle from '../components/NavToggle.astro';
 import type { YearData } from '../lib/reading-list';
 import type { ResolvedWorkspace } from '../lib/workspace';
 
@@ -43,6 +44,8 @@ const { user } = Astro.locals;
           </svg>
           <span>{workspace.name}</span>
         </a>
+
+        <NavToggle />
 
         <div class="site-nav__links">
           {

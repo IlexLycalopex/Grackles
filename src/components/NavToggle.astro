@@ -1,0 +1,94 @@
+---
+/**
+ * The top bar, on a narrow screen.
+ *
+ * Three of the apps share one nav structure — `.site-nav__inner` holding a
+ * logo and a `.site-nav__links` list — and all three outgrew it. The Reading
+ * List worst: eight year pills plus seven links is sixteen items, which on a
+ * phone became a sideways scroll behind a hidden scrollbar, and the years were
+ * given `display: none` outright. That is not a narrow menu, it is a menu with
+ * the navigation taken out of it.
+ *
+ * This is the behaviour only. Appearance stays in each app's own stylesheet,
+ * which is the ConfirmDelete arrangement and for the same reason: the three
+ * already use the same element names for the same jobs and differ only in what
+ * those look like, and a shared component that also styled them would force
+ * three deliberately different sites to agree.
+ *
+ * **It enhances rather than replaces.** The collapsing is switched on by this
+ * script adding `data-collapsible` to the nav, and every CSS rule that hides
+ * anything is written against that attribute. With no JavaScript the bar is
+ * exactly what it is today — a scrolling row — rather than a button that does
+ * nothing, which is the failure mode a CSS-only checkbox hack trades for.
+ */
+
+interface Props {
+  /** Names the panel for the button that controls it. */
+  id?: string;
+  label?: string;
+}
+
+const { id = 'site-nav-links', label = 'Menu' } = Astro.props;
+---
+
+<button
+  class="site-nav__toggle"
+  type="button"
+  aria-expanded="false"
+  aria-controls={id}
+  aria-label={label}
+  data-nav-toggle
+>
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+    <path class="site-nav__bar-top" d="M4 7h16" />
+    <path class="site-nav__bar-mid" d="M4 12h16" />
+    <path class="site-nav__bar-bot" d="M4 17h16" />
+  </svg>
+</button>
+
+<script>
+  for (const toggle of document.querySelectorAll<HTMLButtonElement>('[data-nav-toggle]')) {
+    const nav = toggle.closest<HTMLElement>('.site-nav');
+    const panel = nav?.querySelector<HTMLElement>('.site-nav__links');
+    if (!nav || !panel) continue;
+
+    // The panel needs an id for aria-controls to point at, and giving it one
+    // here rather than in five layouts keeps the markup change to one line each.
+    if (!panel.id) panel.id = toggle.getAttribute('aria-controls') ?? 'site-nav-links';
+
+    // Only now does any of the collapsing CSS apply. Everything above this line
+    // is inert, which is what makes the no-JavaScript case the old behaviour
+    // rather than a broken new one.
+    nav.setAttribute('data-collapsible', '');
+
+    const setOpen = (open: boolean) => {
+      nav.toggleAttribute('data-open', open);
+      toggle.setAttribute('aria-expanded', String(open));
+    };
+
+    toggle.addEventListener('click', () => setOpen(!nav.hasAttribute('data-open')));
+
+    // Escape closes it, and returns the focus to the control that opened it —
+    // otherwise a keyboard user is left inside a panel that is no longer there.
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && nav.hasAttribute('data-open')) {
+        setOpen(false);
+        toggle.focus();
+      }
+    });
+
+    // A press anywhere else closes it. Following a link inside it navigates, so
+    // that case closes itself.
+    document.addEventListener('click', event => {
+      if (!nav.hasAttribute('data-open')) return;
+      if (!nav.contains(event.target as Node)) setOpen(false);
+    });
+
+    // Widening past the breakpoint leaves the panel open in the markup, which
+    // is harmless — the media query stops applying and it is a row again — but
+    // the button would go on claiming it is expanded to a screen reader.
+    matchMedia('(min-width: 641px)').addEventListener('change', event => {
+      if (event.matches) setOpen(false);
+    });
+  }
+</script>

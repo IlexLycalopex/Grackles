@@ -1181,3 +1181,45 @@ input[type='color'].pick-form__input {
   line-height: 1.6;
   color: var(--text-muted);
 }
+
+/* ── The bar on a narrow screen ─────────────────────────────────────
+
+   Seasons and a contributor roster, which grow. Shared behaviour with the
+   Reading List and the Cigar Lounge; see src/components/NavToggle.astro. Every
+   rule is written against `[data-collapsible]`, so with no JavaScript the bar
+   is what it was. */
+
+.site-nav__toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  flex: none;
+}
+.site-nav__toggle:hover { color: var(--accent); border-color: var(--accent); }
+.site-nav[data-open] .site-nav__toggle { color: var(--accent); border-color: var(--accent); }
+
+@media (max-width: 640px) {
+  .site-nav[data-collapsible] .site-nav__toggle { display: inline-flex; }
+  .site-nav[data-collapsible] .site-nav__inner { flex-wrap: wrap; }
+  .site-nav[data-collapsible] .site-nav__links {
+    display: none;
+    width: 100%;
+    order: 3;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 0 4px;
+    margin-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+  .site-nav[data-collapsible][data-open] .site-nav__links { display: flex; }
+  /* The roster reads as names again once there is room to wrap. */
+  .site-nav[data-collapsible][data-open] .site-nav__contrib-name { display: inline; }
+}

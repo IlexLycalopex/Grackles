@@ -1004,3 +1004,43 @@ textarea.cigar-form__input { resize: vertical; line-height: 1.6; }
   gap: 10px;
   margin-top: 20px;
 }
+
+/* ── The bar on a narrow screen ─────────────────────────────────────
+
+   Shared behaviour with the Reading List and the Listening Party, in this
+   lounge's own ink and paper. Every rule is written against `[data-collapsible]`,
+   which the NavToggle script adds, so with no JavaScript the bar is what it was.
+   See src/components/NavToggle.astro. */
+
+.site-nav__toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-left: auto;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  flex: none;
+}
+.site-nav__toggle:hover { color: var(--accent); border-color: var(--accent); }
+.site-nav[data-open] .site-nav__toggle { color: var(--accent); border-color: var(--accent); }
+
+@media (max-width: 640px) {
+  .site-nav[data-collapsible] .site-nav__toggle { display: inline-flex; }
+  .site-nav[data-collapsible] .site-nav__inner { flex-wrap: wrap; }
+  .site-nav[data-collapsible] .site-nav__links {
+    display: none;
+    width: 100%;
+    order: 3;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 12px 0 4px;
+    margin-top: 10px;
+    border-top: 1px solid var(--rule);
+  }
+  .site-nav[data-collapsible][data-open] .site-nav__links { display: flex; }
+}

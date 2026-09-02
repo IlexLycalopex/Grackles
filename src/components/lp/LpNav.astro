@@ -1,4 +1,5 @@
 ---
+import NavToggle from '../NavToggle.astro';
 import type { Contributor, Season } from '../../lib/listening-party';
 import type { ResolvedWorkspace } from '../../lib/workspace';
 
@@ -25,6 +26,8 @@ const { user } = Astro.locals;
       </svg>
       <span>{workspace.name}</span>
     </a>
+
+    <NavToggle />
 
     <div class="site-nav__links">
       {

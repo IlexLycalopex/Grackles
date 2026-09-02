@@ -1,5 +1,6 @@
 ---
 import '../styles/cigar-lounge.css';
+import NavToggle from '../components/NavToggle.astro';
 import type { ResolvedWorkspace } from '../lib/workspace';
 
 interface Props {
@@ -56,6 +57,8 @@ const links = [
             stands in the page title and the role chip; the nav carries the
             brand, the same on every workspace. */}
         <a href={base} class="site-nav__logo">Cedarhouse</a>
+        <NavToggle />
+
         <div class="site-nav__links">
           {
             links.map(l => (
