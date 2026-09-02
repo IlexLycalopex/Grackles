@@ -119,7 +119,7 @@ const format = v('format', book?.format, 'print');
   <label class="book-form__field">
     <span class="book-form__label">Finished</span>
     <input class="book-form__input" type="date" name="date_finished" value={v('date_finished', book?.date_finished)} />
-    <span class="book-form__hint">Leave blank while you are still reading it.</span>
+    <span class="book-form__hint">When, where it is known. Blank does not mean unfinished.</span>
   </label>
 </div>
 
@@ -158,7 +158,16 @@ const format = v('format', book?.format, 'print');
     />
     <span>Coming up</span>
   </label>
+  <label class="book-form__check">
+    <input type="checkbox" name="abandoned" checked={fieldChecked(submitted, 'abandoned', book?.abandoned)} />
+    <span>Gave up on it</span>
+  </label>
 </div>
+<p class="book-form__hint">
+  A book on the list counts as read unless one of these says otherwise. The
+  finish date records when, and can be left blank on a book finished long
+  enough ago that nobody wrote the day down.
+</p>
 
 <div class="book-form__row">
   <label class="book-form__field">

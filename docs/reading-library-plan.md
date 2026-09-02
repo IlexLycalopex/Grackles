@@ -169,25 +169,26 @@ which the majority is read has exactly one interesting question — *what have I
 not read* — and it needs to be a column, not a join written out by hand at four
 call sites.
 
-**A book is read when a reading of it finished.** `date_finished is not null` is
-already the app's own definition of finished: `records/book.ts` refuses a book
-marked `reading` that also carries a finish date, on precisely that ground, and
-`BookCard` renders from it. Nothing new is being invented; it is being lifted
-one level up onto the library entry.
+**A book is read when a reading of it finished.** What *finished* means is
+below, and it changed once: this plan shipped with `date_finished is not null`
+and that turned out to be wrong against the actual reading list. The rule is now
+`app.rl_reading_finished()` — a reading is finished unless it is coming up,
+under way, or given up on.
 
 Five derived columns on `rl_library`, all maintained by one trigger:
 
 | Column | |
 | --- | --- |
-| `times_read` | log rows pointing here with a `date_finished` |
-| `last_read_on` | the most recent of those dates |
+| `times_read` | log rows pointing here that finished |
+| `last_read_on` | the most recent finish date among them, where any was recorded |
 | `reading` | any log row here with `reading` set |
 | `read_override` | nullable. `null` means follow the log |
 | `read` | the effective answer: `coalesce(read_override, times_read > 0)` |
 
 The trigger fires on insert, update and delete of `rl_books` — watching
-`library_id`, `date_finished` and `reading` — and on update of `read_override`.
-It recomputes the affected library rows and nothing else.
+`library_id`, `date_finished`, `reading`, `coming_up` and `abandoned` — and on
+update of `read_override`. It recomputes the affected library rows and nothing
+else.
 
 **Why a maintained column and not a view.** Three reasons, and the third
 decides it. It is the primary filter on the library page, so it wants an index.
@@ -209,10 +210,31 @@ Setting the override never touches the log. `times_read` stays 0 and
 honest: we know it was read, we do not know when. Clearing the override back to
 `null` hands the question back to the log.
 
-**What is deliberately not derived.** A log row with no finish date does not
-make a book read. Abandoned, still going and finished-but-undated all look the
-same from here, and the first two must not be counted as read. The third is what
-the override is for.
+**What is deliberately not derived — and why that was wrong.** The original
+rule here was that a log row with no finish date does not make a book read:
+abandoned, still going and finished-but-undated look the same from a date
+column, the first two must not count, and the override was to settle the third.
+
+The reading list disagreed. A hundred and fifteen readings across eight years
+carry no dates at all — 2025 is forty-eight books and not one date, because that
+is how a year was logged before this app existed: a list of what was read.
+Calling all of them unfinished put "not finished" against finished books on the
+one page whose purpose is to say what has been read, and the override was no
+answer at that volume — it was set by hand on a hundred and eleven books in two
+days, which is a person working around a bug.
+
+So the states a reading can be in are written down instead of inferred from an
+absence. `coming_up`, `reading` and a new `abandoned` column each say a reading
+did not finish; everything else did, and `date_finished` goes back to recording
+*when* — present where somebody wrote the day down, absent where nobody did.
+`abandoned` is what makes this safe: without it, "no finish date" was the only
+way the log could say somebody gave up, and dropping the date rule alone would
+have quietly promoted every abandoned book to read.
+
+The override keeps its job, which is the one it was designed for: a book read
+before the list existed, with no reading to derive from. The migration clears it
+only where the readings now answer on their own, so no book changes its read
+state — only who is answering for it.
 
 ## Ownership is a second axis
 
@@ -763,10 +785,14 @@ false. If it is going to be read next, one more press puts it on the year as
 OpenLibrary, which is exact, instant and free. That path should be built before
 the model path is leaned on, because it makes it rare.
 
-**A book is finished.** Set the finish date on the reading, as now. The trigger
-does the rest: `times_read` goes up, `last_read_on` is set, `read` becomes true
-and the entry leaves the unread shelf. Nothing else to do and nothing to
-remember — which is the whole of the second ask.
+**A book is finished.** Untick *currently reading*, and set the finish date if
+the day is worth keeping. The trigger does the rest: `times_read` goes up,
+`last_read_on` takes the date where there is one, `read` becomes true and the
+entry leaves the unread shelf. Nothing else to do and nothing to remember —
+which is the whole of the second ask.
+
+**A book is given up on.** Tick *gave up on it*. It stays on the year as a
+reading that happened, and counts as neither read nor still in hand.
 
 **A book was read years ago and never logged.** The override, from the entry or
 in bulk from the library page.

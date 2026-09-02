@@ -594,6 +594,8 @@ export type Database = {
           notes: string;
           reading: boolean;
           coming_up: boolean;
+          /** Given up on. With reading and coming_up, what says a reading did not finish. */
+          abandoned: boolean;
           link_openlibrary: string;
           link_wikipedia: string;
           /** The book this is a reading of. Not null once the backfill has run. */
@@ -624,6 +626,7 @@ export type Database = {
           notes?: string;
           reading?: boolean;
           coming_up?: boolean;
+          abandoned?: boolean;
           link_openlibrary?: string;
           link_wikipedia?: string;
           created_at?: string;

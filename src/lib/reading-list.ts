@@ -34,8 +34,29 @@ export interface Book {
   notes: string | null;
   reading: boolean;
   coming_up: boolean;
+  /** Given up on. The only way a reading says it will never be finished. */
+  abandoned: boolean;
   links: { openlibrary: string; wikipedia: string };
 }
+
+/**
+ * Whether a reading finished.
+ *
+ * The one definition, and the twin of `app.rl_reading_finished()` in the
+ * schema, which is the authority — the library's read state is counted there.
+ * A reading is finished unless it is one of the three things that say it is
+ * not: chosen and not started, under way, or given up on.
+ *
+ * What this deliberately does not look at is `date_finished`. That column
+ * records *when* a book was finished, and most of this reading list predates
+ * anybody recording it: whole years were logged as a list of books read and
+ * nothing else. Deriving whether from when was the bug: it called eight years
+ * of finished books unfinished, and left the read state of the library to be
+ * corrected by hand, one book at a time.
+ */
+export const finishedReading = (
+  book: Pick<Book, 'reading' | 'coming_up' | 'abandoned'>
+): boolean => !book.reading && !book.coming_up && !book.abandoned;
 
 export interface YearMeta {
   id: string;
@@ -64,7 +85,7 @@ function toStatus(raw: string | null): YearStatus {
 const BOOK_COLUMNS = `
   id, order_read, title, author, pages, date_started, date_finished, format,
   year_published, genre, publisher, publisher_normalised, cover_url, isbn,
-  description, tags, notes, reading, coming_up,
+  description, tags, notes, reading, coming_up, abandoned,
   link_openlibrary, link_wikipedia,
   rl_years ( id, year )
 `;
@@ -92,6 +113,7 @@ function toBook(row: any): Book {
     notes: row.notes || null,
     reading: row.reading,
     coming_up: row.coming_up,
+    abandoned: row.abandoned ?? false,
     links: {
       openlibrary: row.link_openlibrary ?? '',
       wikipedia: row.link_wikipedia ?? '',
@@ -280,9 +302,10 @@ export interface YearProgress {
  *
  * What counts depends on the state of the year, and the difference matters:
  *
- * - A year under way or finished counts books **read**, so anything flagged
- *   `coming_up` is excluded. Counting intentions would let a target be met by
- *   writing a list, which is the one thing a target exists to rule out.
+ * - A year under way or finished counts books **read**, by the one definition
+ *   of that in `finishedReading()` — so an intention, a book in hand and one
+ *   given up on are all excluded. Counting intentions would let a target be met
+ *   by writing a list, which is the one thing a target exists to rule out.
  * - A year being planned counts **every** book in it, because choosing them is
  *   the whole activity. Its books are all `coming_up` by definition, and
  *   excluding them would make every plan read as zero.
@@ -299,7 +322,7 @@ export function yearProgress(
   if (target === null || target < 1) return null;
 
   const counted =
-    year.status === 'planning' ? books.length : books.filter(b => !b.coming_up).length;
+    year.status === 'planning' ? books.length : books.filter(finishedReading).length;
 
   return {
     target,
