@@ -1,0 +1,64 @@
+# The gate that was missing.
+#
+# Until this existed the only check on a pull request was Vercel's preview
+# build, which proves the site compiles and nothing else. A change could go to
+# production having run none of the tests, and on 11 Sep 2026 one did.
+#
+# What runs here is exactly what a contributor runs locally, in the same order,
+# so a red tick means the same thing on both machines and there is nothing to
+# learn about CI in particular.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A pull request that is pushed to twice in a minute does not need the first
+# run finished. `main` is excluded because its runs are the record of what was
+# released, and cancelling one loses that.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    strategy:
+      # Both ends of what the project claims to support, because only one of
+      # them was ever actually exercised. 24 is what Vercel builds and serves
+      # with, so it is the version that decides whether production works. 22 is
+      # the floor `engines.node` promises, and a promise nothing tests is the
+      # kind that is discovered broken by somebody else.
+      fail-fast: false
+      matrix:
+        node: ['22.12', '24']
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # `ci`, not `install`: it installs the lockfile as written and fails if
+      # package.json and the lockfile disagree, which is the check that stops a
+      # dependency drifting in without a commit that says so.
+      - run: npm ci
+
+      # The suite globs .test.ts and .test.mjs. It has to keep globbing both:
+      # title-match.ts is pinned by two .mjs files, and when the glob named
+      # only .test.ts they quietly stopped running for as long as nobody looked.
+      - run: npm test
+
+      - name: Typecheck
+        run: npx astro check
+
+      - name: Build
+        run: npm run build
