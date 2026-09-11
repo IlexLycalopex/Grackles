@@ -176,3 +176,80 @@ export function authorKey(author: string): string {
   const initial = normalise(given).charAt(0);
   return initial ? `${folded} ${initial}` : folded;
 }
+
+/**
+ * Whether a catalogue's credit names the person or act that was asked for.
+ *
+ * The looser half of the two-part test a lookup makes of a result: the title
+ * decides whether this is the right record, and this decides whether it is the
+ * right author. Loose is the point, because the field on the other end holds
+ * more than one name. A store credits features and collaborations in it, so
+ * "DJ Shadow" has to match "DJ Shadow & Cut Chemist"; a library credits
+ * translators and illustrators the same way, so "Italo Calvino" has to match
+ * "Italo Calvino, William Weaver". The reverse happens just as often on the way
+ * in, where somebody types both names of a co-authored book and the catalogue
+ * lists one.
+ *
+ * What it is emphatically not is a substring test. "Smith" is inside
+ * "Smithson", and a surname that merely contains another is a different author
+ * with a different book — which is the whole failure this exists to prevent.
+ *
+ * So both sides are read as the list of credits they are, and a match is two
+ * credits that agree. Surnames must be equal outright. The initial is only
+ * consulted when both sides carry one, which is what lets a spine with room
+ * for "Smith" match a catalogue's "John Smith" without letting it match
+ * everybody called Smith once a given name is on offer.
+ *
+ * Takes the credits **as written**, not `normalise()`d. Folding happens inside,
+ * at the points that want it: a comma is how a name says it is back to front
+ * and an ampersand is how a field says it holds two people, and normalising
+ * first throws both away.
+ *
+ * Conservative by design, because the caller asking this is about to write a
+ * cover to somebody's record with nobody reviewing it. "Ludwig Mies van der
+ * Rohe" against "Mies van der Rohe" is refused, both initials being present and
+ * different — the same answer `authorKey()` gives, and a missing cover is the
+ * cheaper mistake.
+ */
+export function creditMatches(got: string, want: string): boolean {
+  const a = creditsIn(got);
+  const b = creditsIn(want);
+
+  return a.some(x =>
+    b.some(y => x.surname === y.surname && (!x.initial || !y.initial || x.initial === y.initial))
+  );
+}
+
+interface Credit {
+  surname: string;
+  initial: string;
+}
+
+/**
+ * Every credit a field can be read as naming.
+ *
+ * The whole field first, because `splitName()` is what understands "Le Guin,
+ * Ursula K." as one name written backwards. Then each separated part, because
+ * the same comma is how "Italo Calvino, William Weaver" names two people. Which
+ * reading was intended is not decidable from the text, so both are kept and a
+ * match on either is a match — the cost of carrying a reading that was never
+ * meant is a credit that agrees with nothing.
+ */
+function creditsIn(field: string): Credit[] {
+  const found: Credit[] = [];
+
+  const add = (text: string): void => {
+    const { surname, given } = splitName(text);
+    const folded = normalise(surname);
+    if (!folded) return;
+    const initial = normalise(given).charAt(0);
+    if (!found.some(c => c.surname === folded && c.initial === initial)) {
+      found.push({ surname: folded, initial });
+    }
+  };
+
+  add(field);
+  for (const part of field.split(/;|&|\band\b|,/i)) add(part);
+
+  return found;
+}
