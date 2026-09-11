@@ -1286,3 +1286,5 @@ Two things are needed before this can serve real users:
 
 `shouldCreateUser: false` on the login form means signing in does not create an
 account. People arrive by invitation, or not at all.
+
+<!-- Temporary marker for verifying the branch ruleset gates pull requests. This branch and its PR are throwaway and must never be merged. -->
