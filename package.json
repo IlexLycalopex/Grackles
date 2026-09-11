@@ -12,7 +12,7 @@
     "preview": "astro preview",
     "astro": "astro",
     "check": "astro check",
-    "test": "node --experimental-strip-types --import ./scripts/register-ts.mjs --test \"src/**/*.test.ts\""
+    "test": "node --experimental-strip-types --import ./scripts/register-ts.mjs --test \"src/**/*.test.ts\" \"src/**/*.test.mjs\""
   },
   "dependencies": {
     "@astrojs/vercel": "^10.0.8",
