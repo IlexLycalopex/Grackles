@@ -88,15 +88,59 @@ check "a finished reading makes a book read" ok \
      then raise exception 'times_read wrong'; end if;
      if (select last_read_on from public.rl_library where id='11111111-1111-4111-8111-111111111111') <> '2019-04-01'
      then raise exception 'last_read_on wrong'; end if; end \$\$;" "$as_jamie"
-check "an unfinished reading does not" ok \
+check "a reading still under way does not" ok \
   "insert into public.rl_library (id, workspace_id, title, author)
      values ('11111111-1111-4111-8111-111111111112','$WS','Piranesi','Susanna Clarke');
    insert into public.rl_books (workspace_id, year_id, library_id, order_read, title, date_started, reading)
      values ('$WS','$YEAR','11111111-1111-4111-8111-111111111112',2,'Piranesi','2019-04-01',true);
    do \$\$ begin if (select read from public.rl_library where id='11111111-1111-4111-8111-111111111112')
-     then raise exception 'an abandoned book counted as read'; end if;
+     then raise exception 'a book in hand counted as read'; end if;
      if not (select reading from public.rl_library where id='11111111-1111-4111-8111-111111111112')
      then raise exception 'not marked as being read'; end if; end \$\$;" "$as_jamie"
+
+# The whole point of the finished migration. Eight years of this reading list
+# were logged as a list of books read and nothing else, and the date column was
+# reading that as eight years of unfinished books.
+check "a reading with no dates at all still makes a book read" ok \
+  "insert into public.rl_library (id, workspace_id, title, author)
+     values ('11111111-1111-4111-8111-111111111130','$WS','The Living Mountain','Nan Shepherd');
+   insert into public.rl_books (workspace_id, year_id, library_id, order_read, title)
+     values ('$WS','$YEAR','11111111-1111-4111-8111-111111111130',20,'The Living Mountain');
+   do \$\$ begin if not (select read from public.rl_library where id='11111111-1111-4111-8111-111111111130')
+     then raise exception 'an undated reading did not count'; end if;
+     if (select times_read from public.rl_library where id='11111111-1111-4111-8111-111111111130') <> 1
+     then raise exception 'times_read wrong'; end if;
+     if (select last_read_on from public.rl_library where id='11111111-1111-4111-8111-111111111130') is not null
+     then raise exception 'a date was invented'; end if; end \$\$;" "$as_jamie"
+check "a book coming up is not read" ok \
+  "insert into public.rl_library (id, workspace_id, title, author)
+     values ('11111111-1111-4111-8111-111111111131','$WS','Piranesi','Susanna Clarke');
+   insert into public.rl_books (workspace_id, year_id, library_id, order_read, title, coming_up)
+     values ('$WS','$YEAR','11111111-1111-4111-8111-111111111131',21,'Piranesi',true);
+   do \$\$ begin if (select read from public.rl_library where id='11111111-1111-4111-8111-111111111131')
+     then raise exception 'an intention counted as read'; end if; end \$\$;" "$as_jamie"
+check "taking a book off the coming-up list marks it read" ok \
+  "insert into public.rl_library (id, workspace_id, title, author)
+     values ('11111111-1111-4111-8111-111111111132','$WS','Piranesi','Susanna Clarke');
+   insert into public.rl_books (id, workspace_id, year_id, library_id, order_read, title, coming_up)
+     values ('22222222-2222-4222-8222-222222222230','$WS','$YEAR','11111111-1111-4111-8111-111111111132',22,'Piranesi',true);
+   update public.rl_books set coming_up = false where id='22222222-2222-4222-8222-222222222230';
+   do \$\$ begin if not (select read from public.rl_library where id='11111111-1111-4111-8111-111111111132')
+     then raise exception 'the trigger does not watch coming_up'; end if; end \$\$;" "$as_jamie"
+check "a book given up on is not read" ok \
+  "insert into public.rl_library (id, workspace_id, title, author)
+     values ('11111111-1111-4111-8111-111111111133','$WS','Piranesi','Susanna Clarke');
+   insert into public.rl_books (workspace_id, year_id, library_id, order_read, title, date_started, abandoned)
+     values ('$WS','$YEAR','11111111-1111-4111-8111-111111111133',23,'Piranesi','2019-04-01',true);
+   do \$\$ begin if (select read from public.rl_library where id='11111111-1111-4111-8111-111111111133')
+     then raise exception 'a book given up on counted as read'; end if;
+     if (select reading from public.rl_library where id='11111111-1111-4111-8111-111111111133')
+     then raise exception 'a book given up on is still in hand'; end if; end \$\$;" "$as_jamie"
+check "given up on is not sayable together with a finish date" 23514 \
+  "insert into public.rl_library (id, workspace_id, title, author)
+     values ('11111111-1111-4111-8111-111111111134','$WS','Piranesi','Susanna Clarke');
+   insert into public.rl_books (workspace_id, year_id, library_id, order_read, title, date_finished, abandoned)
+     values ('$WS','$YEAR','11111111-1111-4111-8111-111111111134',24,'Piranesi','2019-04-01',true);" "$as_jamie"
 check "a re-read is two readings and one book" ok \
   "insert into public.rl_library (id, workspace_id, title, author)
      values ('11111111-1111-4111-8111-111111111113','$WS','Piranesi','Susanna Clarke');
@@ -132,14 +176,18 @@ check "deleting the only reading un-reads the book" ok \
    delete from public.rl_books where id='22222222-2222-4222-8222-222222222223';
    do \$\$ begin if (select read from public.rl_library where id='11111111-1111-4111-8111-11111111111c')
      then raise exception 'still read with no readings'; end if; end \$\$;" "$as_jamie"
-check "clearing a finish date un-reads the book" ok \
+# Was the other way round until the finished migration, and this is the line
+# that says which way it is now: the date is when, not whether.
+check "clearing a finish date leaves the book read and undated" ok \
   "insert into public.rl_library (id, workspace_id, title, author)
      values ('11111111-1111-4111-8111-11111111111d','$WS','Piranesi','Susanna Clarke');
    insert into public.rl_books (id, workspace_id, year_id, library_id, order_read, title, date_finished)
      values ('22222222-2222-4222-8222-222222222224','$WS','$YEAR','11111111-1111-4111-8111-11111111111d',6,'Piranesi','2019-04-01');
    update public.rl_books set date_finished = null where id='22222222-2222-4222-8222-222222222224';
-   do \$\$ begin if (select read from public.rl_library where id='11111111-1111-4111-8111-11111111111d')
-     then raise exception 'still read with no finish date'; end if; end \$\$;" "$as_jamie"
+   do \$\$ begin if not (select read from public.rl_library where id='11111111-1111-4111-8111-11111111111d')
+     then raise exception 'a finished reading stopped counting when its date went'; end if;
+     if (select last_read_on from public.rl_library where id='11111111-1111-4111-8111-11111111111d') is not null
+     then raise exception 'last_read_on kept a date that was deleted'; end if; end \$\$;" "$as_jamie"
 
 echo "── the override"
 # Half the feature, not an escape hatch: the majority of this library was read

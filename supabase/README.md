@@ -40,12 +40,53 @@ The files in `migrations/` are the additions from 2026-08-05, in apply order:
 | `20260828120400_reading_lookup` | `rl_book_reference`, `app.book_lookups_today()`, the daily cap, and the `reading.lookup` feature |
 | `20260828120500_reading_lookup_grants` | Withdraws the UPDATE/DELETE/TRUNCATE Supabase's default privileges had already granted, and takes `anon` off the new tables |
 | `20260828120600_reading_library_publisher` | Attaches `set_publisher_normalised()` to `rl_library` and backfills it |
+| `20260902130000_reading_finished` | What makes a reading finished: `rl_books.abandoned`, `app.rl_reading_finished()`, `app.rl_recount()` rewritten off the date column, and a repair pass over the read state |
+| `20260902130100_reading_finished_search_path` | Pins `search_path` on the function above — the one lint the local suite cannot produce |
 
-**Applied 2026-09-01.** 265 readings became 260 books, 136 of them read, 0
-orphans, one near-duplicate surfaced and left alone. Verified locally first
+**Applied 2026-09-01** (the library set). 265 readings became 260 books, 136 of
+them read, 0 orphans, one near-duplicate surfaced and left alone. Verified locally first
 against a cluster built from `tests/baseline.sql` + every migration in order;
 `tests/library.sh` (77 checks), `tests/import.sh` (20) and `tests/backfill.sh`
 (35) pass, and the four existing suites are unchanged.
+
+#### The definition that had to change (2026-09-02)
+
+The library shipped with `date_finished is not null` as the definition of a
+finished reading. Against this reading list it was wrong: 115 of 265 readings
+carry no dates at all, because a year used to be logged as a list of what was
+read and nothing else — 2025 is 48 books and not one date. Every one of them
+read as unfinished, and the entry page said so in as many words.
+
+`20260902130000_reading_finished` moves the definition onto the states a
+reading is in — coming up, under way, given up on, otherwise finished — and adds
+the `abandoned` column that makes the last of those sayable, since a missing
+date used to be the only way the log could express it. `date_finished` goes back
+to recording *when*.
+
+What it does to the data: 115 readings start counting, `times_read` changes on
+111 entries, `last_read_on` moves on none of them, and no book changes its read
+state. The 111 hand-set overrides from 1–2 September were standing in for this
+bug and are cleared where the readings now answer on their own; an override of
+`false`, and one on a book with no reading to derive from, is left alone.
+
+**Applied 2026-09-02.** Read back off production afterwards: `times_read` 136 →
+251 across 260 entries, `read` unchanged at 246, `unread` at 14, `last_read_on`
+at 136, overrides 111 → 0, and no entry disagrees with the recount. Verified
+first against a cluster built from `tests/baseline.sql` + every migration in
+order; `library.sh` (90 checks, six of them new), `test.sh` (50), `import.sh`
+(20), `admin.sh` (21), `ai.sh` (112), `search-columns.sh` (1) and `backfill.sh`
+(35) all pass.
+
+The advisors were read back too, and that is what produced
+`20260902130100`. `app.rl_reading_finished()` was written without a
+`set search_path` on the argument that a function touching no object cannot be
+confused by one, and that leaving it inlinable keeps the recount a plain
+aggregate. Both true, and it was still the only `function_search_path_mutable`
+warning on the project: `20260814102000_search_path` had cleared every other
+one. An exception with a good story is still a row somebody reads past every
+time they check, and the cost of pinning it here is nothing measurable. This is
+the third time reading state back after applying has found something the local
+suite could not: revoke-shaped facts, unfilled columns, and now lints.
 
 #### The two migrations the local suite could not have produced
 
