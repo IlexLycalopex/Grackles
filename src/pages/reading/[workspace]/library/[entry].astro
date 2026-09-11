@@ -115,12 +115,13 @@ interface Reading {
   format: string;
   reading: boolean;
   coming_up: boolean;
+  abandoned: boolean;
   year: number | null;
 }
 
 const { data: readingRows } = await supabase
   .from('rl_books')
-  .select('id, order_read, date_started, date_finished, format, pages, publisher, notes, reading, coming_up, rl_years(year)')
+  .select('id, order_read, date_started, date_finished, format, pages, publisher, notes, reading, coming_up, abandoned, rl_years(year)')
   .eq('library_id', entryId)
   .order('order_read');
 
@@ -131,8 +132,26 @@ const readings: Reading[] = ((readingRows ?? []) as any[]).map(r => ({
   format: r.format,
   reading: r.reading,
   coming_up: r.coming_up,
+  abandoned: r.abandoned ?? false,
   year: r.rl_years?.year ?? null,
 }));
+
+/**
+ * What one reading says about itself, in a few words.
+ *
+ * The state first and the date second, because the date is only ever the
+ * *when*. This line used to read a missing finish date as "not finished",
+ * which called eight years of undated readings unfinished on the one page
+ * whose job is to say what has been read.
+ */
+function describeReading(r: Reading): string {
+  if (r.coming_up) return 'coming up';
+  if (r.reading) return 'reading now';
+  if (r.abandoned) return 'gave up';
+  return r.date_finished
+    ? `finished ${new Date(r.date_finished).toLocaleDateString('en-GB')}`
+    : 'finished';
+}
 
 // The near-duplicates of this one specifically, so the merge is offered where
 // somebody is already looking at the book rather than only on a report.
@@ -210,11 +229,7 @@ const READ_LABELS: Record<string, string> = {
                   <a href={`${base}/book/${r.id}`}>
                     {r.year ?? '—'}
                     <span class="lib-muted">
-                      {r.date_finished
-                        ? ` · finished ${new Date(r.date_finished).toLocaleDateString('en-GB')}`
-                        : r.reading ? ' · reading now'
-                        : r.coming_up ? ' · coming up'
-                        : ' · not finished'}
+                      {` · ${describeReading(r)}`}
                       {r.format !== 'print' && ` · ${r.format}`}
                     </span>
                   </a>

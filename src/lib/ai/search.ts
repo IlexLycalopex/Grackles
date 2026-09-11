@@ -118,10 +118,11 @@ export const SOURCES: Source[] = [
       { column: 'pages', type: 'number', what: 'Page count.' },
       { column: 'year_published', type: 'number', what: 'Year first published.' },
       { column: 'format', type: 'text', what: 'Paperback, hardback, ebook, audiobook.' },
-      { column: 'date_started', type: 'date', what: 'When reading began.' },
-      { column: 'date_finished', type: 'date', what: 'When it was finished. Null means unfinished — abandoned or still going.' },
+      { column: 'date_started', type: 'date', what: 'When reading began, where it was recorded.' },
+      { column: 'date_finished', type: 'date', what: 'When it was finished, where it was recorded. Null does NOT mean unfinished — most older readings carry no dates at all.' },
       { column: 'reading', type: 'boolean', what: 'True while it is the book currently being read.' },
       { column: 'coming_up', type: 'boolean', what: 'True when it is on the to-read list rather than read.' },
+      { column: 'abandoned', type: 'boolean', what: 'True for a book given up on. This is what "never finished" means; a reading is finished unless reading, coming_up or abandoned is true.' },
       { column: 'isbn', type: 'text', what: 'ISBN.' },
       { column: 'description', type: 'text', what: 'The blurb.' },
       { column: 'notes', type: 'text', what: 'The reader\'s own notes.' },
@@ -420,7 +421,7 @@ export const SEARCH_SYSTEM = `You turn a question about somebody's own records i
 {
   "source": "books",
   "filters": [
-    { "column": "date_finished", "op": "is_null" },
+    { "column": "abandoned", "op": "eq", "value": true },
     { "column": "year_published", "op": "gte", "value": 1990 }
   ],
   "order": { "column": "date_started", "direction": "desc" },
@@ -436,7 +437,7 @@ RULES.
 
 "source" is exactly one of the names above. Pick the one the question is about. If the question could mean two of them, pick the likelier and do not try to answer both.
 
-"op" is one of: eq, neq, gt, gte, lt, lte, contains, is_null, not_null. "contains" is for text only and matches part of a value. "is_null" and "not_null" take no value — use them for "unfinished", "never smoked", "not yet rated". Text is matched case-insensitively.
+"op" is one of: eq, neq, gt, gte, lt, lte, contains, is_null, not_null. "contains" is for text only and matches part of a value. "is_null" and "not_null" take no value — use them for "never smoked", "not yet rated", "no date recorded". Text is matched case-insensitively.
 
 Dates are "YYYY-MM-DD". A question about a year becomes two conditions, gte January the first and lte December the thirty-first — there is no year function.
 

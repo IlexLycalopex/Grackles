@@ -8,7 +8,7 @@ interface Props {
 
 const { book, showOrder = false } = Astro.props;
 
-const formatColor = book.coming_up ? 'var(--text-faint)' : book.format === 'audio' ? 'var(--accent-audio)' : book.format === 'graphic' ? 'var(--accent-graphic)' : 'var(--accent)';
+const formatColor = book.coming_up || book.abandoned ? 'var(--text-faint)' : book.format === 'audio' ? 'var(--accent-audio)' : book.format === 'graphic' ? 'var(--accent-graphic)' : 'var(--accent)';
 
 function formatDate(d: string | null): string {
   if (!d) return '';
@@ -16,7 +16,24 @@ function formatDate(d: string | null): string {
   return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+/**
+ * The dates, where there are any.
+ *
+ * A book with none is a book read before anybody was writing the days down,
+ * and it says nothing here rather than claiming to be unfinished — the states
+ * are what say that, and they have their own corner of the card.
+ */
+/**
+ * The one thing on the card that says a reading did not finish.
+ *
+ * There is room for one chip and only one state can be true at a time, so this
+ * is a single answer rather than two independent flags — and everything else on
+ * the list is, by the same definition, read.
+ */
+const state = book.coming_up ? 'Coming up' : book.abandoned ? 'Gave up' : '';
+
 const dateStr = (() => {
+  if (book.abandoned) return book.date_started ? `Gave up · from ${formatDate(book.date_started)}` : 'Gave up';
   if (book.date_started && book.date_finished) return `${formatDate(book.date_started)} – ${formatDate(book.date_finished)}`;
   if (book.date_finished) return `Finished ${formatDate(book.date_finished)}`;
   if (book.date_started) return `Started ${formatDate(book.date_started)}`;
@@ -25,18 +42,22 @@ const dateStr = (() => {
 ---
 <article
   class="book-card"
-  class:list={[book.coming_up && 'book-card--coming-up', book.notes && 'book-card--has-notes']}
+  class:list={[
+    book.coming_up && 'book-card--coming-up',
+    book.abandoned && 'book-card--gave-up',
+    book.notes && 'book-card--has-notes',
+  ]}
   style={`--format-color: ${formatColor}`}
   data-format={book.format}
   data-title={book.title}
   data-author={book.author}
   data-notes={book.notes ?? undefined}
 >
-  {book.coming_up && (
-    <div class="book-card__coming-up">Coming up</div>
+  {state && (
+    <div class="book-card__state">{state}</div>
   )}
 
-  {!book.coming_up && (
+  {!state && (
     <div class="book-card__badge">
       {book.format === 'audio' ? (
         <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14" aria-label="Audio">
@@ -123,7 +144,8 @@ const dateStr = (() => {
     transform: translateY(-2px);
   }
 
-  .book-card--coming-up {
+  .book-card--coming-up,
+  .book-card--gave-up {
     opacity: 0.6;
   }
 
@@ -131,11 +153,12 @@ const dateStr = (() => {
     cursor: pointer;
   }
 
-  .book-card--coming-up .book-card__cover img {
+  .book-card--coming-up .book-card__cover img,
+  .book-card--gave-up .book-card__cover img {
     filter: grayscale(0.4);
   }
 
-  .book-card__coming-up {
+  .book-card__state {
     position: absolute;
     top: 0.5rem;
     left: 0.5rem;

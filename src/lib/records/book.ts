@@ -21,6 +21,7 @@ export interface BookValues {
   tags: string[];
   reading: boolean;
   coming_up: boolean;
+  abandoned: boolean;
   link_openlibrary: string;
   link_wikipedia: string;
 }
@@ -46,10 +47,30 @@ export function readBook(form: FormData): Parsed<BookValues> {
   }
 
   const reading = f.bool('reading');
-  // Not a database constraint, but the reading list treats a finish date as
-  // what makes a book finished — the two together render as both at once.
+  const coming_up = f.bool('coming_up');
+  const abandoned = f.bool('abandoned');
+
+  // Not a database constraint, but a book in hand with a finish date renders as
+  // both at once, and the finish date is the half that is believed.
   if (reading && date_finished) {
     return invalid('This has a date finished, so it is not still being read.');
+  }
+
+  // The rest is rl_books_abandoned_alone, said where somebody can read it. A
+  // reading is finished unless one of these three says it is not, so two of
+  // them at once is a state the app cannot answer for.
+  if (abandoned && (reading || coming_up)) {
+    return invalid(
+      reading
+        ? 'A book you gave up on is not one you are still reading.'
+        : 'A book you gave up on is not one that is coming up.'
+    );
+  }
+  if (abandoned && date_finished) {
+    return invalid('This has a date finished, so it was not given up on.');
+  }
+  if (coming_up && date_finished) {
+    return invalid('This has a date finished, so it is not still coming up.');
   }
 
   return valid({
@@ -72,7 +93,8 @@ export function readBook(form: FormData): Parsed<BookValues> {
     notes: f.str('notes'),
     tags: f.list('tags'),
     reading,
-    coming_up: f.bool('coming_up'),
+    coming_up,
+    abandoned,
     link_openlibrary: f.str('link_openlibrary'),
     link_wikipedia: f.str('link_wikipedia'),
   });
