@@ -5,7 +5,7 @@ import { describeAiError } from '../../../../lib/ai/features';
 import { runPlan, SOURCES } from '../../../../lib/ai/search';
 import {
   ACTION_LABELS, buildChatTurn, chatCacheKey, CHAT_ACTIONS, CHAT_SYSTEM, readChatTurn,
-  type ChatAction, type ChatHistoryEntry,
+  type ChatHistoryEntry,
 } from '../../../../lib/ai/chat';
 
 export const prerender = false;
