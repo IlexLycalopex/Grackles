@@ -60,6 +60,33 @@ checks, all new), `test.sh` (50), `admin.sh` (21), `ai.sh` (112), `library.sh`
 Read back off production afterwards, which is what produced `20260917130000`
 and the baseline correction below.
 
+### Links to outside sites (2026-09-17)
+
+| Migration | What it does |
+| --- | --- |
+| `20260917140000_elsewhere_app_slug` | `external` joins the `app_slug` enum — on its own, because `ALTER TYPE ... ADD VALUE` cannot be used in the transaction that uses it |
+| `20260917150000_add_link` | `add_link()` — a platform admin puts an outside site on the launcher without a migration and a deploy |
+
+Every value in the enum was in use, one project each, so adding a link meant a
+new enum value, an entry in the app registry and an INSERT typed into the SQL
+editor — three places, two of them a deploy. `external` is one value added once
+and shared by every plain link, which turns all three into a form.
+
+What that gives up is the case `20260806090000` was protecting: a site with its
+own slug moves in by clearing a column, and one filed under `external` has to be
+re-keyed. That is one UPDATE — memberships hang off `workspace_id`, not the app —
+and since `20260917120000` the old `(app, slug)` leaves a forwarding address
+behind it. The picker at `/admin` still offers the four sites that are expected
+to move in, for exactly that reason.
+
+`add_link()` is deliberately not `create_workspace()` with a column added.
+`create_workspace()` spends a creation entitlement and seeds an app's first
+rows; a link has neither to spend nor to seed, and is an admin's decision about
+the site rather than an owner's about a project. The seam between them is the
+empty URL: `add_link()` raises GRK23 rather than writing a project served from
+here, because that is the shape in which it would become a way around the
+entitlement check.
+
 #### What reading it back found
 
 **The grant that was not revoked.** `remember_workspace_slug()` went on with

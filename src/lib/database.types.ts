@@ -1594,6 +1594,21 @@ export type Database = {
         }[];
       };
       /**
+       * Adds a link to a site served from somewhere else, owned by the caller.
+       *
+       * Platform admins only. GRK04 address taken, GRK23 no URL given.
+       */
+      add_link: {
+        Args: {
+          p_name: string;
+          p_url: string;
+          p_slug: string;
+          p_app?: Database['public']['Enums']['app_slug'];
+          p_visibility?: Database['public']['Enums']['visibility'];
+        };
+        Returns: string;
+      };
+      /**
        * Removes the caller's own membership of a project.
        *
        * GRK21 the caller is its last owner, GRK22 they are not a member.
@@ -2001,7 +2016,8 @@ export type Database = {
         | 'spelltome'
         | 'scoundrel'
         | 'wbpr'
-        | 'blackletter';
+        | 'blackletter'
+        | 'external';
       member_role: 'owner' | 'editor' | 'viewer';
       visibility: 'private' | 'unlisted' | 'public';
     };

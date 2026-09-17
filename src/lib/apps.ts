@@ -66,6 +66,20 @@ export const APPS: AppDefinition[] = [
   { slug: 'lanternwood', path: 'lanternwood', name: 'Lanternwood', hosted: false },
   { slug: 'spelltome', path: 'spelltome', name: 'Spelltome', hosted: false },
   { slug: 'scoundrel', path: 'scoundrel', name: 'Scoundrel', hosted: false },
+  {
+    // Not an app: the one value every plain link shares, so that adding an
+    // address to the launcher is a form rather than a migration. The four
+    // above keep their own slugs because they are expected to move in one day
+    // and should not have to be re-keyed when they do. See 20260917140000.
+    //
+    // `path` is reserved rather than used. Nothing routes to /elsewhere, and
+    // the settings page refuses to clear `external_url` on an app with no
+    // pages here, which is what stops one of these becoming a dead link.
+    slug: 'external',
+    path: 'elsewhere',
+    name: 'Elsewhere',
+    hosted: false,
+  },
 ];
 
 /**

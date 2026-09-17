@@ -89,6 +89,7 @@ const MESSAGES: Record<string, string> = {
   GRK04: 'That address is already taken — try a different one.',
   GRK21: 'You are the only owner of that project. Make somebody else an owner first, or delete it.',
   GRK22: 'You are not a member of that project.',
+  GRK23: 'A link has to say where it points.',
 };
 
 export function describeGrantError(error: { code?: string; message: string }): string {
