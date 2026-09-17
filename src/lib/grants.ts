@@ -74,7 +74,8 @@ export async function loadEntitlements(
 }
 
 /**
- * The custom SQLSTATEs the invite and creation functions raise, as sentences.
+ * The custom SQLSTATEs the invite, creation and membership functions raise, as
+ * sentences.
  *
  * The functions carry their own messages, but those name columns and values —
  * fine in a log, wrong on a page. Anything unrecognised falls through to the
@@ -86,6 +87,8 @@ const MESSAGES: Record<string, string> = {
   GRK02: 'That invitation was sent to a different email address. Sign in with that address, or ask whoever invited you to send it again.',
   GRK03: 'You do not have permission to create another project in that app.',
   GRK04: 'That address is already taken — try a different one.',
+  GRK21: 'You are the only owner of that project. Make somebody else an owner first, or delete it.',
+  GRK22: 'You are not a member of that project.',
 };
 
 export function describeGrantError(error: { code?: string; message: string }): string {

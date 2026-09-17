@@ -9,6 +9,40 @@ export const prerender = false;
 const { user, supabase } = Astro.locals;
 if (!user) return Astro.redirect('/login?next=/dashboard');
 
+// Taking a project off your own list.
+//
+// Handled before the reads below, so the page that renders is the one that is
+// true after it. The launcher and this page are both built from memberships,
+// which until now only an owner could remove — being able to put something on
+// somebody's front door and not take it off again is a strange amount of
+// authority to hand a colleague.
+let notice: string | null = null;
+let leaveError: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+
+  if (String(form.get('action') ?? '') === 'leave') {
+    const { error: e } = await supabase.rpc('leave_workspace', {
+      p_workspace: String(form.get('workspace_id') ?? ''),
+    });
+
+    if (e) leaveError = describeGrantError(e);
+    else notice = String(form.get('name') ?? 'That project') + ' is off your list.';
+  }
+}
+
+// Set by the settings page on its way out, because the page that would have
+// reported it has just been deleted.
+const deleted = Astro.url.searchParams.get('deleted');
+if (deleted) notice = `${deleted} is gone, along with everything in it.`;
+
+// Which card is asking. Leaving is a confirmation rather than a click for the
+// same reason every delete on the site is: it is a stray tap on a phone, and
+// the way back into a private project is an invitation you cannot send
+// yourself.
+const leaving = Astro.url.searchParams.get('leave');
+
 // The `.eq('user_id', …)` is load-bearing, despite RLS. members_read allows
 // `user_id = auth.uid() OR workspace_role(workspace_id) IS NOT NULL` — the
 // second half exposes the whole roster to anyone in the project, so without
@@ -99,6 +133,8 @@ const inviteError = inviteFailed
     )}.
   </p>
 
+  {notice && <p class="notice notice--ok">{notice}</p>}
+  {leaveError && <p class="notice notice--error" role="alert">{leaveError}</p>}
   {error && <p class="notice notice--error" role="alert">Could not load your projects: {error.message}</p>}
   {inviteError && <p class="notice notice--error" role="alert">{inviteError}</p>}
   {
@@ -190,10 +226,26 @@ const inviteError = inviteFailed
             <span class="ws-card__meta">
               <span class={`tag${role === 'viewer' ? ' tag--viewer' : ''}`}>{role}</span>
               <span class="tag">{ws.visibility}</span>
-              {role === 'owner' && (
+              {role === 'owner' ? (
                 <a class="ws-card__settings" href={`/settings/${appBySlug(ws.app)?.path}/${ws.slug}`}>
                   Settings
                 </a>
+              ) : leaving === ws.id ? (
+                <form method="POST" class="ws-card__leave">
+                  <input type="hidden" name="action" value="leave" />
+                  <input type="hidden" name="workspace_id" value={ws.id} />
+                  <input type="hidden" name="name" value={ws.name} />
+                  <button class="ws-card__settings ws-card__leave-yes" type="submit">
+                    Leave{ws.visibility === 'private' && ' — you would need a new invitation'}
+                  </button>
+                  <a class="ws-card__settings" href="/dashboard">Cancel</a>
+                </form>
+              ) : (
+                /* Offered to a member and not to an owner, though the database
+                   allows an owner who is not the last one to leave as well. An
+                   owner has a settings page, where leaving is a decision taken
+                   next to the one about who else owns this. */
+                <a class="ws-card__settings" href={`/dashboard?leave=${ws.id}`}>Leave</a>
               )}
             </span>
           </li>

@@ -43,6 +43,25 @@ The files in `migrations/` are the additions from 2026-08-05, in apply order:
 | `20260902130000_reading_finished` | What makes a reading finished: `rl_books.abandoned`, `app.rl_reading_finished()`, `app.rl_recount()` rewritten off the date column, and a repair pass over the read state |
 | `20260902130100_reading_finished_search_path` | Pins `search_path` on the function above — the one lint the local suite cannot produce |
 
+### Project settings (2026-09-17)
+
+| Migration | What it does |
+| --- | --- |
+| `20260917120000_project_settings` | `workspace_slug_history` and the trigger that keeps it true, so changing a project's address does not break links to the old one; `leave_workspace()`, so a member who is not an owner can take a project off their own list |
+
+**Not yet applied.** Verified locally against a cluster built from
+`tests/baseline.sql` + every migration in order: `tests/settings.sh` (24 checks,
+all new) passes and `tests/test.sh` (50) is unchanged.
+
+Two things to read back off production afterwards, both of the class the local
+suite is blind to. The grants: the migration revokes INSERT, UPDATE, DELETE,
+TRUNCATE and REFERENCES on `workspace_slug_history` from `anon` and
+`authenticated`, because Supabase's default privileges on `public` grant the
+full set and a `grant select` narrows nothing — the third time this has come up,
+and the first time it was written in up front. And the lints: both new functions
+pin `search_path`, which is what `20260902130100` was written to fix after the
+fact.
+
 **Applied 2026-09-01** (the library set). 265 readings became 260 books, 136 of
 them read, 0 orphans, one near-duplicate surfaced and left alone. Verified locally first
 against a cluster built from `tests/baseline.sql` + every migration in order;

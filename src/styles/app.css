@@ -110,6 +110,29 @@
 
 .ws-card__settings:hover { color: var(--ink); }
 
+/* Confirming a Leave is a form, because it writes; everything else in this
+   corner of the card is a link. There is no reason for the difference to show,
+   so the button is undressed back down to the link it sits beside. */
+.ws-card__leave {
+  margin-left: auto;
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+.ws-card__leave .ws-card__settings {
+  margin-left: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  text-transform: none;
+  text-align: left;
+  cursor: pointer;
+}
+.ws-card__leave-yes { color: var(--danger); }
+
 .ws-card__app {
   font-size: 0.68rem;
   letter-spacing: 0.2em;

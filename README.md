@@ -35,10 +35,19 @@ several people can share a project.
 | ✅ | Blackletter — the word game, at five, six and seven letters. Schema, dictionary and workspace are live on the project |
 | ✅ | Cedarhouse's wishlist — a third cigar status, added straight from a lookup and moved off in one press. Migration applied 2026-08-17 |
 | ✅ | The library — every book in one registry, read state derived from the reading list, the bookcase captured from photographs and deduplicated on the way in. **Applied 2026-09-01**: 265 readings became 260 books, 136 of them read |
+| ✅ | Project settings — name, address, where it lives and deleting one, with old addresses kept forwarding. Migration `20260917120000`, not yet applied |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.
 Its nav is whatever the visitor is a member of: signed out it offers one thing,
 a way in.
+
+What is on the launcher is therefore a question about memberships, and every
+answer to it is now a control somewhere: start one at `/new`, be invited to one
+from its settings page, rename or delete one from the same place, and take one
+off your own list with **Leave** on the dashboard. Nothing about the menu
+itself is editable, and deliberately so — it is sorted by name, because a menu
+whose order shifts as projects are added is one you have to read every time
+instead of reaching for the same place twice.
 
 A project's subtitle — `workspaces.description` — is editable from its
 settings page. It is the line under the name on the dashboard, and on the
@@ -68,7 +77,9 @@ every value of the enum — so this is the only thing stopping it being offered.
 /login  /auth/callback  /logout    magic-link auth
 /dashboard                         your projects across all apps
 /invite/:token                     accept an invitation
-/settings/:app/:workspace          subtitle, members, roles, invites, visibility (owner only)
+/settings/:app/:workspace          name, address, where it lives, subtitle, visibility,
+                                   members, roles, invites, AI, delete (owner only)
+/settings/:app/:workspace?delete=1 the confirmation step, typed rather than clicked
 
 /lp/:workspace                     Listening Party — current season
 /lp/:workspace/:season             a season
@@ -190,6 +201,76 @@ not defensive habit, it is required: a delete blocked by row-level security does
 not raise, it narrows the statement to zero rows and reports success. Without
 the check, a viewer whose role changed mid-session would be told the record was
 deleted while it sat there untouched.
+
+## Project settings
+
+Four of the six things an owner can change about a project used to be SQL typed
+into the Supabase editor: its name, its address, whether it is served from here
+or from somewhere else, and whether it exists at all. Only the subtitle and the
+visibility had a form. That was the wrong way round — the two with a form are
+the reversible ones, and a `delete from workspaces` in a SQL editor has no
+confirmation step and cascades into every app table.
+
+All six are now on `/settings/:app/:workspace`, owner only.
+
+**Renaming** changes the label on the launcher, on every member's dashboard and
+in an invitation. It changes nothing else, and in particular it does not move
+the address — the two are separate on purpose, which is why the app registry
+keeps `name` and `path` apart in the first place.
+
+**Changing the address** is the one with consequences, because an address is
+the thing people have written down. `workspace_slug_history` records every one
+a project has left, and the middleware forwards them:
+
+- the lookup happens only after a response has already come back 404, so it
+  costs nothing on any page that exists;
+- it is a **308**, not a 301 — both are permanent, and only 308 keeps the
+  method, so a form submitted from a page that was open when the address
+  changed still saves instead of quietly becoming a GET that discards it;
+- anything below the project comes along, so `/cigars/jamie/the-padron` lands
+  on the same entry at the new address, and so does `/settings/cigars/jamie`;
+- an address that goes back into live use stops forwarding, whether it is the
+  same project moving back or a new one taking it. The live row always wins,
+  and the primary key on `(app, slug)` is what makes that one decision rather
+  than two rows to reconcile;
+- the forwarding row is readable exactly where the project is. A private
+  project's old address 404s for a stranger rather than announcing that
+  something is there.
+
+**Where it lives** is `external_url`, the column the five GitHub Pages sites
+carry. Setting it points every link at that instead; clearing it brings the
+project home to `/:path/:slug`. For an app with no routes here yet the form
+refuses to clear it, because that does not bring a project home — it points
+every link at a page that does not exist.
+
+**Deleting** is at `?delete=1`, the same shape every record in the three apps
+uses, with one addition: the address has to be typed, not clicked. The
+confirmation counts what goes with it — records, memberships, pending
+invitations, forwarding addresses — from the project itself rather than from a
+sentence written in the abstract. Blackletter is the one app that shows no
+count: `bl_games_read` is own-rows-only, so the number an owner could see is
+their own games and not the project's, and no number is better than a wrong
+one. Like every other delete on the site, it asks for the removed row back and
+checks it got one.
+
+What a delete does to the AI records is worth knowing before the first one is
+pressed: `ai_jobs` cascades, and `ai_calls` goes with it through `job_id`, so
+the project's spend disappears from the console's monthly figure. `ai_periods`
+— the running total the allowance is actually checked against — is keyed on the
+payer and does not cascade, so nothing is refunded and a project cannot be
+deleted to buy another month. The confirmation says so, because the opposite is
+the obvious guess.
+
+**Leaving** is the other half, and it is not on this page, because this page is
+owner-only. The launcher is built from memberships, and `members_manage` is
+`app.is_owner(workspace_id)` for ALL — so until now a viewer could not take a
+project off their own front door without asking the person who put it there.
+`leave_workspace()` is that, guarded so the last owner of a project cannot walk
+away from it and leave nobody able to administer it. It deliberately does not
+move `workspaces.owner_id`: that column is who created the project, it spends
+their creation quota and it is who the AI spend is billed to, and handing all
+three to whoever is left because somebody walked away is a transfer nobody
+agreed to.
 
 ## Planning next year
 
@@ -1244,7 +1325,7 @@ src/
 │   ├── apps.ts              app registry — slug ↔ URL path, where a project lives
 │   ├── database.types.ts    generated; regenerate after every migration
 │   └── supabase/            server (cookie-bound) and browser clients
-├── middleware.ts            session + locals
+├── middleware.ts            session + locals, and forwarding an address that moved
 ├── layouts/
 │   ├── Base.astro           html shell, fonts, paper background
 │   └── AppShell.astro       masthead + container for signed-in pages
@@ -1255,7 +1336,7 @@ src/
 │   ├── logout.ts            POST only
 │   ├── invite/[token].ts    calls accept_invite()
 │   ├── dashboard.astro      your workspaces across all three apps
-│   ├── settings/            per-workspace members, roles, visibility
+│   ├── settings/            per-workspace name, address, members, roles, visibility
 │   ├── lp/                  Listening Party
 │   ├── reading/             Reading List
 │   └── cigars/              Cedarhouse (the cigar lounge)
