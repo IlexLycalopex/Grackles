@@ -48,19 +48,58 @@ The files in `migrations/` are the additions from 2026-08-05, in apply order:
 | Migration | What it does |
 | --- | --- |
 | `20260917120000_project_settings` | `workspace_slug_history` and the trigger that keeps it true, so changing a project's address does not break links to the old one; `leave_workspace()`, so a member who is not an owner can take a project off their own list |
+| `20260917130000_project_settings_grants` | Withdraws the EXECUTE on `remember_workspace_slug()` that PUBLIC held — found by reading state back, see below |
 
-**Not yet applied.** Verified locally against a cluster built from
-`tests/baseline.sql` + every migration in order: `tests/settings.sh` (24 checks,
-all new) passes and `tests/test.sh` (50) is unchanged.
+**Applied 2026-09-17.** Nine workspaces, ten memberships, no data touched: both
+migrations are additive. Verified first against a cluster built from
+`tests/baseline.sql` + every migration in order — `tests/settings.sh` (28
+checks, all new), `test.sh` (50), `admin.sh` (21), `ai.sh` (112), `library.sh`
+(90), `import.sh` (20), `backfill.sh` (35), `blackletter.sh` (20) and
+`search-columns.sh` (1).
 
-Two things to read back off production afterwards, both of the class the local
-suite is blind to. The grants: the migration revokes INSERT, UPDATE, DELETE,
-TRUNCATE and REFERENCES on `workspace_slug_history` from `anon` and
-`authenticated`, because Supabase's default privileges on `public` grant the
-full set and a `grant select` narrows nothing — the third time this has come up,
-and the first time it was written in up front. And the lints: both new functions
-pin `search_path`, which is what `20260902130100` was written to fix after the
-fact.
+Read back off production afterwards, which is what produced `20260917130000`
+and the baseline correction below.
+
+#### What reading it back found
+
+**The grant that was not revoked.** `remember_workspace_slug()` went on with
+EXECUTE held by PUBLIC. Supabase's default privileges on `public` grant it on
+every new function, and `20260917120000` revoked nothing — it revoked the table
+privileges it had thought about and not the function's. Every other trigger
+function on the project has it withheld, so this was the only one out of step.
+Nothing was exposed: a plpgsql trigger function invoked directly raises at once.
+It is the same finding as `20260807150000` and `20260828120500`, a third time,
+and the rule it keeps teaching is worth restating: **a GRANT withholds nothing
+it does not name, and revoke-shaped facts are invisible to the local suite**,
+because `tests/baseline.sql` does not reproduce `ALTER DEFAULT PRIVILEGES`.
+
+What the advisors say afterwards: no new lint. `remember_workspace_slug` is off
+the anon list, `leave_workspace` sits with `accept_invite`, `create_workspace`
+and `my_pending_invites` under "signed-in users can execute a definer function",
+which is what it is for, and neither function appears under
+`function_search_path_mutable` — the lint `20260902130100` exists to fix.
+
+**The guard the local suite could not see.** `guard_last_owner()` and its
+constraint trigger `workspace_members_keep_owner` are on production, from the
+pre-repo core tenancy migrations, and were missing from `tests/baseline.sql`.
+That matters here more than anywhere: deleting a project cascades its
+memberships away, so at commit the workspace has no owner left, and the only
+reason that is not an exception is the function's early return for a workspace
+that no longer exists. Both are now in the baseline, read off production
+verbatim, with tests either side of the early return.
+
+The mechanism is worth knowing before the next test is written against it: it
+is DEFERRABLE INITIALLY DEFERRED, so it fires at commit — and `check()` rolls
+back. Every test of it has to `set constraints all immediate`, or it passes
+without the guard ever running. Three in `settings.sh` did exactly that until
+the line was added.
+
+**Still outstanding, and not this migration's to fix.** `authenticated` holds
+the TRIGGER privilege on every table in `public`, `workspace_slug_history`
+included — Supabase's default privileges again, and nothing in the repo has ever
+revoked it. It is not reachable through PostgREST, which does not run DDL. A
+sweep would be its own migration rather than one table hardened out of step with
+the other twenty-four.
 
 **Applied 2026-09-01** (the library set). 265 readings became 260 books, 136 of
 them read, 0 orphans, one near-duplicate surfaced and left alone. Verified locally first

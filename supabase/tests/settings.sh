@@ -153,13 +153,51 @@ check "an anonymous visitor cannot call it" 42501 \
   "select public.leave_workspace('$LP');" "$as_anon"
 
 echo "── deleting"
+# `set constraints all immediate` in every one of these, and it is the point
+# rather than a detail. guard_last_owner() is a DEFERRED constraint trigger, so
+# it fires at commit — and check() rolls back, so without this line it never
+# fires at all and each of these passes while proving nothing.
 check "an owner can delete a project, and its records go with it" ok \
-  "do \$\$ begin
-     delete from public.workspaces where id = '$CIGARS';
+  "delete from public.workspaces where id = '$CIGARS';
+   set constraints all immediate;
+   do \$\$ begin
      if exists (select 1 from public.cl_cigars where workspace_id = '$CIGARS')
        then raise exception 'records outlived the project'; end if;
      if exists (select 1 from public.workspace_members where workspace_id = '$CIGARS')
        then raise exception 'memberships outlived the project'; end if; end \$\$;" "$as_jamie"
+
+# The one production told us to write. Deleting a project cascades its
+# memberships away, so at commit the workspace has no owners left, and the only
+# reason that is not an exception is the early return in guard_last_owner() for
+# a workspace that no longer exists. The guard was missing from baseline.sql
+# until 2026-09-17, so this could not have been asked locally at all.
+check "the last-owner guard does not block deleting a project" ok \
+  "delete from public.workspaces where id = '$CIGARS';
+   set constraints all immediate;
+   do \$\$ begin
+     if exists (select 1 from public.workspaces where id = '$CIGARS')
+       then raise exception 'the project is still there'; end if; end \$\$;" "$as_jamie"
+check "a project with two owners deletes just the same" ok \
+  "do \$\$ begin
+     $SU
+     insert into public.workspace_members (workspace_id,user_id,role) values ('$CIGARS','$ROB','owner');
+     perform set_config('role','authenticated',true);
+   end \$\$;
+   delete from public.workspaces where id = '$CIGARS';
+   set constraints all immediate;
+   do \$\$ begin
+     $SU
+     if exists (select 1 from public.workspace_members where workspace_id = '$CIGARS')
+       then raise exception 'memberships outlived the project'; end if; end \$\$;" "$as_jamie"
+
+# The other side of the same guard: the project stays, so the early return does
+# not apply and taking its only owner off it is refused.
+check "removing the last owner without deleting the project is still refused" "must keep at least one owner" \
+  "delete from public.workspace_members where workspace_id = '$CIGARS' and user_id = '$JAMIE';
+   set constraints all immediate;" "$as_jamie"
+check "leaving as the last owner is refused before the guard has to say so" GRK21 \
+  "select public.leave_workspace('$CIGARS'); set constraints all immediate;" "$as_jamie"
+
 check "a viewer cannot delete a project" ok \
   "do \$\$ begin
      $SU

@@ -35,7 +35,7 @@ several people can share a project.
 | ✅ | Blackletter — the word game, at five, six and seven letters. Schema, dictionary and workspace are live on the project |
 | ✅ | Cedarhouse's wishlist — a third cigar status, added straight from a lookup and moved off in one press. Migration applied 2026-08-17 |
 | ✅ | The library — every book in one registry, read state derived from the reading list, the bookcase captured from photographs and deduplicated on the way in. **Applied 2026-09-01**: 265 readings became 260 books, 136 of them read |
-| ✅ | Project settings — name, address, where it lives and deleting one, with old addresses kept forwarding. Migration `20260917120000`, not yet applied |
+| ✅ | Project settings — name, address, where it lives and deleting one, with old addresses kept forwarding. **Applied 2026-09-17**, and reading it back added a second migration and a guard the local suite had never had |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.
 Its nav is whatever the visitor is a member of: signed out it offers one thing,
@@ -260,6 +260,15 @@ the project's spend disappears from the console's monthly figure. `ai_periods`
 payer and does not cascade, so nothing is refunded and a project cannot be
 deleted to buy another month. The confirmation says so, because the opposite is
 the obvious guess.
+
+**The last-owner guard** is production's, not this feature's: `guard_last_owner()`
+on `workspace_members`, from the pre-repo migrations. It is a deferred constraint
+trigger, so it fires at commit — by which time a project being deleted is gone,
+and its first check returns early rather than refusing the cascade. That is the
+only reason deleting a project works at all, and it was missing from
+`tests/baseline.sql` until 2026-09-17, so the tests that proved deletion were
+proving it against a database that did not guard anything. Both are fixed; see
+`supabase/README.md`.
 
 **Leaving** is the other half, and it is not on this page, because this page is
 owner-only. The launcher is built from memberships, and `members_manage` is

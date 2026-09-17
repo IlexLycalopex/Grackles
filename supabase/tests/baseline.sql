@@ -451,6 +451,36 @@ $$;
 create trigger workspaces_add_owner after insert on public.workspaces
   for each row execute function public.handle_new_workspace();
 
+-- Read back off production on 2026-09-17 and reproduced here, because it was
+-- missing and the suite could not see what it does. It is a *deferred
+-- constraint* trigger, which is the whole of its behaviour: it fires at commit,
+-- by which time a workspace being deleted is already gone, and the first check
+-- below returns early rather than refusing the cascade. Without it locally,
+-- every test of deleting a project or leaving one was passing against a
+-- database that guarded neither.
+create function public.guard_last_owner() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  ws uuid := coalesce(old.workspace_id, new.workspace_id);
+begin
+  if not exists (select 1 from public.workspaces where id = ws) then
+    return coalesce(new, old);
+  end if;
+  if not exists (
+    select 1 from public.workspace_members
+    where workspace_id = ws and role = 'owner'
+  ) then
+    raise exception 'workspace % must keep at least one owner', ws;
+  end if;
+  return coalesce(new, old);
+end;
+$$;
+
+create constraint trigger workspace_members_keep_owner
+  after delete or update on public.workspace_members
+  deferrable initially deferred
+  for each row execute function public.guard_last_owner();
+
 -- Production's copy of this has `search_path = public, pg_temp`, which cannot
 -- resolve citext and so fails to compile the moment it is called — the invite
 -- that had been sitting unaccepted since July was hitting exactly this. It is
