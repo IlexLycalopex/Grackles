@@ -36,6 +36,7 @@ several people can share a project.
 | ✅ | Cedarhouse's wishlist — a third cigar status, added straight from a lookup and moved off in one press. Migration applied 2026-08-17 |
 | ✅ | The library — every book in one registry, read state derived from the reading list, the bookcase captured from photographs and deduplicated on the way in. **Applied 2026-09-01**: 265 readings became 260 books, 136 of them read |
 | ✅ | Project settings — name, address, where it lives and deleting one, with old addresses kept forwarding. **Applied 2026-09-17**, and reading it back added a second migration and a guard the local suite had never had |
+| ✅ | Adding a link at `/admin` — an outside site on the launcher without a migration or a deploy, filed under `external` |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.
 Its nav is whatever the visitor is a member of: signed out it offers one thing,
@@ -80,6 +81,7 @@ every value of the enum — so this is the only thing stopping it being offered.
 /settings/:app/:workspace          name, address, where it lives, subtitle, visibility,
                                    members, roles, invites, AI, delete (owner only)
 /settings/:app/:workspace?delete=1 the confirmation step, typed rather than clicked
+/admin                             the platform console, and where a link to an outside site is added
 
 /lp/:workspace                     Listening Party — current season
 /lp/:workspace/:season             a season
@@ -269,6 +271,28 @@ only reason deleting a project works at all, and it was missing from
 `tests/baseline.sql` until 2026-09-17, so the tests that proved deletion were
 proving it against a database that did not guard anything. Both are fixed; see
 `supabase/README.md`.
+
+**Adding a link** is the one thing on this subject that is not on this page,
+because a row on the launcher pointing off the site is a decision about the site
+rather than about a project. It is at `/admin`: a name, a URL, an optional
+address, and what to file it under. `add_link()` writes the workspace and
+`handle_new_workspace()` adds the membership, which is the row the launcher is
+actually built from.
+
+It is deliberately not `create_workspace()`. That function exists to start
+something this site serves — it spends a creation entitlement and seeds the
+app's first records — and a link has neither to spend nor to seed. Keeping them
+apart is also what stops the second becoming a way past the first, which is why
+`add_link()` refuses an empty URL rather than treating it as "served from here".
+
+**Elsewhere** is what a link is filed under: one `app_slug`, added once, shared
+by every plain link. The five GitHub Pages sites kept a value each because they
+are expected to move in and a cleared column should be the whole of that move.
+A site that will never be served from here does not need an identity in the
+enum, and needing one is what made adding a link a migration and a deploy. If
+one of these does move in after all, it is re-keyed with one UPDATE — the
+memberships hang off `workspace_id`, and the old `(app, slug)` leaves a
+forwarding address behind it.
 
 **Leaving** is the other half, and it is not on this page, because this page is
 owner-only. The launcher is built from memberships, and `members_manage` is

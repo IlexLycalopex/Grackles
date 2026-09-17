@@ -207,6 +207,53 @@ check "a viewer cannot delete a project" ok \
      if not exists (select 1 from public.workspaces where id = '$CIGARS')
        then raise exception 'RLS let a viewer delete a project'; end if; end \$\$;" "$as_rob"
 
+echo "── adding a link"
+check "an admin can put a link on their launcher" ok \
+  "do \$\$ declare w uuid; begin
+     w := public.add_link('Atelier', 'https://example.com/atelier', 'atelier-two');
+     if (select external_url from public.workspaces where id = w) <> 'https://example.com/atelier'
+       then raise exception 'the link does not point anywhere'; end if;
+     if (select app from public.workspaces where id = w) <> 'external'
+       then raise exception 'filed under the wrong app'; end if;
+     if not exists (select 1 from public.workspace_members
+                     where workspace_id = w and user_id = '$JAMIE' and role = 'owner')
+       then raise exception 'not on the launcher of whoever added it'; end if;
+   end \$\$;" "$as_jamie"
+check "a link can be filed under a site that is expected to move in" ok \
+  "do \$\$ declare w uuid; begin
+     w := public.add_link('Lanternwood II', 'https://example.com/l2', 'second', 'lanternwood');
+     if (select app from public.workspaces where id = w) <> 'lanternwood'
+       then raise exception 'wrong app'; end if; end \$\$;" "$as_jamie"
+check "somebody who is not an admin cannot" 42501 \
+  "select public.add_link('Rob''s', 'https://example.com/rob', 'robs');" "$as_rob"
+check "an anonymous visitor cannot" 42501 \
+  "select public.add_link('Anon', 'https://example.com/a', 'anon');" "$as_anon"
+check "a link has to point somewhere" GRK23 \
+  "select public.add_link('Nowhere', '', 'nowhere');" "$as_jamie"
+check "whitespace is not an address either" GRK23 \
+  "select public.add_link('Nowhere', '   ', 'nowhere');" "$as_jamie"
+check "a URL that is not one is refused by the column" 23514 \
+  "select public.add_link('Bad', 'example.com', 'bad');" "$as_jamie"
+check "a taken address is a clean error" GRK04 \
+  "do \$\$ begin
+     perform public.add_link('One', 'https://example.com/1', 'twice');
+     perform public.add_link('Two', 'https://example.com/2', 'twice');
+   end \$\$;" "$as_jamie"
+check "a link and a project may share an address under different apps" ok \
+  "select public.add_link('Same name', 'https://example.com/s', 'jamie');" "$as_jamie"
+check "a link starts life forwarding from nowhere" ok \
+  "do \$\$ declare w uuid; begin
+     w := public.add_link('Fresh', 'https://example.com/f', 'fresh');
+     if exists (select 1 from public.workspace_slug_history where workspace_id = w)
+       then raise exception 'a new link is forwarding something'; end if; end \$\$;" "$as_jamie"
+check "an admin can delete a link like any other project" ok \
+  "do \$\$ declare w uuid; begin
+     w := public.add_link('Temporary', 'https://example.com/t', 'temporary');
+     delete from public.workspaces where id = w;
+     set constraints all immediate;
+     if exists (select 1 from public.workspaces where id = w)
+       then raise exception 'the link is still there'; end if; end \$\$;" "$as_jamie"
+
 echo
 echo "passed: $pass   failed: $fail"
 [ "$fail" -eq 0 ]

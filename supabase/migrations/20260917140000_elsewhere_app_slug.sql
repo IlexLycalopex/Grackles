@@ -1,0 +1,26 @@
+-- A slug for a link that is only ever a link.
+--
+-- `20260806090000` gave the five GitHub Pages sites an enum value each, and
+-- said why: the value is what a row is keyed on for the rest of its life, and a
+-- site moving into this repo should clear a column rather than re-key the
+-- workspace. That is still right for those five. It is not right for every
+-- address somebody wants on their launcher — a site that is never going to be
+-- served from here does not need an identity in the enum, and needing one is
+-- what made adding a link a migration and a deploy rather than a form.
+--
+-- So: one value, once. Everything that is a link and only a link is an
+-- `external` workspace, told apart by its name, its address and where it
+-- points, all three of which are columns an owner can already edit.
+--
+-- The cost, stated plainly, is the case 20260806090000 was protecting against:
+-- if one of these does eventually move in, it has to be re-keyed to an app of
+-- its own. That is one UPDATE, memberships hang off workspace_id rather than
+-- the app, and since 20260917120000 a changed (app, slug) leaves a forwarding
+-- address behind it. It was the expensive case when that migration was written
+-- and it is a cheap one now.
+--
+-- Separate migration from the function that uses it: ALTER TYPE ... ADD VALUE
+-- is allowed inside a transaction, but the value cannot be *used* until that
+-- transaction commits, and every migration is one transaction.
+
+alter type public.app_slug add value if not exists 'external';
