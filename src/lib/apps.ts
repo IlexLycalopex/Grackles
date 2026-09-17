@@ -106,3 +106,39 @@ export interface Linkable {
 export function projectHref(ws: Linkable): string {
   return ws.external_url || workspaceHref(ws.app, ws.slug);
 }
+
+/** A URL that names a project: which app, which project, and what came after. */
+export interface ProjectPath {
+  app: AppDefinition;
+  slug: string;
+  /** '/settings' when this is the project's settings page, '' otherwise. */
+  prefix: string;
+  /** Everything below the project, leading slash included, or '' at its root. */
+  rest: string;
+}
+
+const SETTINGS = '/settings';
+
+/**
+ * Read `/cigars/jamie/the-padron` as "the Cedarhouse at jamie, then a record".
+ *
+ * Only used by the middleware, and only once a response has already come back
+ * 404, to ask whether the address used to belong to something. Returns null
+ * for anything that is not shaped like a project — `/dashboard`, `/api/…`, or
+ * an app path with nothing after it — so that the lookup it guards never runs
+ * for a page that was never going to be a project in the first place.
+ *
+ * `/settings` in front is the same project at the same address, so it is
+ * recognised and handed back: the owner who has just changed an address is the
+ * one person certain to have the old settings page open.
+ */
+export function splitProjectPath(pathname: string): ProjectPath | null {
+  const prefix = pathname.startsWith(`${SETTINGS}/`) ? SETTINGS : '';
+  const [, first, second, ...rest] = pathname.slice(prefix.length).split('/');
+  if (!first || !second) return null;
+
+  const app = BY_PATH.get(first);
+  if (!app) return null;
+
+  return { app, slug: second, prefix, rest: rest.length ? `/${rest.join('/')}` : '' };
+}

@@ -2,6 +2,7 @@
 import AppShell from '../../../layouts/AppShell.astro';
 import { HOSTED_APPS, appByPath, appBySlug, projectHref } from '../../../lib/apps';
 import { resolveWorkspace } from '../../../lib/workspace';
+import { slugify } from '../../../lib/slug';
 import { loadEntitlements } from '../../../lib/grants';
 import { sendInviteEmail } from '../../../lib/email';
 import { loadCalls, loadJobs, money, spentToday } from '../../../lib/ai/usage';
@@ -30,6 +31,11 @@ const VISIBILITIES: Visibility[] = ['private', 'unlisted', 'public'];
 // as a sentence, and in the database because that is what guarantees it.
 const SUBTITLE_MAX = 200;
 
+// Not a database rule, unlike the one above: `workspaces.name` is only checked
+// for being non-empty. This is the length at which a name stops fitting in the
+// launcher, which is the place it has to fit.
+const NAME_MAX = 80;
+
 // Only a platform admin may attach creation rights to an invitation — the RLS
 // policy on workspace_invites enforces it, and an owner who tried would have
 // the insert refused. Reading the flag here is what keeps the control off the
@@ -39,10 +45,28 @@ const { isPlatformAdmin } = await loadEntitlements(supabase, user.id);
 let error: string | null = null;
 let notice: string | null = null;
 
-// Holds a rejected subtitle so the box re-renders what was typed rather than
-// what is stored. Losing a sentence someone just composed, in order to tell
-// them it was four characters too long, is the worst way to report that.
+// Holds a rejected value so the box re-renders what was typed rather than what
+// is stored. Losing a sentence someone just composed, in order to tell them it
+// was four characters too long, is the worst way to report that.
 let subtitleDraft: string | null = null;
+let nameDraft: string | null = null;
+let addressDraft: string | null = null;
+let elsewhereDraft: string | null = null;
+
+/**
+ * What a write actually did.
+ *
+ * Every update on this page asks for the row back and checks it got one, for
+ * the reason the subtitle already had to learn: a write refused by row-level
+ * security does not raise, it narrows the statement to zero rows and reports
+ * success. Without this an owner demoted mid-session is told the change saved
+ * while the page carries on showing the old value.
+ */
+const saved = (rows: unknown[] | null, e: { message: string } | null): string | null => {
+  if (e) return e.message;
+  if (!rows?.length) return 'Nothing was changed — you may no longer own this project.';
+  return null;
+};
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
@@ -167,6 +191,118 @@ if (Astro.request.method === 'POST') {
     if (!e) notice = 'Member removed.';
   }
 
+  if (action === 'set-name') {
+    const name = str('name');
+
+    if (!name) {
+      error = 'A project has to have a name.';
+    } else if (name.length > NAME_MAX) {
+      error = `That name is ${name.length} characters. Keep it under ${NAME_MAX} so it fits in the menu.`;
+      nameDraft = name;
+    } else {
+      const { data: rows, error: e } = await supabase
+        .from('workspaces')
+        .update({ name })
+        .eq('id', workspace.id)
+        .select('name');
+
+      error = saved(rows, e);
+      if (error) nameDraft = name;
+      else {
+        notice = 'Name saved.';
+        workspace = { ...workspace, name };
+      }
+    }
+  }
+
+  if (action === 'set-address') {
+    // Slugified rather than validated, the same way /new does it: the check
+    // constraint on the column would refuse 'Rob's Lounge' with a constraint
+    // name, and what somebody meant by typing it is 'robs-lounge'.
+    const slug = slugify(str('slug'));
+
+    if (!slug) {
+      error = 'That address has no letters or numbers in it, so there is nothing to make an address out of.';
+    } else if (slug === workspace.slug) {
+      notice = 'That is already the address.';
+    } else {
+      const { data: rows, error: e } = await supabase
+        .from('workspaces')
+        .update({ slug })
+        .eq('id', workspace.id)
+        .select('slug');
+
+      if (e?.code === '23505') {
+        error = `/${app.path}/${slug} belongs to another project.`;
+        addressDraft = slug;
+      } else {
+        error = saved(rows, e);
+
+        if (error) {
+          addressDraft = slug;
+        } else {
+          // This page's own URL carries the old address, so there is nowhere
+          // to render the result. The old one forwards from here on, which is
+          // what the notice on the other side says.
+          return Astro.redirect(
+            `/settings/${app.path}/${slug}?moved=${encodeURIComponent(workspace.slug)}`
+          );
+        }
+      }
+    }
+  }
+
+  if (action === 'set-elsewhere') {
+    const external = str('external_url');
+
+    // Mirrors workspaces_external_url_shape, so a mistyped address comes back
+    // as a sentence rather than a constraint name.
+    if (external && !/^https?:\/\//.test(external)) {
+      error = 'An address somewhere else has to start with http:// or https://.';
+      elsewhereDraft = external;
+    } else if (!external && !app.hosted) {
+      // Clearing it on an app with no routes here does not bring a project
+      // home, it points every link at a page that does not exist.
+      error = `Grackles has no pages for ${app.name} yet, so this project has to say where it is.`;
+      elsewhereDraft = external;
+    } else {
+      const { data: rows, error: e } = await supabase
+        .from('workspaces')
+        .update({ external_url: external })
+        .eq('id', workspace.id)
+        .select('external_url');
+
+      error = saved(rows, e);
+      if (error) elsewhereDraft = external;
+      else {
+        notice = external
+          ? 'Every link to this project now goes there.'
+          : `This project is now served from here, at /${app.path}/${workspace.slug}.`;
+        workspace = { ...workspace, external_url: external };
+      }
+    }
+  }
+
+  if (action === 'delete-project') {
+    // Typed, not clicked. This is the one control on the site that destroys
+    // records nobody can get back, and a button that only needs a click is one
+    // stray tap on a phone away from doing it.
+    if (str('confirm').toLowerCase() !== workspace.slug) {
+      error = `Type ${workspace.slug} to confirm, or cancel.`;
+    } else {
+      const { data: rows, error: e } = await supabase
+        .from('workspaces')
+        .delete()
+        .eq('id', workspace.id)
+        .select('id');
+
+      error = saved(rows, e);
+      if (!error) {
+        return Astro.redirect(`/dashboard?deleted=${encodeURIComponent(workspace.name)}`);
+      }
+    }
+  }
+
   if (action === 'set-description') {
     // Trimmed by str(), so a box someone cleared saves as '' — which is the
     // stored value for "no subtitle" and what the card checks before it
@@ -177,22 +313,15 @@ if (Astro.request.method === 'POST') {
       error = `That subtitle is ${description.length} characters. The limit is ${SUBTITLE_MAX}.`;
       subtitleDraft = description;
     } else {
-      // Asks for the row back and checks it got one, for the same reason every
-      // delete in this app does: a write refused by row-level security does
-      // not raise, it narrows the statement to zero rows and reports success.
-      // Without this an owner demoted mid-session would be told the subtitle
-      // was saved while the card carried on saying the old thing.
-      const { data: saved, error: e } = await supabase
+      const { data: rows, error: e } = await supabase
         .from('workspaces')
         .update({ description })
         .eq('id', workspace.id)
         .select('description');
 
-      if (e) {
-        error = e.message;
-        subtitleDraft = description;
-      } else if (!saved?.length) {
-        error = 'That subtitle could not be saved — you may no longer own this project.';
+      error = saved(rows, e);
+
+      if (error) {
         subtitleDraft = description;
       } else {
         notice = description ? 'Subtitle saved.' : 'Subtitle removed.';
@@ -269,6 +398,68 @@ if (Astro.request.method === 'POST') {
   }
 }
 
+// Arriving back from a change of address, which redirected because this page's
+// own URL was the thing that moved.
+const movedFrom = Astro.url.searchParams.get('moved');
+if (!notice && movedFrom) {
+  notice = `Address changed. /${app.path}/${movedFrom} forwards here from now on.`;
+}
+
+// The confirmation step lives at ?delete=1 on this page, the same shape every
+// record in the three apps uses, and for the same reason: a GET that deletes is
+// one link prefetcher away from emptying a humidor.
+const confirmingDelete = Astro.url.searchParams.get('delete') === '1';
+
+/**
+ * How much is in there, for the sentence above the confirmation box.
+ *
+ * The same case expression admin_projects() carries, asked one app at a time.
+ * Takes its arguments rather than closing over `workspace` and `app`, which
+ * are a reassigned `let` and a narrowed lookup — neither of which narrows
+ * inside a function body.
+ *
+ * Three apps return null rather than a number. The four still served from
+ * GitHub Pages hold nothing here, and Blackletter holds games that
+ * `bl_games_read` shows you only your own of — a count that says 3 when the
+ * project holds 300 is worse on this particular page than no count at all.
+ */
+async function holdings(w: string, of: AppSlug): Promise<{ n: number; noun: string } | null> {
+  const opts = { count: 'exact' as const, head: true };
+
+  switch (of) {
+    case 'reading-list': {
+      const { count } = await supabase.from('rl_books').select('id', opts).eq('workspace_id', w);
+      return { n: count ?? 0, noun: 'readings' };
+    }
+    case 'cigar-lounge': {
+      const { count } = await supabase.from('cl_cigars').select('id', opts).eq('workspace_id', w);
+      return { n: count ?? 0, noun: 'entries' };
+    }
+    case 'listening-party': {
+      const { count } = await supabase.from('lp_selections').select('id', opts).eq('workspace_id', w);
+      return { n: count ?? 0, noun: 'picks' };
+    }
+    case 'wbpr': {
+      const { count } = await supabase.from('wbpr_broadcasts').select('id', opts).eq('workspace_id', w);
+      return { n: count ?? 0, noun: 'broadcasts' };
+    }
+    default:
+      return null;
+  }
+}
+
+const held = confirmingDelete ? await holdings(workspace.id, app.slug) : null;
+
+// Old addresses that would stop forwarding with it. Read here rather than
+// described in the abstract, because "and its two old addresses" is the line
+// that stops somebody deleting the project they meant to rename.
+const { count: forwardingCount } = confirmingDelete
+  ? await supabase
+      .from('workspace_slug_history')
+      .select('slug', { count: 'exact', head: true })
+      .eq('workspace_id', workspace.id)
+  : { count: 0 };
+
 const { data: members } = await supabase
   .from('workspace_members')
   .select('user_id, role, profiles(display_name, email)')
@@ -332,6 +523,74 @@ const aiFailedChecks = aiChecked.filter(c => c.validator_status === 'fail').leng
 
   {error && <p class="notice notice--error" role="alert">{error}</p>}
   {notice && <p class="notice notice--ok">{notice}</p>}
+
+  <p class="section-label">Name</p>
+  <form method="POST" class="inline-form">
+    <input type="hidden" name="action" value="set-name" />
+    <input
+      class="field__input"
+      type="text"
+      name="name"
+      maxlength={NAME_MAX}
+      value={nameDraft ?? workspace.name}
+      required
+    />
+    <button class="button" type="submit">Save</button>
+  </form>
+  <p class="page-intro">
+    What this project is called on the launcher, on everybody's dashboard and in an invitation.
+    Changing it changes nothing else: the address below stays as it is.
+  </p>
+
+  <p class="section-label">Address</p>
+  <form method="POST" class="inline-form">
+    <input type="hidden" name="action" value="set-address" />
+    <span class="address__prefix">/{app.path}/</span>
+    <input
+      class="field__input"
+      type="text"
+      name="slug"
+      value={addressDraft ?? workspace.slug}
+      required
+    />
+    <button class="button" type="submit">Save</button>
+  </form>
+  <p class="page-intro">
+    Tidied to lower case, letters, numbers and hyphens, so <em>Rob's Lounge</em> becomes
+    <em>robs-lounge</em>. The old address keeps working — it forwards here, along with anything
+    below it, so a link somebody has written down is not broken by tidying one up.
+  </p>
+
+  <p class="section-label">Where it lives</p>
+  <form method="POST" class="inline-form">
+    <input type="hidden" name="action" value="set-elsewhere" />
+    <input
+      class="field__input"
+      type="url"
+      name="external_url"
+      placeholder="https://example.com/"
+      value={elsewhereDraft ?? workspace.external_url}
+    />
+    <button class="button" type="submit">Save</button>
+  </form>
+  <p class="page-intro">
+    {
+      app.hosted ? (
+        <>
+          Empty means this project is served from here, at{' '}
+          <em>/{app.path}/{workspace.slug}</em>. A URL points every link at that instead, which
+          is what to set while a site is being moved in or rolled back — the project, its members
+          and its address survive either way.
+        </>
+      ) : (
+        <>
+          Grackles has no pages for {app.name} yet, so this is where the project actually is.
+          Every link to it opens there, in a new tab. Clearing this is what brings it home, on
+          the day it has somewhere here to come home to.
+        </>
+      )
+    }
+  </p>
 
   <p class="section-label">Subtitle</p>
   <form method="POST" class="inline-form">
@@ -615,9 +874,86 @@ const aiFailedChecks = aiChecked.filter(c => c.validator_status === 'fail').leng
     )
   }
 
+  <p class="section-label" id="delete">Delete this project</p>
+  {
+    confirmingDelete ? (
+      <form method="POST" action="?delete=1#delete" class="danger">
+        <p>
+          <strong>{workspace.name}</strong> and everything in it:
+          {held && <> its {held.n} {held.noun},</>}
+          {' '}
+          {(members ?? []).length} membership{(members ?? []).length === 1 ? '' : 's'},
+          {(invites ?? []).length > 0 && <> {(invites ?? []).length} pending invitation{(invites ?? []).length === 1 ? '' : 's'},</>}
+          {(forwardingCount ?? 0) > 0 && <> {forwardingCount} old address{(forwardingCount ?? 0) === 1 ? '' : 'es'} that forward here,</>}
+          {' '}and its AI history. This cannot be undone, and nobody — including whoever runs
+          Grackles — can get it back.
+        </p>
+        <p>
+          {/* ai_periods is keyed on the payer, not the project, and does not
+              cascade. Said here because the opposite is the obvious guess, and
+              guessing it is how somebody deletes a project expecting an
+              allowance back. */}
+          What it has already spent still counts against this month's allowance. That is kept
+          per person rather than per project, so deleting this does not return any of it.
+        </p>
+        {
+          /* Worth saying out loud on the five that have not moved in: this
+             deletes the project, not the site. Blackletter shows no count for
+             a different reason — see holdings() — and is hosted, so it does
+             not get this line. */
+          !app.hosted && (
+            <p>
+              The site itself is not ours to delete. {workspace.external_url} stays exactly
+              where it is; what goes is its place on the launcher and everybody's way in.
+            </p>
+          )
+        }
+        <input type="hidden" name="action" value="delete-project" />
+        <label class="field">
+          <span class="field__label">Type {workspace.slug} to confirm</span>
+          <input
+            class="field__input"
+            type="text"
+            name="confirm"
+            autocomplete="off"
+            autocapitalize="none"
+            spellcheck={false}
+            required
+          />
+        </label>
+        <div class="inline-form">
+          <button class="button button--danger" type="submit">Delete {workspace.name}</button>
+          <a class="button button--quiet" href={`/settings/${app.path}/${workspace.slug}`}>Cancel</a>
+        </div>
+      </form>
+    ) : (
+      <p class="page-intro">
+        {app.hosted
+          ? 'Every record in it goes too, and it is not recoverable.'
+          : 'This takes the project off Grackles. The site it points at stays where it is.'}{' '}
+        <a href="?delete=1#delete">Delete this project</a>.
+        {(members ?? []).length > 1 && ' Everybody else loses it as well.'}
+      </p>
+    )
+  }
 </AppShell>
 
 <style>
+  /* The address is one field with a fixed prefix, not two: what is editable
+     and what is not should not look alike. */
+  .address__prefix {
+    font-size: 0.9rem;
+    opacity: 0.7;
+    white-space: nowrap;
+  }
+  .danger {
+    border: 1px solid var(--danger);
+    border-radius: 2px;
+    padding: 1rem;
+    max-width: var(--measure);
+  }
+  .danger p { font-size: 0.9rem; margin-bottom: 1rem; }
+  .danger .field { margin-bottom: 1rem; }
   .ai-panel {
     display: flex;
     flex-wrap: wrap;

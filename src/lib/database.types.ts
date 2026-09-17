@@ -143,6 +143,38 @@ export type Database = {
           },
         ];
       };
+      workspace_slug_history: {
+        // Addresses a project used to answer to. Written only by the trigger
+        // on `workspaces`, and read-only to everybody, which is why Insert and
+        // Update exist here purely to satisfy the generated shape.
+        Row: {
+          app: Database['public']['Enums']['app_slug'];
+          slug: string;
+          workspace_id: string;
+          moved_at: string;
+        };
+        Insert: {
+          app: Database['public']['Enums']['app_slug'];
+          slug: string;
+          workspace_id: string;
+          moved_at?: string;
+        };
+        Update: {
+          app?: Database['public']['Enums']['app_slug'];
+          slug?: string;
+          workspace_id?: string;
+          moved_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'workspace_slug_history_workspace_id_fkey';
+            columns: ['workspace_id'];
+            isOneToOne: false;
+            referencedRelation: 'workspaces';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       workspace_invites: {
         // workspace_id is null on a creation-only invite — one that grants the
         // right to make a project rather than membership of an existing one.
@@ -1560,6 +1592,15 @@ export type Database = {
           expires_at: string;
           invited_by_name: string | null;
         }[];
+      };
+      /**
+       * Removes the caller's own membership of a project.
+       *
+       * GRK21 the caller is its last owner, GRK22 they are not a member.
+       */
+      leave_workspace: {
+        Args: { p_workspace: string };
+        Returns: undefined;
       };
       /**
        * Creates a workspace, seeds its defaults, and makes the caller owner.
