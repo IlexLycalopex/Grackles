@@ -1,283 +1,37 @@
 ---
-import AppShell from '../../../layouts/AppShell.astro';
-import { loadEntitlements, describeAdminError } from '../../../lib/grants';
-import { appBySlug, HOSTED_APPS } from '../../../lib/apps';
-import { sendInviteEmail } from '../../../lib/email';
-import { money } from '../../../lib/ai/usage';
-import type { AppSlug, MemberRole } from '../../../lib/database.types';
+import AdminConsole from '../../../components/admin/AdminConsole.astro';
+import PeopleList from '../../../components/admin/PeopleList.astro';
+import InviteForm from '../../../components/admin/InviteForm.astro';
+import { isAdmin, notFound, handleAction, type Outcome } from '../../../lib/admin/console';
 
 export const prerender = false;
 
-/**
- * Everybody on the site, and a way to bring somebody new in.
- *
- * /admin is organised by project, which answers "who is in this". This page is
- * the other axis: who is here at all, and — one click in — everything each of
- * them can reach. Same rules as /admin: 404 for anyone who is not a platform
- * admin, metadata and never contents.
- */
+/** Everybody, with the form for bringing somebody new in beside the list. */
 
 const { supabase, user } = Astro.locals;
-const notFound = new Response('Not found', { status: 404 });
+if (!(await isAdmin(supabase, user))) return notFound();
 
-if (!user) return notFound;
-const { isPlatformAdmin } = await loadEntitlements(supabase, user.id);
-if (!isPlatformAdmin) return notFound;
-
-const ROLES: MemberRole[] = ['viewer', 'editor', 'owner'];
-
-let error: string | null = null;
-let notice: string | null = null;
-// The link is shown whenever the mail did not go, so the invitation can still
-// be passed on by hand — the same fallback the project settings page offers.
-let inviteLink: string | null = null;
-
-const loadPeople = () => supabase.rpc('admin_people');
-const loadProjects = () => supabase.rpc('admin_projects');
-
-let [{ data: people }, { data: projects }] = await Promise.all([loadPeople(), loadProjects()]);
-
+let outcome: Outcome | null = null;
 if (Astro.request.method === 'POST') {
-  const form = await Astro.request.formData();
-  const str = (k: string) => String(form.get(k) ?? '').trim();
-
-  if (str('action') === 'invite') {
-    const email = str('email').toLowerCase();
-    const workspaceId = str('workspace_id') || null;
-    const role = ROLES.includes(str('role') as MemberRole) ? (str('role') as MemberRole) : 'viewer';
-    const grantApps = form.getAll('grant_apps').map(String).filter((a): a is AppSlug =>
-      HOSTED_APPS.some(known => known.slug === a)
-    );
-    const project = (projects ?? []).find(p => p.id === workspaceId) ?? null;
-    const existing = (people ?? []).find(p => p.email.toLowerCase() === email) ?? null;
-
-    if (!email || !email.includes('@')) {
-      error = 'Enter the email address they sign in with.';
-    } else if (!project && grantApps.length === 0) {
-      error = 'Choose a project to add them to, something they may start, or both — an invitation to nothing has nothing to accept.';
-    } else if (existing) {
-      // They are already here, so an invitation would be a round trip through
-      // their inbox to arrive at the same rows. Do it directly and say so.
-      const done: string[] = [];
-      if (project) {
-        const { error: e } = await supabase.rpc('admin_add_member', {
-          p_workspace: project.id, p_user: existing.id, p_role: role,
-        });
-        if (e) error = describeAdminError(e);
-        else done.push(`added to ${project.name} as ${role}`);
-      }
-      if (!error) {
-        for (const app of grantApps) {
-          // Topped up to one rather than set to one: somebody already allowed
-          // three Cigar Lounges should not lose two by being invited again.
-          if ((existing.grants?.[app] ?? 0) > 0) continue;
-          const { error: e } = await supabase.rpc('admin_set_grant', {
-            p_user: existing.id, p_app: app, p_max: 1,
-          });
-          if (e) { error = describeAdminError(e); break; }
-          done.push(`allowed to start a ${appBySlug(app)?.name ?? app}`);
-        }
-      }
-      if (!error) {
-        notice = done.length
-          ? `${existing.display_name || email} already has an account, so no invitation was needed: ${done.join(', ')}.`
-          : `${existing.display_name || email} already had everything that was ticked.`;
-      }
-    } else {
-      const { data: created, error: e } = await supabase
-        .from('workspace_invites')
-        .insert({
-          workspace_id: project?.id ?? null,
-          email,
-          role,
-          grant_apps: grantApps,
-          invited_by: user.id,
-        })
-        .select('token, expires_at')
-        .single();
-
-      if (e?.code === '23505') {
-        error = project
-          ? `${email} already has an invitation to ${project.name} waiting.`
-          : `${email} already has an invitation waiting that is not to any project. Revoke it on /admin first.`;
-      } else if (e) {
-        error = e.message;
-      } else {
-        const url = `${Astro.url.origin}/invite/${created.token}`;
-        const sent = await sendInviteEmail({
-          to: email,
-          inviteUrl: url,
-          workspaceName: project?.name ?? null,
-          appName: project ? (appBySlug(project.app)?.name ?? project.app) : null,
-          role,
-          invitedBy: user.email!,
-          expiresAt: created.expires_at,
-          grantedApps: grantApps.map(a => appBySlug(a)?.name ?? a),
-        });
-        if (sent.ok) {
-          notice = `Invited ${email} — the invitation is on its way.`;
-        } else {
-          notice = `Invited ${email}, but the email could not be sent (${sent.reason}). Send them this link instead.`;
-          inviteLink = url;
-        }
-      }
-    }
-
-    if (!error) {
-      [{ data: people }, { data: projects }] = await Promise.all([loadPeople(), loadProjects()]);
-    }
-  }
+  outcome = await handleAction(supabase, user!, await Astro.request.formData(), Astro.url.origin);
+  if (outcome.redirect) return Astro.redirect(outcome.redirect);
 }
 
-const when = (iso: string) =>
-  new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-
-// A server-side filter rather than a script: it works without JavaScript, and
-// the address it leaves in the bar can be sent to somebody.
-const q = (Astro.url.searchParams.get('q') ?? '').trim().toLowerCase();
-const shown = (people ?? []).filter(p =>
-  !q || p.email.toLowerCase().includes(q) || (p.display_name ?? '').toLowerCase().includes(q)
-);
-
-const creation = (grants: Record<string, number> | null) =>
-  Object.entries(grants ?? {})
-    .filter(([, n]) => n > 0)
-    .map(([app, n]) => `${appBySlug(app as AppSlug)?.name ?? app}${n > 1 ? ` ×${n}` : ''}`)
-    .join(', ');
-
-const byApp = new Map<AppSlug, NonNullable<typeof projects>>();
-for (const p of projects ?? []) byApp.set(p.app, [...(byApp.get(p.app) ?? []), p]);
+const [{ data: people }, { data: projects }] = await Promise.all([
+  supabase.rpc('admin_people'),
+  supabase.rpc('admin_projects'),
+]);
 ---
 
-<AppShell title="People · Grackles">
-  <h1 class="page-title">People</h1>
-  <p class="page-intro">
-    Everybody with an account, and what each of them can reach. <a href="/admin">Platform</a>
-    shows the same memberships from the other side, project by project.
-  </p>
-
-  {error && <p class="notice notice--error" role="alert">{error}</p>}
-  {notice && (
-    <p class="notice notice--ok">
-      {notice}
-      {inviteLink && <><br /><input class="field__input" type="text" readonly value={inviteLink} onfocus="this.select()" /></>}
-    </p>
-  )}
-
-  <p class="section-label">Bring somebody in</p>
-  <p class="page-intro">
-    If the address already has an account they are added straight away; otherwise they get an
-    invitation that does the same when they accept it.
-  </p>
-  <form method="POST" class="ppl-invite">
-    <input type="hidden" name="action" value="invite" />
-    <div class="ppl-invite__row">
-      <label class="field">
-        <span class="field__label">Email</span>
-        <input class="field__input" type="email" name="email" placeholder="them@example.com" required />
-      </label>
-      <label class="field">
-        <span class="field__label">Into project (optional)</span>
-        <select class="field__input" name="workspace_id">
-          <option value="">none</option>
-          {[...byApp.entries()].map(([app, rows]) => (
-            <optgroup label={appBySlug(app)?.name ?? app}>
-              {rows.map(p => <option value={p.id}>{p.name}</option>)}
-            </optgroup>
-          ))}
-        </select>
-      </label>
-      <label class="field">
-        <span class="field__label">As</span>
-        <select class="field__input" name="role">
-          {ROLES.map(r => <option value={r}>{r}</option>)}
-        </select>
-      </label>
-    </div>
-    <fieldset class="ppl-invite__grants">
-      <legend class="field__label">May start their own (optional)</legend>
-      {HOSTED_APPS.map(a => (
-        <label class="grant-picker__option">
-          <input type="checkbox" name="grant_apps" value={a.slug} /> {a.name}
-        </label>
-      ))}
-    </fieldset>
-    <button class="button" type="submit">Add or invite</button>
-  </form>
-
-  <p class="section-label">Everybody</p>
-  <form method="GET" class="ppl-filter">
-    <input class="field__input" type="search" name="q" value={q} placeholder="Filter by name or email" />
-    <button class="button button--quiet" type="submit">Filter</button>
-    {q && <a href="/admin/people" class="ppl-muted">clear</a>}
-  </form>
-
-  <div class="ppl-scroll">
-    <table class="ppl-table">
-      <thead>
-        <tr>
-          <th>Person</th><th class="num">Projects</th><th>May start</th><th>AI</th><th>Joined</th>
-        </tr>
-      </thead>
-      <tbody>
-        {shown.map(p => (
-          <tr>
-            <td>
-              <a href={`/admin/people/${p.id}`}><strong>{p.display_name || p.email}</strong></a>
-              {p.is_admin && <span class="ppl-flag">admin</span>}
-              <br /><span class="ppl-muted">{p.email}</span>
-            </td>
-            <td class="num">
-              {p.memberships}
-              {p.owns > 0 && <span class="ppl-muted"> · {p.owns} started</span>}
-            </td>
-            <td>
-              {p.is_admin
-                ? <span class="ppl-muted">anything</span>
-                : creation(p.grants) || <span class="ppl-muted">nothing</span>}
-            </td>
-            <td>
-              {p.ai_monthly_usd === null
-                ? <span class="ppl-muted">none</span>
-                : `${money(Number(p.ai_monthly_usd))}/mo${p.ai_enabled ? '' : ' (off)'}`}
-            </td>
-            <td class="ppl-muted">{when(p.created_at)}</td>
-          </tr>
-        ))}
-        {shown.length === 0 && (
-          <tr><td colspan="5" class="ppl-muted">Nobody matches “{q}”.</td></tr>
-        )}
-      </tbody>
-    </table>
+<AdminConsole title="People" tab="people" outcome={outcome}>
+  <div class="adm-split">
+    <PeopleList people={people ?? []} />
+    <section class="adm-panel">
+      <div class="adm-panel__head">
+        <h2 class="adm-panel__title">Add or invite someone</h2>
+        <p class="adm-hint">Or pick a person on the left to see and change everything they can reach.</p>
+      </div>
+      <InviteForm projects={projects ?? []} />
+    </section>
   </div>
-</AppShell>
-
-<style>
-  .ppl-invite { margin-bottom: 1rem; }
-  .ppl-invite__row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; }
-  .ppl-invite__row .field { margin-bottom: 0; flex: 1 1 12rem; }
-  .ppl-invite__grants {
-    border: none; padding: 0; margin: 0.75rem 0;
-    display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; align-items: center;
-  }
-  .ppl-invite__grants legend { margin-bottom: 0.3rem; }
-
-  .ppl-filter { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; max-width: 28rem; }
-
-  /* The table scrolls inside itself on a phone rather than pushing the page
-     wider than the screen. */
-  .ppl-scroll { overflow-x: auto; }
-  .ppl-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-  .ppl-table th, .ppl-table td {
-    text-align: left; padding: 0.5rem 0.75rem 0.5rem 0;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08); vertical-align: top;
-  }
-  .ppl-table th { font-weight: 600; opacity: 0.7; font-size: 0.8rem; }
-  .ppl-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-
-  .ppl-muted { opacity: 0.55; }
-  .ppl-flag {
-    margin-left: 0.5rem; font-size: 0.75rem; padding: 0.05rem 0.4rem;
-    border-radius: 3px; background: rgba(0, 0, 0, 0.08);
-  }
-</style>
+</AdminConsole>

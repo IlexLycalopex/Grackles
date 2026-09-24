@@ -1,0 +1,141 @@
+---
+import AppShell from '../../layouts/AppShell.astro';
+import '../../styles/admin.css';
+import type { Outcome } from '../../lib/admin/console';
+
+/**
+ * The frame every admin tab sits in: the tabs, and the message that says what
+ * the last change did.
+ *
+ * The message is pinned to the bottom of the window rather than printed at the
+ * top of the page, because the control that caused it is usually halfway
+ * down — and a confirmation you have to scroll up to find is one nobody sees.
+ *
+ * Every form works as a plain POST. The script below makes it save in place
+ * instead: it posts the same form, takes this element out of the page that
+ * comes back, and swaps it in without moving the scroll position. With
+ * JavaScript off, or if anything goes wrong, the plain POST still happens.
+ */
+
+export type Tab = 'overview' | 'access' | 'people' | 'projects' | 'invitations' | 'ai';
+
+interface Props {
+  title: string;
+  tab: Tab;
+  outcome?: Outcome | null;
+}
+
+const { title, tab, outcome } = Astro.props;
+const { supabase } = Astro.locals;
+
+const { data: overview } = await supabase.rpc('admin_overview');
+const totals = overview?.[0];
+
+const TABS: { id: Tab; label: string; href: string; count?: number }[] = [
+  { id: 'overview', label: 'Overview', href: '/admin' },
+  { id: 'access', label: 'Access', href: '/admin/access' },
+  { id: 'people', label: 'People', href: '/admin/people', count: totals?.people },
+  { id: 'projects', label: 'Projects', href: '/admin/projects', count: totals?.projects },
+  { id: 'invitations', label: 'Invitations', href: '/admin/invitations', count: totals?.pending_invites },
+  { id: 'ai', label: 'AI', href: '/admin/ai' },
+];
+---
+
+<AppShell title={`${title} · Admin · Grackles`}>
+  <div id="admin-console" class="adm">
+    <h1 class="page-title adm-title">Admin</h1>
+    <nav class="adm-tabs" aria-label="Admin sections">
+      {TABS.map(t => (
+        <a href={t.href} class="adm-tab" aria-current={t.id === tab ? 'page' : undefined}>
+          {t.label}
+          {t.count !== undefined && <span class="adm-tab__n">{t.count}</span>}
+        </a>
+      ))}
+    </nav>
+
+    {/* Before the content so the grid's Apply bar can make room for it. */}
+    {(outcome?.error || outcome?.notice) && (
+      <div class="adm-toast" role="status" aria-live="polite" data-toast>
+        {outcome.error && <p class="adm-toast__error">{outcome.error}</p>}
+        {outcome.notice && <p>{outcome.notice}</p>}
+        {outcome.inviteLink && (
+          <input class="field__input adm-copy" type="text" readonly value={outcome.inviteLink} data-copy />
+        )}
+        <button type="button" class="adm-toast__close" aria-label="Dismiss" data-dismiss>×</button>
+      </div>
+    )}
+
+    <slot />
+
+  </div>
+</AppShell>
+
+<script>
+  const root = () => document.getElementById('admin-console');
+
+  // One listener on the document rather than one per form, so the forms in a
+  // freshly swapped-in console need nothing re-attached.
+  document.addEventListener('submit', async event => {
+    const form = event.target;
+    const console_ = root();
+    if (!(form instanceof HTMLFormElement) || !console_?.contains(form)) return;
+    if (form.method.toLowerCase() !== 'post') return;
+
+    const question = form.dataset.confirm;
+    if (question && !window.confirm(question)) {
+      event.preventDefault();
+      return;
+    }
+
+    event.preventDefault();
+    const body = new FormData(form, event.submitter);
+    console_.setAttribute('aria-busy', 'true');
+
+    try {
+      const response = await fetch(form.getAttribute('action') || location.href, { method: 'POST', body });
+      // Somewhere else entirely, e.g. the dashboard after giving up your own
+      // admin flag: go there rather than drawing a page you cannot see.
+      if (response.redirected && new URL(response.url).pathname !== location.pathname) {
+        location.href = response.url;
+        return;
+      }
+      const next = new DOMParser()
+        .parseFromString(await response.text(), 'text/html')
+        .getElementById('admin-console');
+      if (!response.ok || !next) throw new Error('no console in the response');
+
+      const y = window.scrollY;
+      const focusName = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.focus : undefined;
+      console_.replaceWith(next);
+      window.scrollTo(0, y);
+      if (focusName) (next.querySelector(`[data-focus="${CSS.escape(focusName)}"]`) as HTMLElement | null)?.focus();
+    } catch {
+      console_.removeAttribute('aria-busy');
+      HTMLFormElement.prototype.submit.call(form);
+    }
+  });
+
+  // A select or number marked data-autosave saves as soon as it changes.
+  document.addEventListener('change', event => {
+    const el = event.target;
+    if (el instanceof HTMLElement && el.matches('[data-autosave]')) {
+      (el as HTMLInputElement).form?.requestSubmit();
+    }
+  });
+
+  document.addEventListener('click', async event => {
+    const el = event.target;
+    if (!(el instanceof HTMLElement)) return;
+    if (el.matches('[data-dismiss]')) el.closest('[data-toast]')?.remove();
+    const copy = el.closest('[data-copy-from]') as HTMLElement | null;
+    if (copy) {
+      const text = copy.dataset.copyFrom!;
+      try {
+        await navigator.clipboard.writeText(text);
+        copy.textContent = 'Copied';
+      } catch {
+        window.prompt('Copy this link', text);
+      }
+    }
+  });
+</script>

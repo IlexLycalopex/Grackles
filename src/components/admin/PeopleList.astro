@@ -1,0 +1,31 @@
+---
+import { personName, type Person } from '../../lib/admin/console';
+import { findDuplicates } from '../../lib/admin/duplicates';
+
+interface Props {
+  people: Person[];
+  current?: string;
+}
+
+const { people, current } = Astro.props;
+const duplicates = findDuplicates(people);
+---
+
+<nav class="adm-list" aria-label="People">
+  {people.map(p => (
+    <a class="adm-item" href={`/admin/people/${p.id}`} aria-current={p.id === current ? 'page' : undefined}>
+      <span>
+        {personName(p)}
+        <span class="adm-item__sub">{p.email}</span>
+      </span>
+      {p.is_admin
+        ? <span class="adm-chip adm-chip--admin">admin</span>
+        : duplicates.has(p.id)
+          ? <span class="adm-chip adm-chip--warn">duplicate?</span>
+          : <span class="adm-chip">{p.memberships} project{p.memberships === 1 ? '' : 's'}</span>}
+    </a>
+  ))}
+  <div class="adm-list__foot">
+    <a class="adm-btn adm-btn--solid" href="/admin/people" aria-current={current ? undefined : 'page'}>Add or invite someone</a>
+  </div>
+</nav>

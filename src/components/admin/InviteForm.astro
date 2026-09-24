@@ -1,0 +1,55 @@
+---
+import { HOSTED_APPS } from '../../lib/apps';
+import { sortProjects, isLink, appName, ROLES, type Project } from '../../lib/admin/console';
+
+interface Props {
+  projects: Project[];
+}
+
+const sorted = sortProjects(Astro.props.projects);
+const groups = new Map<string, Project[]>();
+for (const p of sorted) {
+  const label = isLink(p) ? 'Links' : appName(p.app);
+  groups.set(label, [...(groups.get(label) ?? []), p]);
+}
+---
+
+<form method="POST" class="adm-form">
+  <input type="hidden" name="action" value="invite" />
+  <div class="adm-form__row">
+    <label class="field">
+      <span class="field__label">Email</span>
+      <input class="field__input" type="email" name="email" placeholder="them@example.com" required autocomplete="off" />
+    </label>
+  </div>
+  <div class="adm-form__row">
+    <label class="field">
+      <span class="field__label">Into project</span>
+      <select class="field__input" name="workspace_id">
+        <option value="">None</option>
+        {[...groups.entries()].map(([label, rows]) => (
+          <optgroup label={label}>
+            {rows.map(p => <option value={p.id}>{p.name}</option>)}
+          </optgroup>
+        ))}
+      </select>
+    </label>
+    <label class="field field--narrow">
+      <span class="field__label">As</span>
+      <select class="field__input" name="role">
+        {ROLES.map(r => <option value={r}>{r}</option>)}
+      </select>
+    </label>
+  </div>
+  <fieldset class="adm-checks">
+    <legend>May also start their own</legend>
+    {HOSTED_APPS.map(a => (
+      <label class="adm-check"><input type="checkbox" name="grant_apps" value={a.slug} /> {a.name}</label>
+    ))}
+  </fieldset>
+  <div><button class="adm-btn adm-btn--solid" type="submit">Add or invite</button></div>
+  <p class="adm-hint">
+    If the address already has an account, they are added straight away and no email is sent.
+    Otherwise they get an invitation that does the same when they accept it.
+  </p>
+</form>
