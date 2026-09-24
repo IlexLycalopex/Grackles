@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { resolveWorkspace } from '../../../../lib/workspace';
 import { LENGTHS, isPlayableLength } from '../../../../lib/blackletter';
+import { json } from '../../../../lib/http';
 
 export const prerender = false;
 
@@ -17,9 +18,6 @@ export const prerender = false;
  * the same division of labour `lib/records/save.ts` draws: the database is the
  * guarantee, and this turns its refusal into something a player can read.
  */
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 /** A refusal a player caused, and can do something about. */
 const SENTENCES: Record<string, (m: string) => string> = {

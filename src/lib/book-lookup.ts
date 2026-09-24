@@ -29,6 +29,7 @@
 
 import type { BookValues } from './records/book';
 import { creditMatches, looselyEqual, normalise, stripEdition } from './title-match.ts';
+import { env } from './env';
 
 const OPEN_LIBRARY = 'https://openlibrary.org/search.json';
 const GOOGLE_BOOKS = 'https://www.googleapis.com/books/v1/volumes';
@@ -171,7 +172,7 @@ async function searchGoogleBooks(
   const q = isbn ? `isbn:${isbn.replace(/[^0-9Xx]/g, '')}` : `intitle:${title} inauthor:${author}`;
   // Optional chained: import.meta.env is Vite's, and is absent when this module
   // is exercised outside a build. A missing key is a supported case anyway.
-  const key = import.meta.env?.GOOGLE_BOOKS_API_KEY;
+  const key = env('GOOGLE_BOOKS_API_KEY');
   const params = new URLSearchParams({ q });
   if (key) params.set('key', key);
 

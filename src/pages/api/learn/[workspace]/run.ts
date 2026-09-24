@@ -3,6 +3,7 @@ import { resolveWorkspace } from '../../../../lib/workspace';
 import { REF_PATTERN } from '../../../../lib/commonplace/decks';
 import { RESULTS } from '../../../../lib/commonplace/result';
 import type { Json } from '../../../../lib/database.types';
+import { json } from '../../../../lib/http';
 
 export const prerender = false;
 
@@ -15,9 +16,6 @@ export const prerender = false;
  * this file. What this adds is shape-checking before a round trip, and a
  * SQLSTATE turned into a sentence.
  */
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 const SENTENCES: Record<string, string> = {
   GRK40: 'You have already played today’s challenge.',

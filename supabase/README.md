@@ -799,6 +799,34 @@ design. Inside a rolled-back transaction, `admin_overview()` and
 `my_ai_usage()` still ran for Jamie, `admin_people()` refused `anon` with
 42501, and the invitation lookup still answered a signed-out caller.
 
+### Efficiency pass (2026-09-24)
+
+| Migration | What it does |
+| --- | --- |
+| `20260924170000_efficiency_pass` | Thirteen policies evaluate `auth.uid()` and `app.is_platform_admin()` once per statement rather than once per row; seventeen indexes on the foreign keys that deletes and joins walk; a 10 MB, images-only limit on `cigar-photos` |
+
+From the performance advisors. The policies are production's own expressions,
+unchanged except for the `(select …)` wrapping, applied with ALTER POLICY so
+each keeps its command and roles. The advisors list 45 unindexed foreign keys;
+the seventeen here are the ones removing a project, a library entry or an
+account has to search, plus the owner count the dashboard reads. The others are
+audit columns nothing looks up by. The bucket is unused (a cigar photo is a
+link) and empty, so its limit changes nothing today.
+
+**Applied 2026-09-24** (as `efficiency_pass`). Verified first on a clean cluster
+with every migration and the Blackletter seed: `test.sh` (50), `ai.sh` (126),
+`admin.sh` (21), `settings.sh` (39), `people.sh` (13), `library.sh` (90),
+`import.sh` (20), `blackletter.sh` (20) and `commonplace.sh` (39). Read back off
+production: no policy calls `auth.uid()` bare, all seventeen indexes exist, and
+the bucket carries its limit.
+
+**Left as they are, deliberately:** 21 indexes the advisors call unused (the
+tables are small and young; an index is cheap and "unused" at this size means
+little); the permissive-policy pairs (`*_read` beside `*_write` for ALL), which
+cost a second policy check on tables with a handful of rows; and the three
+`*_pre_library_*` snapshot tables from the library migration, locked down by
+RLS with no policy, which can be dropped once nobody wants them back.
+
 ## Verifying
 
 `tests/` contains a reconstruction of the pre-migration schema plus Supabase

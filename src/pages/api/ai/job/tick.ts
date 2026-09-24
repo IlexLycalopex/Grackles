@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { runTick, type ItemRunner } from '../../../../lib/ai/worker';
 import { enrichOne, loadVocabulary } from '../../../../lib/ai/enrich';
 import type { FeatureKey } from '../../../../lib/ai/features';
+import { json } from '../../../../lib/http';
 
 export const prerender = false;
 
@@ -22,9 +23,6 @@ export const prerender = false;
  * checks the job is visible to the caller, so a stranger with a job id gets
  * nothing and a member with somebody else's gets nothing either.
  */
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 /**
  * What to do with one item, per feature.

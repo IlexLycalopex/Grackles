@@ -10,7 +10,12 @@
  * to decide what may reach the browser.
  */
 
+import { env } from './env';
+
 const ENDPOINT = 'https://api.resend.com/emails';
+
+/** Long enough for a slow day at Resend, short enough not to hang an invite. */
+const SEND_TIMEOUT_MS = 10_000;
 
 /** Falls back to the domain Resend has verified for us. */
 const DEFAULT_FROM = 'Grackles <invites@grackles.co.uk>';
@@ -22,15 +27,6 @@ const DEFAULT_FROM = 'Grackles <invites@grackles.co.uk>';
  */
 export type SendResult = { ok: true; id: string } | { ok: false; reason: string };
 
-/**
- * Read at request time rather than build time. Astro inlines `import.meta.env`
- * into the bundle, so a key rotated in the Vercel dashboard would keep using
- * the old value until the next deploy; `process.env` is read live by the
- * function. The second lookup keeps `astro dev` and `.env` working.
- */
-function env(name: string): string | undefined {
-  return process.env[name] ?? (import.meta.env as Record<string, string | undefined>)[name];
-}
 
 /** "a", "a and b", "a, b and c" — for reading aloud, not for parsing. */
 function listSentence(items: string[]): string {
@@ -75,6 +71,7 @@ async function send(message: {
         text: message.text,
         ...(message.replyTo ? { reply_to: message.replyTo } : {}),
       }),
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
     });
 
     const body = await response.json().catch(() => null);

@@ -4,6 +4,7 @@ import { checkCards, type CardDraft } from '../../../../lib/commonplace/csv';
 import { deckSettings } from '../../../../lib/commonplace/server';
 import { slugify } from '../../../../lib/slug';
 import type { Json } from '../../../../lib/database.types';
+import { json } from '../../../../lib/http';
 
 export const prerender = false;
 
@@ -15,9 +16,6 @@ export const prerender = false;
  * card through an edit. The checks here are the editor's own checks run again,
  * because the editor is a page and a page can be skipped.
  */
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 export const POST: APIRoute = async ({ params, request, locals }) => {
   const { supabase, user } = locals;

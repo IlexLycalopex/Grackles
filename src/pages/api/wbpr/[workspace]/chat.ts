@@ -8,6 +8,7 @@ import {
   buildMessages, closeBroadcast, openBroadcast, rollForCaller, sayAtTable, startBlock,
   SYSTEM, type AgentState,
 } from '../../../../lib/wbpr-agent';
+import { aiFailureStatus, aiRefusalStatus, json } from '../../../../lib/http';
 
 export const prerender = false;
 
@@ -30,12 +31,6 @@ export const prerender = false;
  * turn re-asks the cheap questions, which is what makes the kill switch reach
  * a broadcast already on air.
  */
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
 
 /**
  * How long a reply may run, per kind of turn.
@@ -90,7 +85,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     });
 
     if (!opened.ok) {
-      return json({ error: opened.error }, opened.code === 'GRK15' || opened.code === 'GRK16' ? 402 : 403);
+      return json({ error: opened.error }, aiRefusalStatus(opened.code));
     }
 
     const { data: created, error } = await supabase
@@ -248,8 +243,7 @@ async function turn(
   if (!result.ok) {
     // A refusal from the gates and a refusal from the provider read
     // differently: one is a limit doing its job, the other is something broken.
-    const gated = result.code?.startsWith('GRK') ?? false;
-    return json({ error: result.error }, gated ? 402 : 502);
+    return json({ error: result.error }, aiFailureStatus(result));
   }
 
   const at = prior.length;

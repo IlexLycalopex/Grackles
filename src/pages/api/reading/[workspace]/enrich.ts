@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { resolveWorkspace } from '../../../../lib/workspace';
 import { openJob } from '../../../../lib/ai/job';
 import type { Json } from '../../../../lib/database.types';
+import { aiRefusalStatus, json } from '../../../../lib/http';
 
 export const prerender = false;
 
@@ -17,9 +18,6 @@ export const prerender = false;
  * refused. A year half-enriched is worse than one never started — whoever asked
  * then has to work out which half.
  */
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 /** How many books one run may cover. Beyond this, do it a year at a time. */
 const MOST = 400;
@@ -93,7 +91,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   if (!opened.ok) {
     return json(
       { error: opened.error },
-      opened.code === 'GRK15' || opened.code === 'GRK16' || opened.code === 'GRK18' ? 402 : 403
+      aiRefusalStatus(opened.code)
     );
   }
 

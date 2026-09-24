@@ -17,7 +17,19 @@
 
 import { noUsage, type ChatMessage, type ChatResult, type CompleteOptions, type Provider } from './provider';
 
+import { env } from '../env';
+
 const ENDPOINT = 'https://api.minimax.io/v1/chat/completions';
+
+/**
+ * How long one completion may take before it is given up on.
+ *
+ * Without it a provider that stops answering holds the request open until the
+ * host kills the function, and the call's reservation is then held for the
+ * reaper's fifteen minutes rather than settled as failed. The longest reply
+ * anything asks for, the WBPR write-up, is well inside this.
+ */
+const COMPLETION_TIMEOUT_MS = 90_000;
 
 export const DEFAULT_MODEL = 'minimax-m3';
 
@@ -37,7 +49,7 @@ export const DEFAULT_MODEL = 'minimax-m3';
  * against.
  */
 async function complete(messages: ChatMessage[], options: CompleteOptions): Promise<ChatResult> {
-  const key = import.meta.env.MINIMAX_API_KEY;
+  const key = env('MINIMAX_API_KEY');
   if (!key) {
     // Reported as an unconfigured state rather than an error, the way a missing
     // RESEND_API_KEY is: it is how the app runs until somebody sets it.
@@ -59,6 +71,7 @@ async function complete(messages: ChatMessage[], options: CompleteOptions): Prom
         temperature: options.temperature ?? 1,
         thinking: { type: 'disabled' },
       }),
+      signal: AbortSignal.timeout(COMPLETION_TIMEOUT_MS),
     });
   } catch (cause) {
     console.error('minimax fetch failed', cause);

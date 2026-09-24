@@ -5,6 +5,7 @@ import { parseJsonObject } from '../../lib/json';
 import {
   cacheKeyFor, checkPlan, runPlan, SEARCH_SYSTEM, SOURCES,
 } from '../../lib/ai/search';
+import { aiFailureStatus, aiRefusalStatus, json } from '../../lib/http';
 
 export const prerender = false;
 
@@ -23,9 +24,6 @@ export const prerender = false;
  * question nobody asked and does it silently — the results look right, which is
  * the worst way to be wrong.
  */
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 /** Long enough for a real question, short enough that nobody pastes an essay. */
 const LONGEST = 300;
@@ -71,13 +69,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (!ran.ok) {
     return json(
       { error: describeAiError({ code: ran.code, message: ran.error }) },
-      ran.code === 'GRK15' || ran.code === 'GRK16' || ran.code === 'GRK18' ? 402 : 403
+      aiRefusalStatus(ran.code)
     );
   }
 
   const turn = ran.value;
   if (!turn.ok) {
-    return json({ error: turn.error }, turn.error.includes('not configured') ? 503 : 502);
+    return json({ error: turn.error }, aiFailureStatus(turn));
   }
 
   const checked = checkPlan(parse(turn.content));

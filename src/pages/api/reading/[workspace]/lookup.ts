@@ -7,6 +7,7 @@ import {
 } from '../../../../lib/book-reference';
 import { lookupBook, type Edition } from '../../../../lib/ai/openlibrary';
 import { looselyEqual, normalise } from '../../../../lib/title-match';
+import { aiFailureStatus, aiRefusalStatus, json } from '../../../../lib/http';
 
 export const prerender = false;
 
@@ -35,9 +36,6 @@ export const prerender = false;
  * catalogue every time. See lib/book-reference.ts for why that line is drawn
  * here rather than where the cigar desk draws it.
  */
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 /** Answer shape, identical whichever stage produced it. */
 const answered = (
@@ -86,6 +84,9 @@ const rowFrom = (
   year_published: edition?.year_published ?? null,
   ...extra,
 });
+
+/** The one failure that means the model answered and named nothing. */
+const NOTHING_USABLE = 'nothing usable came back';
 
 export const POST: APIRoute = async ({ params, request, locals }) => {
   const { supabase, user } = locals;
@@ -186,18 +187,25 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
         },
       });
 
-      if (!turn.ok) return { ok: false as const, error: turn.error };
+      if (!turn.ok) return { ok: false as const, code: turn.code, error: turn.error };
       const read = readLookup(turn.content);
-      if (!read) return { ok: false as const, error: 'nothing usable came back' };
+      if (!read) return { ok: false as const, error: NOTHING_USABLE };
       return { ok: true as const, read, callId: turn.callId, usage: turn.usage };
     }
   );
 
   if (!outcome.ok) {
-    return json({ error: describeAiError({ code: outcome.code, message: outcome.error }) }, 402);
+    return json({ error: describeAiError({ code: outcome.code, message: outcome.error }) }, aiRefusalStatus(outcome.code));
   }
   if (!outcome.value.ok) {
-    return json({ error: 'Nothing could be found for that.' }, 404);
+    // A call the gates refused, or a provider that failed, is not the same
+    // answer as a model that could not name the book: saying "nothing could be
+    // found" for a spent allowance sends somebody off to rephrase a question
+    // that was never asked.
+    const failed = outcome.value;
+    return failed.error === NOTHING_USABLE
+      ? json({ error: 'Nothing could be found for that.' }, 404)
+      : json({ error: failed.error }, aiFailureStatus(failed));
   }
 
   const { read } = outcome.value;

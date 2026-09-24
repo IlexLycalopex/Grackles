@@ -5,6 +5,7 @@ import { validateWriteup } from '../../../../lib/ai/validators/wbpr';
 import { oneOf, parseJsonObject } from '../../../../lib/json';
 import { buildMessages, LOG_INSTRUCTION, SYSTEM, type AgentState } from '../../../../lib/wbpr-agent';
 import { broadcastSlug, PHENOMENON_STATUSES, CONFIDENCES, VEIL_STATUSES } from '../../../../lib/wbpr';
+import { aiFailureStatus, json } from '../../../../lib/http';
 
 export const prerender = false;
 
@@ -21,9 +22,6 @@ export const prerender = false;
  * refuse, but because it would comply — plausibly, and sometimes wrongly, and
  * the archive would carry a Seven of Clubs that was never drawn.
  */
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 interface LogPayload {
   atmospheric_conditions?: string;
@@ -125,12 +123,12 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   );
 
   if (!ran.ok) {
-    return json({ error: ran.error }, ran.code?.startsWith('GRK') ? 402 : 502);
+    return json({ error: ran.error }, aiFailureStatus(ran));
   }
 
   const { turn, log } = ran.value;
   if (!turn.ok) {
-    return json({ error: turn.error }, turn.code?.startsWith('GRK') ? 402 : 502);
+    return json({ error: turn.error }, aiFailureStatus(turn));
   }
   if (!log) {
     // The transcript survives, so this is retryable rather than fatal — and the
