@@ -37,6 +37,7 @@ several people can share a project.
 | ✅ | The library — every book in one registry, read state derived from the reading list, the bookcase captured from photographs and deduplicated on the way in. **Applied 2026-09-01**: 265 readings became 260 books, 136 of them read |
 | ✅ | Project settings — name, address, where it lives and deleting one, with old addresses kept forwarding. **Applied 2026-09-17**, and reading it back added a second migration and a guard the local suite had never had |
 | ✅ | Adding a link at `/admin` — an outside site on the launcher without a migration or a deploy, filed under `external` |
+| ⬜ | Commonplace — a learning app: map quizzes first (Gazetteer), flashcards second. Spec only, see `docs/commonplace-spec.md` |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.
 Its nav is whatever the visitor is a member of: signed out it offers one thing,
