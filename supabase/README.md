@@ -721,9 +721,8 @@ SECURITY DEFINER with `search_path = public, pg_temp`, executable by
 `authenticated` and not `anon`, and `admin_person_projects` called as Jamie
 returns what the tables hold.
 
-**Still open:** the eleven `admin_` functions from `20260814101800` are
-executable by `anon` for the same reason. Each raises 42501 for a non-admin, so
-nothing is exposed, but they want the same revoke in a migration of their own.
+**Closed by `20260924160000`:** the eleven `admin_` functions from
+`20260814101800` were executable by `anon` for the same reason.
 
 ### Settling AI calls (2026-09-24)
 
@@ -782,6 +781,23 @@ ran as Jamie while `ai_pending_notices` refused `anon` with 42501.
 
 **Lesson worth keeping:** a new SECURITY DEFINER function on this project needs
 `revoke ... from public, anon, authenticated`, not `from public`.
+
+### Admin functions off `anon` (2026-09-24)
+
+| Migration | What it does |
+| --- | --- |
+| `20260924160000_admin_functions_not_anon` | Takes EXECUTE away from `anon` on the eleven `admin_` functions from `20260814101800`, the seven AI admin functions, and `my_ai_usage`; restates it for `authenticated` |
+
+Closes the "still open" note under People above. Each already refused anybody
+who was not a platform admin (or not signed in), so nothing was exposed; now the
+grant refuses them before the body runs, and the advisors stop listing them.
+
+**Applied 2026-09-24** (as `admin_functions_not_anon`). Read back off
+production: the only SECURITY DEFINER functions `anon` can still execute are
+`invite_email_for_token()` and the ten AI job lifecycle functions, all by
+design. Inside a rolled-back transaction, `admin_overview()` and
+`my_ai_usage()` still ran for Jamie, `admin_people()` refused `anon` with
+42501, and the invitation lookup still answered a signed-out caller.
 
 ## Verifying
 
