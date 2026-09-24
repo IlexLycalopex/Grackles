@@ -746,9 +746,22 @@ individually, and a failed call costs next to nothing.
 `authenticated`, because `ai_reap` runs as the service role with no
 `auth.uid()` and closing stale jobs is its purpose.
 
-**Not yet applied.** Verified against a cluster built from `tests/baseline.sql`
-and every migration: `ai.sh` (122, ten new), `test.sh` (50), `admin.sh` (21),
-`settings.sh` (39) and `people.sh` (13).
+**Applied 2026-09-24** (as `20260924215221_ai_settlement_guards`). Verified
+first against a cluster built from `tests/baseline.sql` and every migration:
+`ai.sh` (122, ten new), `test.sh` (50), `admin.sh` (21), `settings.sh` (39) and
+`people.sh` (13). Production's three function bodies were checked against this
+repository's before applying. Read back afterwards: both settling functions
+carry the ownership check, `ai_register_prompt` is no longer executable by
+`anon`, and a signed-in stranger calling all three against real ids got
+`GRK10` from each, inside a transaction that was rolled back.
+
+**Still open, found by the advisors on the same read-back:** the functions
+meant for the service role alone (`ai_reap`, `ai_housekeeping`,
+`ai_pending_notices`, `ai_notice_sent`, `ai_sweep_transcripts`,
+`ai_cache_sweep`, `ai_check_budgets`, `ai_enforce_quality_floors`) are
+executable by `anon` and `authenticated` on production. Their migrations
+revoke from PUBLIC, but Supabase's default privileges grant to both roles by
+name, which is the same thing `20260917130000` and `20260924130100` found.
 
 ## Verifying
 
