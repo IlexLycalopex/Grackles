@@ -755,13 +755,33 @@ carry the ownership check, `ai_register_prompt` is no longer executable by
 `anon`, and a signed-in stranger calling all three against real ids got
 `GRK10` from each, inside a transaction that was rolled back.
 
-**Still open, found by the advisors on the same read-back:** the functions
-meant for the service role alone (`ai_reap`, `ai_housekeeping`,
+### Service-only housekeeping (2026-09-24)
+
+| Migration | What it does |
+| --- | --- |
+| `20260924150000_ai_service_only_grants` | Takes EXECUTE on the eight AI housekeeping functions, and the budget trigger function, away from `anon` and `authenticated`, and restates it for `service_role` |
+
+Found by the advisors on the read-back above. `ai_reap`, `ai_housekeeping`,
 `ai_pending_notices`, `ai_notice_sent`, `ai_sweep_transcripts`,
-`ai_cache_sweep`, `ai_check_budgets`, `ai_enforce_quality_floors`) are
-executable by `anon` and `authenticated` on production. Their migrations
-revoke from PUBLIC, but Supabase's default privileges grant to both roles by
-name, which is the same thing `20260917130000` and `20260924130100` found.
+`ai_cache_sweep`, `ai_check_budgets` and `ai_enforce_quality_floors` were each
+created with a revoke from PUBLIC and a grant to the service role, and each was
+still executable by anybody: Supabase's default privileges grant to `anon` and
+`authenticated` by name, which a revoke from PUBLIC does not reach. That is the
+third time this repository has found it (`20260917130000`, `20260924130100`).
+A stranger could read the pending budget notices, mark them sent so they never
+went out, or run the sweeps early. Nothing in the app calls these; the admin
+"run it now" button goes through `ai_housekeeping_now()`, which is unaffected.
+
+**Applied 2026-09-24** (as `ai_service_only_grants`). Tested first on a local
+cluster with Supabase's default grants reproduced by hand: all nine went from
+executable by all three roles to the service role only, `ai.sh` gained four
+checks (126), and `test.sh`, `admin.sh`, `settings.sh` and `people.sh` still
+pass. Read back off production: the same nine are executable by `service_role`
+alone, and, inside a rolled-back transaction, the admin console's housekeeping
+ran as Jamie while `ai_pending_notices` refused `anon` with 42501.
+
+**Lesson worth keeping:** a new SECURITY DEFINER function on this project needs
+`revoke ... from public, anon, authenticated`, not `from public`.
 
 ## Verifying
 

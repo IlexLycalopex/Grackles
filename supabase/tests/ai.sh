@@ -1221,6 +1221,19 @@ check "an admin's first version still does" ok \
        raise exception 'the admin prompt was not made active'; end if;
    end \$\$;" "$as_jamie"
 
+echo "── service-only housekeeping"
+# 24 Sep 2026: revoked from PUBLIC but granted to anon and authenticated by
+# name, by Supabase's default privileges. baseline.sql does not reproduce those
+# defaults, so these hold the line against a migration that grants them back.
+check "an admin can still run housekeeping from the console" ok \
+  "select * from public.ai_housekeeping_now();" "$as_jamie"
+check "a stranger cannot run the transcript sweep directly" 42501 \
+  "select public.ai_sweep_transcripts();" "$as_rob"
+check "nor read the pending notices signed out" 42501 \
+  "select * from public.ai_pending_notices();" "$as_anon"
+check "the service role still can" ok \
+  "set local role service_role; select * from public.ai_reap();" ""
+
 echo
 echo "passed: $pass   failed: $fail"
 [ $fail -eq 0 ]
