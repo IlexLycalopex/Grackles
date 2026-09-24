@@ -1312,6 +1312,8 @@ export type Database = {
           body: string;
           active: boolean;
           notes: string;
+          /** Null for versions registered before this was recorded. */
+          registered_by: string | null;
           created_at: string;
         };
         Insert: never;
@@ -1555,6 +1557,8 @@ export type Database = {
           opened_until: string | null;
           last_error: string | null;
           opened_count: number;
+          /** Distinct payers in the current streak; one alone cannot open it. */
+          failing_payers: string[];
           updated_at: string;
         };
         Insert: never;

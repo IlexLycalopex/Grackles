@@ -1107,6 +1107,120 @@ check "the same person asking twice pays once" ok \
      if hit.content is null then raise exception 'the hit carried no answer'; end if;
    end \$\$;" "$as_jamie"
 
+echo "── who may settle what"
+# 24 Sep 2026: ai_end_call and ai_end_job checked nothing, so a call or a job id
+# was all it took to settle or close somebody else's work.
+check "a stranger cannot settle somebody else's call" GRK10 \
+  "do \$\$ declare j uuid; c uuid; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive');
+     c := public.ai_begin_call(j);
+     perform set_config('request.jwt.claims', '{\"sub\":\"$ROB\"}', true);
+     perform public.ai_end_call(c, 0, 0, null, null, 'boom');
+   end \$\$;" "$as_jamie"
+
+check "a stranger cannot close somebody else's job" GRK10 \
+  "do \$\$ declare j uuid; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive');
+     perform set_config('request.jwt.claims', '{\"sub\":\"$ROB\"}', true);
+     perform public.ai_end_job(j, 'cancelled');
+   end \$\$;" "$as_jamie"
+
+check "nor can somebody signed out" GRK10 \
+  "do \$\$ declare j uuid; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive');
+     perform set_config('request.jwt.claims', '{}', true);
+     $DOWN_ANON
+     perform public.ai_end_job(j, 'cancelled');
+   end \$\$;" "$as_jamie"
+
+check "the reaper, running as the service role, still closes a stale job" ok \
+  "do \$\$ declare j uuid; begin
+     j := public.ai_begin_job('wbpr.desk','$WBPR','batch',1.0,50);
+     $SU
+     update public.ai_jobs set status='running', heartbeat_at = now() - interval '1 hour' where id=j;
+     perform set_config('role','service_role',true);
+     perform set_config('request.jwt.claims', '{}', true);
+     perform public.ai_reap();
+     $SU
+     if (select status from public.ai_jobs where id=j) <> 'failed' then
+       raise exception 'stale job not reaped'; end if;
+   end \$\$;" "$as_jamie"
+
+# The ownership check cannot stop somebody reporting their own calls as
+# failed, because the server settles with their session. So one payer alone,
+# unless they run the platform, cannot open the breaker for everybody.
+check "one person's failures alone do not open the breaker" ok \
+  "do \$\$ declare j uuid; c uuid; begin
+     $SU
+     insert into public.ai_budgets (user_id, monthly_usd, enabled) values ('$ROB', 5, true)
+       on conflict (user_id) do update set monthly_usd = 5, enabled = true;
+     $DOWN
+     j := public.ai_begin_job('wbpr.desk','$ROBS','interactive',0.5,20);
+     for i in 1..8 loop
+       c := public.ai_begin_call(j);
+       perform public.ai_end_call(c, 0, 0, null, null, 'boom');
+     end loop;
+     if exists (select 1 from public.ai_provider_health
+                 where provider='minimax' and opened_until > now()) then
+       raise exception 'one account switched AI off for everybody'; end if;
+   end \$\$;" "$as_rob"
+
+check "two people's failures together do" ok \
+  "do \$\$ declare j uuid; c uuid; begin
+     $SU
+     insert into public.ai_budgets (user_id, monthly_usd, enabled) values ('$ROB', 5, true)
+       on conflict (user_id) do update set monthly_usd = 5, enabled = true;
+     $DOWN
+     j := public.ai_begin_job('wbpr.desk','$ROBS','interactive',0.5,20);
+     for i in 1..4 loop
+       c := public.ai_begin_call(j);
+       perform public.ai_end_call(c, 0, 0, null, null, 'boom');
+     end loop;
+     -- Jamie as an ordinary member, so it is the second payer that opens it
+     -- rather than the admin exception.
+     $SU
+     update public.profiles set is_platform_admin = false where id = '$JAMIE';
+     $DOWN
+     perform set_config('request.jwt.claims', '{\"sub\":\"$JAMIE\"}', true);
+     j := public.ai_begin_job('wbpr.desk','$WBPR','interactive',0.5,20);
+     c := public.ai_begin_call(j);
+     perform public.ai_end_call(c, 0, 0, null, null, 'boom');
+     if not exists (select 1 from public.ai_provider_health
+                     where provider='minimax' and opened_until > now()) then
+       raise exception 'the breaker stayed shut'; end if;
+   end \$\$;" "$as_rob"
+
+echo "── registering prompts"
+check "a feature that does not exist cannot be registered against" GRK10 \
+  "select public.ai_register_prompt('no.such.feature', 'hello');" "$as_rob"
+
+check "one person cannot fill a feature's register" GRK1A \
+  "do \$\$ begin
+     for i in 1..21 loop
+       perform public.ai_register_prompt('wbpr.desk', 'junk ' || i);
+     end loop;
+   end \$\$;" "$as_rob"
+
+check "what somebody else registers does not become the active prompt" ok \
+  "do \$\$ declare v integer; begin
+     $SU
+     update public.ai_prompt_versions set active = false where feature = 'wbpr.desk';
+     $DOWN
+     v := public.ai_register_prompt('wbpr.desk', 'not the real prompt');
+     if (select active from public.ai_prompt_versions where id = v) then
+       raise exception 'a non-admin set the live prompt'; end if;
+   end \$\$;" "$as_rob"
+
+check "an admin's first version still does" ok \
+  "do \$\$ declare v integer; begin
+     $SU
+     update public.ai_prompt_versions set active = false where feature = 'wbpr.desk';
+     $DOWN
+     v := public.ai_register_prompt('wbpr.desk', 'the real prompt');
+     if not (select active from public.ai_prompt_versions where id = v) then
+       raise exception 'the admin prompt was not made active'; end if;
+   end \$\$;" "$as_jamie"
+
 echo
 echo "passed: $pass   failed: $fail"
 [ $fail -eq 0 ]

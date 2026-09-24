@@ -725,6 +725,31 @@ returns what the tables hold.
 executable by `anon` for the same reason. Each raises 42501 for a non-admin, so
 nothing is exposed, but they want the same revoke in a migration of their own.
 
+### Settling AI calls (2026-09-24)
+
+| Migration | What it does |
+| --- | --- |
+| `20260924140000_ai_settlement_guards` | `ai_end_call` and `ai_end_job` check the job is the caller's, as `ai_begin_call` always did; the provider breaker needs failures from two payers (or an admin's) before it opens; `ai_register_prompt` takes only real features, twenty versions a person, and activates only an admin's |
+
+Found by the site review. Both settling functions were SECURITY DEFINER,
+executable by `anon`, and checked nothing, so holding a call or job id was
+enough to settle or close it. The ownership check cannot cover the rest: the
+server settles with the caller's own session, so a person can report their own
+calls however they like. Five reported failures used to open the breaker for
+the whole site. `failing_payers` on `ai_provider_health` now records who the
+streak came from, and one account alone can no longer open it. The cost is
+that a real outage seen by one non-admin person is not stopped by the
+breaker until a second person or Jamie hits it; those calls fail
+individually, and a failed call costs next to nothing.
+
+`ai_end_job` checks only when the request's `role` is `anon` or
+`authenticated`, because `ai_reap` runs as the service role with no
+`auth.uid()` and closing stale jobs is its purpose.
+
+**Not yet applied.** Verified against a cluster built from `tests/baseline.sql`
+and every migration: `ai.sh` (122, ten new), `test.sh` (50), `admin.sh` (21),
+`settings.sh` (39) and `people.sh` (13).
+
 ## Verifying
 
 `tests/` contains a reconstruction of the pre-migration schema plus Supabase

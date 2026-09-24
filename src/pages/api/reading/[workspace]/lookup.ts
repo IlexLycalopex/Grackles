@@ -106,12 +106,18 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   // Narrowed in the database, ranked here. A leading-wildcard ilike cannot use
   // the index either way, so this asks for the plausible rows and lets
   // scoreReference decide — the same arrangement the cigar desk arrived at.
+  //
+  // A query of nothing but punctuation normalises to no words at all, and an
+  // empty `or()` is a filter PostgREST refuses. There is nothing to narrow on,
+  // so the cache is skipped rather than asked a malformed question.
   const words = normalise(query).split(' ').filter(Boolean);
-  const { data: cached } = await supabase
-    .from('rl_book_reference')
-    .select('id, key, query, title, author, series, series_index, year_published, confidence, alternates, isbn, pages, publisher, cover_url, link_openlibrary')
-    .or(words.map(w => `title.ilike.%${w}%,author.ilike.%${w}%,query.ilike.%${w}%`).join(','))
-    .limit(30);
+  const { data: cached } = words.length
+    ? await supabase
+        .from('rl_book_reference')
+        .select('id, key, query, title, author, series, series_index, year_published, confidence, alternates, isbn, pages, publisher, cover_url, link_openlibrary')
+        .or(words.map(w => `title.ilike.%${w}%,author.ilike.%${w}%,query.ilike.%${w}%`).join(','))
+        .limit(30)
+    : { data: [] };
 
   const ranked = (cached ?? [])
     .map(row => ({ row, score: scoreReference(row, query) }))

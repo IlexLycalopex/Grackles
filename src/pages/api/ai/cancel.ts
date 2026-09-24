@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { safeNext } from '../../../lib/redirect';
 
 export const prerender = false;
 
@@ -20,7 +21,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
 
   const form = await request.formData();
   const jobId = String(form.get('job_id') ?? '');
-  const next = String(form.get('next') ?? '/settings/ai');
+  const next = safeNext(form.get('next'), '/settings/ai');
 
   if (!jobId) return new Response('No job.', { status: 400 });
 
@@ -37,5 +38,5 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
 
   // Only ever back to a path on this site. `next` arrives from a form field,
   // and a redirect that accepts an absolute URL is an open redirect.
-  return redirect(next.startsWith('/') ? next : '/settings/ai', 303);
+  return redirect(next, 303);
 };

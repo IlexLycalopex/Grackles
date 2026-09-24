@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import type { Database } from '../../../lib/database.types';
+import { safeNext } from '../../../lib/redirect';
 
 export const prerender = false;
 
@@ -39,7 +40,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
   const form = await request.formData();
   const id = String(form.get('proposal_id') ?? '');
   const outcome = String(form.get('outcome') ?? '');
-  const next = String(form.get('next') ?? '/dashboard');
+  const next = safeNext(form.get('next'), '/dashboard');
 
   if (!id || !['accepted', 'discarded'].includes(outcome)) {
     return new Response('Nothing to decide.', { status: 400 });
@@ -55,6 +56,22 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
 
   if (!proposal) return new Response('Not found.', { status: 404 });
   if (proposal.outcome) return new Response('Already decided.', { status: 409 });
+
+  /** Records the decision only if nobody has made one; true if this one won. */
+  const claim = async (decision: 'accepted' | 'edited' | 'discarded', distance: number) => {
+    const { data } = await supabase
+      .from('ai_proposals')
+      .update({
+        outcome: decision,
+        edit_distance: distance,
+        decided_by: user.id,
+        decided_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .is('outcome', null)
+      .select('id');
+    return !!data?.length;
+  };
 
   let recorded: 'accepted' | 'edited' | 'discarded' = 'discarded';
   let changed = 0;
@@ -92,6 +109,17 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
       return new Response('That proposal has nowhere to go.', { status: 400 });
     }
 
+    changed = fieldsChanged(fields, applied);
+    recorded = changed > 0 ? 'edited' : 'accepted';
+
+    // Claimed before it is applied. The check above that it is undecided is a
+    // read, and two presses of Accept both pass a read; only one of them can
+    // turn a null outcome into a decision. The loser stops here, before it
+    // writes anything.
+    if (!(await claim(recorded, changed))) {
+      return new Response('Already decided.', { status: 409 });
+    }
+
     // Asks for the row back and checks it got one, for the same reason every
     // delete in this app does: a write refused by row-level security does not
     // raise, it narrows the statement to zero rows and reports success.
@@ -118,26 +146,23 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
             .eq('id', proposal.target_id)
             .select('id');
 
-    if (error) return new Response('That could not be saved.', { status: 500 });
-    if (!saved?.length) {
-      return new Response('That could not be saved — you may no longer be able to edit it.', {
-        status: 403,
-      });
-    }
+    if (error || !saved?.length) {
+      // Nothing was written, so the decision is handed back and the proposal
+      // can be accepted again once whatever this was is fixed.
+      await supabase
+        .from('ai_proposals')
+        .update({ outcome: null, edit_distance: null, decided_by: null, decided_at: null })
+        .eq('id', id);
 
-    changed = fieldsChanged(fields, applied);
-    recorded = changed > 0 ? 'edited' : 'accepted';
+      return error
+        ? new Response('That could not be saved.', { status: 500 })
+        : new Response('That could not be saved — you may no longer be able to edit it.', {
+            status: 403,
+          });
+    }
+  } else if (!(await claim(recorded, changed))) {
+    return new Response('Already decided.', { status: 409 });
   }
 
-  await supabase
-    .from('ai_proposals')
-    .update({
-      outcome: recorded,
-      edit_distance: changed,
-      decided_by: user.id,
-      decided_at: new Date().toISOString(),
-    })
-    .eq('id', id);
-
-  return redirect(next.startsWith('/') ? next : '/dashboard', 303);
+  return redirect(next, 303);
 };
