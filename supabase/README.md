@@ -684,6 +684,14 @@ Error codes `GRK40` already played today's challenge, `GRK41` not today's
 challenge, `GRK42` run already finished, `GRK43` more than 2,000 cards.
 `tests/commonplace.sh` (39 checks) runs after `test.sh` on the same cluster.
 
+**Applied 2026-09-24.** All three are additive. Verified first against a cluster
+built from `tests/baseline.sql` and every migration, with `test.sh` (50),
+`settings.sh` (39), `admin.sh` (21) and `commonplace.sh` (39) passing. Read back
+off production afterwards: `anon` holds nothing on any `cp_` table or function,
+`authenticated` holds SELECT on all seven tables plus DELETE on `cp_decks`, and
+the two `app.` helpers are executable by nobody but their owner. The workspace
+`/learn/jamie` was created at the same time, private, owned by Jamie.
+
 ## Verifying
 
 `tests/` contains a reconstruction of the pre-migration schema plus Supabase
