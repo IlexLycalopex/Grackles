@@ -692,6 +692,31 @@ off production afterwards: `anon` holds nothing on any `cp_` table or function,
 the two `app.` helpers are executable by nobody but their owner. The workspace
 `/learn/jamie` was created at the same time, private, owned by Jamie.
 
+### People (2026-09-24)
+
+| Migration | What it does |
+| --- | --- |
+| `20260924130000_admin_people` | `admin_person_projects()` — every project one person is in, and as what; `admin_add_member()` — a platform admin puts somebody who already has an account straight into any project |
+
+`/admin` is organised by project; `/admin/people` is the other axis. Nothing
+here is new authority — an admin could already change anyone's role in any
+project — only the missing half of it: adding somebody without sending an
+invitation to an address that already has an account. `admin_add_member`
+refuses (`GRK24`) rather than overwrites when they are already in, so "add as
+viewer" cannot quietly demote an owner, and withdraws any invitation still
+waiting for them to that project.
+
+Its invitation clean-up compares with `lower()` although both columns are
+citext: citext's operators live in `extensions`, which is not on the function's
+search_path, so a bare `=` falls back to text equality and is case-sensitive.
+`tests/people.sh` (13 checks) caught it, and runs after `admin.sh` on the same
+cluster.
+
+**Not yet applied.** Verified against a cluster built from
+`tests/baseline.sql` and every migration, with `test.sh` (50),
+`blackletter.sh` (20), `ai.sh` (112), `admin.sh` (21) and `people.sh` (13)
+passing.
+
 ## Verifying
 
 `tests/` contains a reconstruction of the pre-migration schema plus Supabase
@@ -709,6 +734,7 @@ tests/test.sh
 tests/blackletter.sh
 tests/ai.sh
 tests/admin.sh
+tests/people.sh
 ```
 
 **All four suites want a fresh database, in that order.** `test.sh` writes rows

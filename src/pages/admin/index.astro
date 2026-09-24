@@ -1,7 +1,7 @@
 ---
 import AppShell from '../../layouts/AppShell.astro';
-import { loadEntitlements, describeGrantError } from '../../lib/grants';
-import { APPS, appBySlug, HOSTED_APPS, projectHref } from '../../lib/apps';
+import { loadEntitlements, describeGrantError, describeAdminError } from '../../lib/grants';
+import { APPS, appBySlug, projectHref } from '../../lib/apps';
 import { slugify } from '../../lib/slug';
 import { money } from '../../lib/ai/usage';
 import type { AppSlug, MemberRole, Visibility } from '../../lib/database.types';
@@ -43,11 +43,6 @@ const LINKABLE = APPS.filter(a => !a.hosted);
 let error: string | null = null;
 let notice: string | null = null;
 
-const SAYS: Record<string, string> = {
-  GRK20: 'That is the last platform admin — somebody has to be able to hand out entitlements.',
-  GRK21: 'That is the last owner of that project, and a project with no owner cannot be administered.',
-};
-
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const action = String(form.get('action') ?? '');
@@ -61,32 +56,11 @@ if (Astro.request.method === 'POST') {
   ) => {
     const { error: e } = await fn();
     // The custom SQLSTATEs carry messages that name columns and thresholds —
-    // right in a log, wrong on a page. Same table-of-sentences approach as
-    // describeGrantError, which is where these codes' siblings live.
-    error = e ? (SAYS[e.code ?? ''] ?? e.message) : null;
+    // right in a log, wrong on a page. The sentences live beside
+    // describeGrantError's, and the people pages use the same ones.
+    error = e ? describeAdminError(e) : null;
     if (!e) notice = said;
   };
-
-  if (action === 'admin') {
-    await call(
-      () => supabase.rpc('admin_set_platform_admin', {
-        p_user: str('user_id'),
-        p_is_admin: form.get('is_admin') !== null,
-      }),
-      'Platform admins updated.'
-    );
-  }
-
-  if (action === 'grant') {
-    await call(
-      () => supabase.rpc('admin_set_grant', {
-        p_user: str('user_id'),
-        p_app: str('app') as AppSlug,
-        p_max: Number(str('max')) || 0,
-      }),
-      Number(str('max')) > 0 ? 'Granted.' : 'Withdrawn.'
-    );
-  }
 
   if (action === 'add-link') {
     const name = str('name');
@@ -137,6 +111,17 @@ if (Astro.request.method === 'POST') {
         p_role: str('role') as MemberRole,
       }),
       'Role changed.'
+    );
+  }
+
+  if (action === 'member-add') {
+    await call(
+      () => supabase.rpc('admin_add_member', {
+        p_workspace: str('workspace_id'),
+        p_user: str('user_id'),
+        p_role: str('role') as MemberRole,
+      }),
+      'Added.'
     );
   }
 
@@ -336,7 +321,7 @@ for (const p of projects ?? []) {
                     {(rosters.get(p.id) ?? []).map(m => (
                       <li>
                         <span class="adm-roster__who">
-                          {m.display_name || m.email}
+                          <a href={`/admin/people/${m.user_id}`}>{m.display_name || m.email}</a>
                           <span class="adm-muted"> {m.email}</span>
                         </span>
                         <form method="POST" class="inline-form">
@@ -359,6 +344,25 @@ for (const p of projects ?? []) {
                       </li>
                     ))}
                   </ul>
+                  {(() => {
+                    const inIt = new Set((rosters.get(p.id) ?? []).map(m => m.user_id));
+                    const others = (people ?? []).filter(x => !inIt.has(x.id));
+                    return others.length > 0 && (
+                      <form method="POST" class="inline-form adm-roster-add">
+                        <input type="hidden" name="action" value="member-add" />
+                        <input type="hidden" name="workspace_id" value={p.id} />
+                        <select class="field__input field__input--auto" name="user_id" aria-label="Person">
+                          {others.map(x => <option value={x.id}>{x.display_name || x.email}</option>)}
+                        </select>
+                        <select class="field__input field__input--auto" name="role" aria-label="Role">
+                          <option value="viewer" selected>viewer</option>
+                          <option value="editor">editor</option>
+                          <option value="owner">owner</option>
+                        </select>
+                        <button class="button button--quiet" type="submit">Add</button>
+                      </form>
+                    );
+                  })()}
                   <p class="page-intro adm-hint">
                     The last owner cannot be demoted or removed — a project nobody
                     owns is a project nobody can administer.
@@ -377,63 +381,11 @@ for (const p of projects ?? []) {
 
   <p class="section-label">People</p>
   <p class="page-intro">
-    The four facts that decide what somebody can do here — admin, what they may
-    create, what they may spend, what they belong to — live in four tables and
-    have never been visible together. Handing them out one screen at a time is
-    how somebody ends up with an allowance and nothing to spend it on.
+    {(people ?? []).length} {(people ?? []).length === 1 ? 'person' : 'people'} with an account.
+    Who is admin, what each of them may start, and every project they are in — with the
+    controls for all of it — are on <a href="/admin/people">People</a>, which is also where
+    somebody new is brought in.
   </p>
-
-  {(people ?? []).map(person => (
-    <div class="adm-person">
-      <div class="adm-person__head">
-        <strong>{person.display_name || person.email}</strong>
-        <span class="adm-muted"> {person.email}</span>
-        {person.is_admin && <span class="adm-flag">platform admin</span>}
-      </div>
-
-      <div class="adm-person__facts">
-        <span>{person.owns} owned</span>
-        <span>{person.memberships} member of</span>
-        <span>
-          {person.ai_monthly_usd === null
-            ? 'no AI allowance'
-            : `${money(Number(person.ai_monthly_usd))}/month${person.ai_enabled ? '' : ' (off)'}`}
-          {Number(person.ai_spend_usd) > 0 && ` · ${money(Number(person.ai_spend_usd))} spent`}
-        </span>
-        <span class="adm-muted">joined {when(person.created_at)}</span>
-      </div>
-
-      <form method="POST" class="adm-person__row">
-        <input type="hidden" name="action" value="admin" />
-        <input type="hidden" name="user_id" value={person.id} />
-        <label class="grant-picker__option">
-          <input type="checkbox" name="is_admin" checked={person.is_admin} />
-          platform admin
-        </label>
-        <button class="button button--quiet" type="submit">Save</button>
-      </form>
-
-      <div class="adm-person__row">
-        {HOSTED_APPS.map(a => (
-          <form method="POST" class="inline-form">
-            <input type="hidden" name="action" value="grant" />
-            <input type="hidden" name="user_id" value={person.id} />
-            <input type="hidden" name="app" value={a.slug} />
-            <label class="grant-picker__option">
-              {a.name}
-              <input class="field__input field__input--auto" type="number" min="0" max="20"
-                     name="max" value={person.grants?.[a.slug] ?? 0} />
-            </label>
-            <button class="button button--quiet" type="submit">Set</button>
-          </form>
-        ))}
-      </div>
-      <p class="page-intro adm-hint">
-        How many projects they may start in each app. Zero withdraws it. Owning one
-        already spends one of them — an admin is unmetered and does not need any.
-      </p>
-    </div>
-  ))}
 
   {(invites ?? []).length > 0 && (
     <>
@@ -503,21 +455,6 @@ for (const p of projects ?? []) {
   .adm-table .inline-form { margin: 0; }
   .adm-stale td { opacity: 0.5; }
 
-  .adm-person {
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-    padding: 0.9rem 0;
-  }
-  .adm-person__head { margin-bottom: 0.2rem; }
-  .adm-person__facts {
-    display: flex; flex-wrap: wrap; gap: 1.2rem;
-    font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.5rem;
-  }
-  .adm-person__row {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;
-    margin-bottom: 0.4rem;
-  }
-  .adm-person__row .inline-form { margin: 0; display: flex; align-items: center; gap: 0.4rem; }
-  .adm-person__row input[type="number"] { width: 4rem; }
   .adm-hint { font-size: 0.8rem; margin: 0; }
 
   .adm-roster-row td { border-bottom: 1px solid rgba(0, 0, 0, 0.08); padding-bottom: 0.5rem; }
@@ -529,6 +466,7 @@ for (const p of projects ?? []) {
   }
   .adm-roster__who { min-width: 16rem; }
   .adm-roster .inline-form { margin: 0; display: flex; gap: 0.3rem; }
+  .adm-roster-add { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.4rem 0; }
 
   .adm-muted { opacity: 0.55; }
   .adm-flag {

@@ -2100,6 +2100,27 @@ export type Database = {
         Returns: void;
       };
       admin_remove_member: { Args: { p_workspace: string; p_user: string }; Returns: void };
+      /** GRK24 when they are already a member — changing a role is the call above. */
+      admin_add_member: {
+        Args: { p_workspace: string; p_user: string; p_role: Database['public']['Enums']['member_role'] };
+        Returns: void;
+      };
+      /** Every project one person belongs to: the people console's other axis. */
+      admin_person_projects: {
+        Args: { p_user: string };
+        Returns: {
+          workspace_id: string;
+          app: Database['public']['Enums']['app_slug'];
+          slug: string;
+          name: string;
+          visibility: Database['public']['Enums']['visibility'];
+          external_url: string;
+          role: Database['public']['Enums']['member_role'];
+          /** They started it, as distinct from holding the owner role in it. */
+          created_it: boolean;
+          joined_at: string;
+        }[];
+      };
       /** One project's roster, loaded when the console's disclosure is opened. */
       admin_members: {
         Args: { p_workspace: string };

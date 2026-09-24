@@ -1,0 +1,319 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+import { loadEntitlements, describeAdminError } from '../../../lib/grants';
+import { appBySlug, HOSTED_APPS, projectHref } from '../../../lib/apps';
+import { money } from '../../../lib/ai/usage';
+import type { AppSlug, MemberRole } from '../../../lib/database.types';
+
+export const prerender = false;
+
+/**
+ * One person, and everything they can reach.
+ *
+ * The four facts that decide what somebody can do here — admin, what they may
+ * create, what they may spend, what they belong to — on one page, each with
+ * its control beside it. Every write goes through the same admin_ functions
+ * /admin uses, so the last-owner and last-admin guards hold here too.
+ */
+
+const { supabase, user } = Astro.locals;
+const notFound = new Response('Not found', { status: 404 });
+
+if (!user) return notFound;
+const { isPlatformAdmin } = await loadEntitlements(supabase, user.id);
+if (!isPlatformAdmin) return notFound;
+
+const personId = Astro.params.id!;
+const ROLES: MemberRole[] = ['owner', 'editor', 'viewer'];
+
+let error: string | null = null;
+let notice: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') ?? '');
+  const str = (k: string) => String(form.get(k) ?? '').trim();
+
+  const call = async (
+    fn: () => PromiseLike<{ error: { code?: string; message: string } | null }>,
+    said: string
+  ) => {
+    const { error: e } = await fn();
+    error = e ? describeAdminError(e) : null;
+    if (!e) notice = said;
+  };
+
+  if (action === 'admin') {
+    await call(
+      () => supabase.rpc('admin_set_platform_admin', {
+        p_user: personId,
+        p_is_admin: form.get('is_admin') !== null,
+      }),
+      form.get('is_admin') !== null ? 'Now a platform admin.' : 'No longer a platform admin.'
+    );
+    // Every read below would now be refused, and a 404 in answer to your own
+    // save reads as something having broken.
+    if (!error && personId === user.id && form.get('is_admin') === null) {
+      return Astro.redirect('/dashboard');
+    }
+  }
+
+  if (action === 'grant') {
+    await call(
+      () => supabase.rpc('admin_set_grant', {
+        p_user: personId,
+        p_app: str('app') as AppSlug,
+        p_max: Number(str('max')) || 0,
+      }),
+      Number(str('max')) > 0 ? 'Granted.' : 'Withdrawn.'
+    );
+  }
+
+  if (action === 'add') {
+    await call(
+      () => supabase.rpc('admin_add_member', {
+        p_workspace: str('workspace_id'),
+        p_user: personId,
+        p_role: str('role') as MemberRole,
+      }),
+      'Added.'
+    );
+  }
+
+  if (action === 'member-role') {
+    await call(
+      () => supabase.rpc('admin_set_member_role', {
+        p_workspace: str('workspace_id'),
+        p_user: personId,
+        p_role: str('role') as MemberRole,
+      }),
+      'Role changed.'
+    );
+  }
+
+  if (action === 'member-remove') {
+    await call(
+      () => supabase.rpc('admin_remove_member', {
+        p_workspace: str('workspace_id'),
+        p_user: personId,
+      }),
+      'Removed from that project.'
+    );
+  }
+
+  if (action === 'revoke-invite') {
+    await call(() => supabase.rpc('admin_revoke_invite', { p_invite: str('invite_id') }), 'Invitation revoked.');
+  }
+}
+
+// admin_people() rather than a function of its own: the whole site is a handful
+// of people, and it already carries every fact this page shows about one.
+const [{ data: people }, { data: memberships }, { data: projects }, { data: invites }] =
+  await Promise.all([
+    supabase.rpc('admin_people'),
+    supabase.rpc('admin_person_projects', { p_user: personId }),
+    supabase.rpc('admin_projects'),
+    supabase.rpc('admin_invites'),
+  ]);
+
+const person = (people ?? []).find(p => p.id === personId);
+if (!person) return notFound;
+
+const isSelf = person.id === user.id;
+const mine = new Set((memberships ?? []).map(m => m.workspace_id));
+const joinable = (projects ?? []).filter(p => !mine.has(p.id));
+const waiting = (invites ?? []).filter(i => i.email.toLowerCase() === person.email.toLowerCase());
+
+const when = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+const joinableByApp = new Map<AppSlug, typeof joinable>();
+for (const p of joinable) joinableByApp.set(p.app, [...(joinableByApp.get(p.app) ?? []), p]);
+---
+
+<AppShell title={`${person.display_name || person.email} · People · Grackles`}>
+  <p class="ppl-crumb"><a href="/admin/people">People</a></p>
+  <h1 class="page-title">{person.display_name || person.email}</h1>
+  <p class="page-intro">
+    {person.email} · joined {when(person.created_at)}
+    {isSelf && <> · <strong>this is you</strong></>}
+  </p>
+
+  {error && <p class="notice notice--error" role="alert">{error}</p>}
+  {notice && <p class="notice notice--ok">{notice}</p>}
+
+  <p class="section-label">Projects</p>
+  {(memberships ?? []).length === 0 ? (
+    <p class="page-intro">Not in any project yet.</p>
+  ) : (
+    <div class="ppl-scroll">
+      <table class="ppl-table">
+        <thead>
+          <tr><th>Project</th><th>App</th><th>Visibility</th><th>Role</th><th></th></tr>
+        </thead>
+        <tbody>
+          {(memberships ?? []).map(m => (
+            <tr>
+              <td>
+                <a href={projectHref(m)}>{m.name}</a>
+                {m.created_it && <span class="ppl-flag">started it</span>}
+                <br /><span class="ppl-muted">since {when(m.joined_at)}</span>
+              </td>
+              <td>{appBySlug(m.app)?.name ?? m.app}</td>
+              <td class="ppl-muted">{m.visibility}</td>
+              <td>
+                <form method="POST" class="inline-form ppl-inline">
+                  <input type="hidden" name="action" value="member-role" />
+                  <input type="hidden" name="workspace_id" value={m.workspace_id} />
+                  <select class="field__input field__input--auto" name="role">
+                    {ROLES.map(r => <option value={r} selected={m.role === r}>{r}</option>)}
+                  </select>
+                  <button class="button button--quiet" type="submit">Set</button>
+                </form>
+              </td>
+              <td>
+                <form method="POST" class="inline-form ppl-inline">
+                  <input type="hidden" name="action" value="member-remove" />
+                  <input type="hidden" name="workspace_id" value={m.workspace_id} />
+                  <button class="button button--quiet" type="submit">Remove</button>
+                </form>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+
+  {joinable.length > 0 && (
+    <form method="POST" class="ppl-add">
+      <input type="hidden" name="action" value="add" />
+      <label class="field">
+        <span class="field__label">Add to</span>
+        <select class="field__input" name="workspace_id" required>
+          {[...joinableByApp.entries()].map(([app, rows]) => (
+            <optgroup label={appBySlug(app)?.name ?? app}>
+              {rows.map(p => <option value={p.id}>{p.name}</option>)}
+            </optgroup>
+          ))}
+        </select>
+      </label>
+      <label class="field">
+        <span class="field__label">As</span>
+        <select class="field__input" name="role">
+          <option value="viewer" selected>viewer</option>
+          <option value="editor">editor</option>
+          <option value="owner">owner</option>
+        </select>
+      </label>
+      <button class="button" type="submit">Add</button>
+    </form>
+  )}
+  <p class="ppl-hint">
+    Added directly — they already have an account, so there is no invitation to accept. A
+    project's last owner cannot be demoted or removed.
+  </p>
+
+  <p class="section-label">May start their own</p>
+  {person.is_admin ? (
+    <p class="page-intro">Anything — a platform admin is unmetered.</p>
+  ) : (
+    <>
+      <div class="ppl-grants">
+        {HOSTED_APPS.map(a => (
+          <form method="POST" class="inline-form ppl-inline">
+            <input type="hidden" name="action" value="grant" />
+            <input type="hidden" name="app" value={a.slug} />
+            <label class="grant-picker__option">
+              {a.name}
+              <input class="field__input field__input--auto" type="number" min="0" max="20"
+                     name="max" value={person.grants?.[a.slug] ?? 0} />
+            </label>
+            <button class="button button--quiet" type="submit">Set</button>
+          </form>
+        ))}
+      </div>
+      <p class="ppl-hint">
+        How many projects they may start in each app. Zero withdraws it; each one they have
+        already started counts against it.
+      </p>
+    </>
+  )}
+
+  <p class="section-label">AI</p>
+  <p class="page-intro">
+    {person.ai_monthly_usd === null
+      ? 'No AI allowance.'
+      : `${money(Number(person.ai_monthly_usd))} a month${person.ai_enabled ? '' : ', switched off'}`}
+    {Number(person.ai_spend_usd) > 0 && ` · ${money(Number(person.ai_spend_usd))} spent this month`}
+    · set on <a href="/admin/ai">AI controls</a>.
+  </p>
+
+  <p class="section-label">Platform admin</p>
+  <form method="POST" class="ppl-inline">
+    <input type="hidden" name="action" value="admin" />
+    <label class="grant-picker__option">
+      <input type="checkbox" name="is_admin" checked={person.is_admin} />
+      Can administer everything on this site, including this page
+    </label>
+    <button class="button button--quiet" type="submit">Save</button>
+  </form>
+  {isSelf && person.is_admin && (
+    <p class="ppl-hint">Unticking this takes you off this page as soon as it saves.</p>
+  )}
+
+  {waiting.length > 0 && (
+    <>
+      <p class="section-label">Invitations waiting for {person.email}</p>
+      <ul class="ppl-invites">
+        {waiting.map(i => (
+          <li>
+            <span>
+              {i.workspace_name ? <>{i.workspace_name} as {i.role}</> : 'no project'}
+              {i.grant_apps.length > 0 && <> · may start {i.grant_apps.map(a => appBySlug(a)?.name ?? a).join(', ')}</>}
+              <span class="ppl-muted"> · expires {when(i.expires_at)}</span>
+            </span>
+            <form method="POST" class="inline-form ppl-inline">
+              <input type="hidden" name="action" value="revoke-invite" />
+              <input type="hidden" name="invite_id" value={i.id} />
+              <button class="button button--quiet" type="submit">Revoke</button>
+            </form>
+          </li>
+        ))}
+      </ul>
+    </>
+  )}
+</AppShell>
+
+<style>
+  .ppl-crumb { font-size: 0.85rem; margin: 0 0 0.25rem; }
+
+  .ppl-scroll { overflow-x: auto; }
+  .ppl-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-bottom: 0.75rem; }
+  .ppl-table th, .ppl-table td {
+    text-align: left; padding: 0.5rem 0.75rem 0.5rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08); vertical-align: top;
+  }
+  .ppl-table th { font-weight: 600; opacity: 0.7; font-size: 0.8rem; }
+
+  .ppl-inline { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+  .ppl-grants { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.4rem; }
+  .ppl-grants input[type="number"] { width: 4rem; }
+
+  .ppl-add { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; }
+  .ppl-add .field { margin-bottom: 0; flex: 1 1 12rem; }
+  .ppl-add .field:nth-of-type(2) { flex: 0 1 8rem; }
+
+  .ppl-invites { list-style: none; padding: 0; margin: 0; }
+  .ppl-invites li {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+    gap: 0.5rem; padding: 0.4rem 0; border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  .ppl-hint { font-size: 0.8rem; opacity: 0.7; margin: 0.4rem 0 0; }
+  .ppl-muted { opacity: 0.55; }
+  .ppl-flag {
+    margin-left: 0.5rem; font-size: 0.75rem; padding: 0.05rem 0.4rem;
+    border-radius: 3px; background: rgba(0, 0, 0, 0.08);
+  }
+</style>
