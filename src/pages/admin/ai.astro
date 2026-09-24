@@ -1,5 +1,5 @@
 ---
-import AppShell from '../../layouts/AppShell.astro';
+import AdminConsole from '../../components/admin/AdminConsole.astro';
 import { loadEntitlements } from '../../lib/grants';
 import { money } from '../../lib/ai/usage';
 import { runGolden, type Expectations, type GoldenCase, type GoldenInput } from '../../lib/ai/golden';
@@ -209,15 +209,10 @@ const when = (iso: string) =>
   new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 ---
 
-<AppShell title="AI controls · Grackles">
-  <h1 class="page-title">AI controls</h1>
-  <p class="page-intro">
+<AdminConsole title="AI" tab="ai" outcome={{ error, notice }}>
+  <p class="page-intro" style="margin-top:0">
     Platform-wide. Everything here takes effect on the next call.
-    <a href="/admin">Everything else about the site is here.</a>
   </p>
-
-  {error && <p class="notice notice--error" role="alert">{error}</p>}
-  {notice && <p class="notice notice--ok">{notice}</p>}
 
   {platform && !platform.enabled && (
     <p class="notice notice--error" role="alert">
@@ -635,7 +630,7 @@ const when = (iso: string) =>
       </div>
     </li>
   </ul>
-</AppShell>
+</AdminConsole>
 
 <style>
   .ai-summary { display: flex; flex-wrap: wrap; gap: 2rem; margin: 1.5rem 0; }

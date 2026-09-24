@@ -102,8 +102,13 @@ async function send(message: {
 export async function sendInviteEmail(invite: {
   to: string;
   inviteUrl: string;
-  workspaceName: string;
-  appName: string;
+  /**
+   * Null on a creation-only invitation, which lets somebody start a project
+   * of their own without joining anybody else's. The people console sends
+   * those; a project's settings page never does.
+   */
+  workspaceName: string | null;
+  appName: string | null;
   role: string;
   invitedBy: string;
   expiresAt: string;
@@ -120,15 +125,19 @@ export async function sendInviteEmail(invite: {
   // Party (Listening Party)" reads like a mistake. Naming it twice only helps
   // when the two actually differ.
   const what =
-    invite.workspaceName === invite.appName
-      ? invite.workspaceName
-      : `${invite.workspaceName} (${invite.appName})`;
+    invite.workspaceName === null
+      ? null
+      : invite.workspaceName === invite.appName
+        ? invite.workspaceName
+        : `${invite.workspaceName} (${invite.appName})`;
   const capability =
-    invite.role === 'viewer'
-      ? 'You will be able to read everything and change nothing.'
-      : invite.role === 'editor'
-        ? 'You will be able to read and change entries.'
-        : 'You will be able to read, change, and manage who else has access.';
+    what === null
+      ? ''
+      : invite.role === 'viewer'
+        ? 'You will be able to read everything and change nothing.'
+        : invite.role === 'editor'
+          ? 'You will be able to read and change entries.'
+          : 'You will be able to read, change, and manage who else has access.';
 
   // Being let into someone's project and being able to run one of your own are
   // separate things, and an invitation can carry either or both. Saying so
@@ -136,14 +145,29 @@ export async function sendInviteEmail(invite: {
   // as an invitation to a project that is never mentioned again.
   const granted = invite.grantedApps ?? [];
   const grant =
-    granted.length > 0
-      ? `It also lets you start your own: ${listSentence(granted)}.`
-      : '';
+    granted.length === 0
+      ? ''
+      : what === null
+        ? `It lets you start your own: ${listSentence(granted)}.`
+        : `It also lets you start your own: ${listSentence(granted)}.`;
+
+  // With no project there is no role to name, and "as viewer" of nothing
+  // would read as a mistake. The same opening, plain and marked up.
+  const opening = {
+    text:
+      what === null
+        ? `${invite.invitedBy} has invited you to Grackles.`
+        : `${invite.invitedBy} has invited you to ${what} on Grackles, as ${invite.role}.`,
+    html:
+      what === null
+        ? `<strong>${escapeHtml(invite.invitedBy)}</strong> has invited you to <strong>Grackles</strong>.`
+        : `<strong>${escapeHtml(invite.invitedBy)}</strong> has invited you to
+        <strong>${escapeHtml(what)}</strong>, as <strong>${escapeHtml(invite.role)}</strong>.`,
+  };
 
   const text = [
-    `${invite.invitedBy} has invited you to ${what} on Grackles, as ${invite.role}.`,
-    capability,
-    ...(grant ? [grant] : []),
+    opening.text,
+    ...[capability, grant].filter(Boolean),
     '',
     'Open this link to accept:',
     invite.inviteUrl,
@@ -156,11 +180,10 @@ export async function sendInviteEmail(invite: {
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:300;line-height:1.6;color:#1e1d2e;max-width:34rem;margin:0 auto;padding:2rem 1.5rem">
       <p style="font-family:Georgia,serif;font-size:1.5rem;margin:0 0 1.5rem">Grackles</p>
       <p style="margin:0 0 1rem">
-        <strong>${escapeHtml(invite.invitedBy)}</strong> has invited you to
-        <strong>${escapeHtml(what)}</strong>, as <strong>${escapeHtml(invite.role)}</strong>.
+        ${opening.html}
       </p>
       <p style="margin:0 0 1.5rem">
-        ${capability}${grant ? ` ${escapeHtml(grant)}` : ''}
+        ${[capability, escapeHtml(grant)].filter(Boolean).join(' ')}
       </p>
       <p style="margin:0 0 1.5rem">
         <a href="${escapeHtml(invite.inviteUrl)}"
@@ -182,7 +205,9 @@ export async function sendInviteEmail(invite: {
 
   return send({
     to: invite.to,
-    subject: `${invite.invitedBy} invited you to ${invite.workspaceName} on Grackles`,
+    subject: invite.workspaceName === null
+      ? `${invite.invitedBy} invited you to Grackles`
+      : `${invite.invitedBy} invited you to ${invite.workspaceName} on Grackles`,
     html,
     text,
     // So a reply reaches the person who invited them rather than a dead

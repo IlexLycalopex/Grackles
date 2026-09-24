@@ -95,3 +95,19 @@ const MESSAGES: Record<string, string> = {
 export function describeGrantError(error: { code?: string; message: string }): string {
   return (error.code && MESSAGES[error.code]) || error.message;
 }
+
+/**
+ * The same idea for the platform console's own functions, which are worded for
+ * whoever runs the site rather than for a project's owner — GRK21 above tells
+ * an owner to hand over first; here it explains why the console refused.
+ */
+const ADMIN_MESSAGES: Record<string, string> = {
+  GRK20: 'That is the last platform admin — somebody has to be able to hand out entitlements.',
+  GRK21: 'That is the last owner of that project, and a project with no owner cannot be administered.',
+  GRK24: 'They are already in that project — change their role instead.',
+  P0002: 'That person or project no longer exists.',
+};
+
+export function describeAdminError(error: { code?: string; message: string }): string {
+  return (error.code && ADMIN_MESSAGES[error.code]) || error.message;
+}

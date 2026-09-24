@@ -35,6 +35,7 @@
 
 .masthead__right {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 1.25rem;
   font-size: 0.82rem;

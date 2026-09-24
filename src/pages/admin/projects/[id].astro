@@ -1,0 +1,156 @@
+---
+import AdminConsole from '../../../components/admin/AdminConsole.astro';
+import ProjectList from '../../../components/admin/ProjectList.astro';
+import {
+  isAdmin, notFound, handleAction, personName, appName, when, isLink, ROLES, VISIBILITIES,
+  type Outcome,
+} from '../../../lib/admin/console';
+import { appBySlug, projectHref } from '../../../lib/apps';
+import { money } from '../../../lib/ai/usage';
+
+export const prerender = false;
+
+/**
+ * One project or link: who is in it, as what, and who can see it.
+ *
+ * Counts, never contents. A private project's entries stay private here too;
+ * being able to administer a project is not the same as being able to read it.
+ */
+
+const { supabase, user } = Astro.locals;
+if (!(await isAdmin(supabase, user))) return notFound();
+
+let outcome: Outcome | null = null;
+if (Astro.request.method === 'POST') {
+  outcome = await handleAction(supabase, user!, await Astro.request.formData(), Astro.url.origin);
+  if (outcome.redirect) return Astro.redirect(outcome.redirect);
+}
+
+const projectId = Astro.params.id!;
+const [{ data: projects }, { data: people }, { data: members }] = await Promise.all([
+  supabase.rpc('admin_projects'),
+  supabase.rpc('admin_people'),
+  supabase.rpc('admin_members', { p_workspace: projectId }),
+]);
+
+const project = (projects ?? []).find(p => p.id === projectId);
+if (!project) return notFound();
+
+const link = isLink(project);
+const owners = (members ?? []).filter(m => m.role === 'owner').length;
+const inIt = new Set((members ?? []).map(m => m.user_id));
+const others = (people ?? []).filter(p => !inIt.has(p.id));
+// The settings page needs ownership, so it is only offered where it will open.
+const canOpenSettings = inIt.has(user!.id) && (members ?? []).find(m => m.user_id === user!.id)?.role === 'owner';
+const settingsHref = `/settings/${appBySlug(project.app)?.path ?? project.app}/${project.slug}`;
+---
+
+<AdminConsole title={project.name} tab="projects" outcome={outcome}>
+  <div class="adm-split adm-split--open">
+    <ProjectList projects={projects ?? []} current={project.id} />
+
+    <section class="adm-panel">
+      <a class="adm-back" href="/admin/projects">← All projects</a>
+      <div class="adm-panel__head">
+        <h2 class="adm-panel__title">{project.name}</h2>
+        <div class="adm-panel__meta">
+          <span>{link ? `Link · ${appName(project.app)}` : appName(project.app)}</span>
+          <a href={projectHref(project)}>{link ? project.external_url : `Open /${project.slug}`}</a>
+          {canOpenSettings && <a href={settingsHref}>{link ? 'Edit link' : 'Project settings'}</a>}
+        </div>
+      </div>
+
+      <div class="adm-section">
+        <h3 class="adm-section__label">Who can see it</h3>
+        <form method="POST" class="adm-row__controls">
+          <input type="hidden" name="action" value="visibility" />
+          <input type="hidden" name="workspace_id" value={project.id} />
+          <select class="adm-select" name="visibility" data-autosave data-focus="visibility" aria-label="Visibility">
+            {VISIBILITIES.map(v => (
+              <option value={v} selected={project.visibility === v}>
+                {v === 'public' ? 'public: anyone, and listed' : v === 'unlisted' ? 'unlisted: anyone with the address' : 'private: members only'}
+              </option>
+            ))}
+          </select>
+          <noscript><button class="adm-btn" type="submit">Set</button></noscript>
+        </form>
+      </div>
+
+      <div class="adm-section">
+        <h3 class="adm-section__label">Members</h3>
+        <div class="adm-rows">
+          {(members ?? []).map(m => {
+            const last = m.role === 'owner' && 1 >= owners;
+            return (
+              <div class="adm-row">
+                <div class="adm-row__what">
+                  <a href={`/admin/people/${m.user_id}`}>{personName(m)}</a>
+                  <span class="adm-item__sub">{m.email} · since {when(m.joined_at)}</span>
+                </div>
+                <div class="adm-row__controls">
+                  {last ? (
+                    <span class="adm-chip adm-chip--owner" title="The only owner. Make someone else an owner first.">only owner</span>
+                  ) : (
+                    <>
+                      <form method="POST">
+                        <input type="hidden" name="action" value="member-role" />
+                        <input type="hidden" name="workspace_id" value={project.id} />
+                        <input type="hidden" name="user_id" value={m.user_id} />
+                        <select class="adm-select" name="role" data-autosave data-focus={`role-${m.user_id}`}
+                                aria-label={`${personName(m)}'s role`}>
+                          {ROLES.map(r => <option value={r} selected={m.role === r}>{r}</option>)}
+                        </select>
+                        <noscript><button class="adm-btn" type="submit">Set</button></noscript>
+                      </form>
+                      <form method="POST" data-confirm={`Remove ${personName(m)} from ${project.name}?`}>
+                        <input type="hidden" name="action" value="member-remove" />
+                        <input type="hidden" name="workspace_id" value={project.id} />
+                        <input type="hidden" name="user_id" value={m.user_id} />
+                        <button class="adm-btn adm-btn--danger" type="submit">Remove</button>
+                      </form>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {others.length > 0 && (
+          <form method="POST" class="adm-form__row">
+            <input type="hidden" name="action" value="member-add" />
+            <input type="hidden" name="workspace_id" value={project.id} />
+            <label class="field">
+              <span class="field__label">Add</span>
+              <select class="field__input" name="user_id" required>
+                {others.map(p => <option value={p.id}>{personName(p)} ({p.email})</option>)}
+              </select>
+            </label>
+            <label class="field field--narrow">
+              <span class="field__label">As</span>
+              <select class="field__input" name="role">
+                {ROLES.map(r => <option value={r}>{r}</option>)}
+              </select>
+            </label>
+            <button class="adm-btn adm-btn--solid" type="submit">Add</button>
+          </form>
+        )}
+        <p class="adm-hint">
+          Someone without an account yet is invited from <a href="/admin/people">People</a>.
+          {1 >= owners && ' To change the only owner, make someone else an owner first.'}
+        </p>
+      </div>
+
+      {!link && (
+        <div class="adm-section">
+          <h3 class="adm-section__label">Activity</h3>
+          <div class="adm-panel__meta">
+            <span>{project.records} record{project.records === 1 ? '' : 's'}</span>
+            <span>{Number(project.ai_spend_usd) > 0 ? `${money(Number(project.ai_spend_usd))} AI this month` : 'no AI spend this month'}</span>
+            <span>created {when(project.created_at)}</span>
+          </div>
+        </div>
+      )}
+    </section>
+  </div>
+</AdminConsole>

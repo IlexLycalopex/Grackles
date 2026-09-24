@@ -1,0 +1,42 @@
+---
+import { sortProjects, isLink, projectKind, type Project } from '../../lib/admin/console';
+
+interface Props {
+  projects: Project[];
+  current?: string;
+}
+
+const { projects, current } = Astro.props;
+// Two groups rather than one per app: nearly every app has one project,
+// usually named after it, so per-app headings mostly repeated the names.
+const groups = new Map<string, Project[]>([['Projects', []], ['Links', []]]);
+for (const p of sortProjects(projects)) groups.get(isLink(p) ? 'Links' : 'Projects')!.push(p);
+
+const host = (url: string | null) => {
+  try { return url ? new URL(url).host : ''; } catch { return ''; }
+};
+const sub = (p: Project) =>
+  isLink(p) ? host(p.external_url) : [projectKind(p), `/${p.slug}`].filter(Boolean).join(' · ');
+---
+
+<nav class="adm-list" aria-label="Projects">
+  {[...groups.entries()].filter(([, rows]) => rows.length).map(([label, rows]) => (
+    <>
+      <div class="adm-list__group">{label}</div>
+      {rows.map(p => (
+        <a class="adm-item" href={`/admin/projects/${p.id}`} aria-current={p.id === current ? 'page' : undefined}>
+          <span>
+            {p.name}
+            <span class="adm-item__sub">{sub(p)}</span>
+          </span>
+          {p.visibility === 'public'
+            ? <span class="adm-chip">{p.members} {p.members === 1 ? 'person' : 'people'}</span>
+            : <span class="adm-chip adm-chip--private">{p.visibility}</span>}
+        </a>
+      ))}
+    </>
+  ))}
+  <div class="adm-list__foot">
+    <a class="adm-btn adm-btn--solid" href="/admin/projects" aria-current={current ? undefined : 'page'}>Add a link</a>
+  </div>
+</nav>

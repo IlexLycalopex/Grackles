@@ -1,0 +1,88 @@
+---
+import AdminConsole from '../../components/admin/AdminConsole.astro';
+import { isAdmin, notFound, handleAction, appName, when, type Outcome } from '../../lib/admin/console';
+
+export const prerender = false;
+
+/**
+ * Every invitation nobody has accepted yet, across every project, with what
+ * can be done about each: send it again, copy its link, or withdraw it.
+ */
+
+const { supabase, user } = Astro.locals;
+if (!(await isAdmin(supabase, user))) return notFound();
+
+let outcome: Outcome | null = null;
+if (Astro.request.method === 'POST') {
+  outcome = await handleAction(supabase, user!, await Astro.request.formData(), Astro.url.origin);
+  if (outcome.redirect) return Astro.redirect(outcome.redirect);
+}
+
+const [{ data: invites }, { data: tokens }] = await Promise.all([
+  supabase.rpc('admin_invites'),
+  // admin_invites() leaves the token out; invites_read admits a platform
+  // admin, so the links come straight from the table.
+  supabase.from('workspace_invites').select('id, token').is('accepted_at', null),
+]);
+const tokenFor = new Map((tokens ?? []).map(t => [t.id, t.token]));
+const origin = Astro.url.origin;
+const now = new Date();
+---
+
+<AdminConsole title="Invitations" tab="invitations" outcome={outcome}>
+  {(invites ?? []).length === 0 ? (
+    <p class="empty">
+      No invitations waiting. <a href="/admin/people">Add or invite someone</a>
+    </p>
+  ) : (
+    <>
+      <div class="adm-table-wrap">
+        <table class="adm-table">
+          <thead>
+            <tr><th>Who</th><th>Into</th><th>May also start</th><th>Sent by</th><th>Expires</th><th></th></tr>
+          </thead>
+          <tbody>
+            {(invites ?? []).map(i => {
+              const expired = new Date(i.expires_at) < now;
+              const token = tokenFor.get(i.id);
+              return (
+                <tr class={expired ? 'adm-stale' : undefined}>
+                  <td>{i.email}</td>
+                  <td>{i.workspace_name ? <>{i.workspace_name} <span class="adm-hint">as {i.role}</span></> : <span class="adm-hint">no project</span>}</td>
+                  <td>{i.grant_apps.length ? i.grant_apps.map(appName).join(', ') : <span class="adm-hint">nothing</span>}</td>
+                  <td class="adm-hint">{i.invited_by ?? 'unknown'}</td>
+                  <td>
+                    {when(i.expires_at)}
+                    {expired && <span class="adm-chip adm-chip--warn">expired</span>}
+                  </td>
+                  <td>
+                    <span class="adm-row__controls">
+                      {!expired && token && (
+                        <button type="button" class="adm-btn" data-copy-from={`${origin}/invite/${token}`}>Copy link</button>
+                      )}
+                      {!expired && (
+                        <form method="POST">
+                          <input type="hidden" name="action" value="resend-invite" />
+                          <input type="hidden" name="invite_id" value={i.id} />
+                          <button class="adm-btn" type="submit">Resend</button>
+                        </form>
+                      )}
+                      <form method="POST" data-confirm={`Revoke the invitation to ${i.email}?`}>
+                        <input type="hidden" name="action" value="revoke-invite" />
+                        <input type="hidden" name="invite_id" value={i.id} />
+                        <button class="adm-btn adm-btn--danger" type="submit">Revoke</button>
+                      </form>
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p class="adm-hint" style="margin-top:0.75rem">
+        An expired invitation cannot be accepted. Revoke it and <a href="/admin/people">invite them again</a>.
+      </p>
+    </>
+  )}
+</AdminConsole>

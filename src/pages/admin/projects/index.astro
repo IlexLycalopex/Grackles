@@ -1,0 +1,76 @@
+---
+import AdminConsole from '../../../components/admin/AdminConsole.astro';
+import ProjectList from '../../../components/admin/ProjectList.astro';
+import { isAdmin, notFound, handleAction, LINKABLE, type Outcome } from '../../../lib/admin/console';
+
+export const prerender = false;
+
+/**
+ * Every project and link, with the form for adding a link beside the list.
+ * A project this site runs is started at /new instead, where the entitlement
+ * is checked and the app's first records are seeded; a link has neither.
+ */
+
+const { supabase, user } = Astro.locals;
+if (!(await isAdmin(supabase, user))) return notFound();
+
+let outcome: Outcome | null = null;
+if (Astro.request.method === 'POST') {
+  outcome = await handleAction(supabase, user!, await Astro.request.formData(), Astro.url.origin);
+  if (outcome.redirect) return Astro.redirect(outcome.redirect);
+}
+
+const { data: projects } = await supabase.rpc('admin_projects');
+---
+
+<AdminConsole title="Projects" tab="projects" outcome={outcome}>
+  <div class="adm-split">
+    <ProjectList projects={projects ?? []} />
+    <section class="adm-panel">
+      <div class="adm-panel__head">
+        <h2 class="adm-panel__title">Add a link</h2>
+        <p class="adm-hint">
+          Puts a site hosted somewhere else on the launcher. To start a project this site runs,
+          use <a href="/new">New project</a>. Pick any project on the left to manage it.
+        </p>
+      </div>
+      <form method="POST" class="adm-form">
+        <input type="hidden" name="action" value="add-link" />
+        <div class="adm-form__row">
+          <label class="field">
+            <span class="field__label">Name</span>
+            <input class="field__input" type="text" name="name" placeholder="Atelier Obscura" required />
+          </label>
+          <label class="field">
+            <span class="field__label">Points at</span>
+            <input class="field__input" type="url" name="url" placeholder="https://example.com/" required />
+          </label>
+        </div>
+        <div class="adm-form__row">
+          <label class="field">
+            <span class="field__label">Address on this site (optional)</span>
+            <input class="field__input" type="text" name="slug" placeholder="made from the name" />
+          </label>
+          <label class="field">
+            <span class="field__label">Filed under</span>
+            <select class="field__input" name="app">
+              {LINKABLE.map(a => <option value={a.slug} selected={a.slug === 'external'}>{a.name}</option>)}
+            </select>
+          </label>
+          <label class="field field--narrow">
+            <span class="field__label">Who sees it</span>
+            <select class="field__input" name="visibility">
+              <option value="public" selected>everyone</option>
+              <option value="private">members only</option>
+            </select>
+          </label>
+        </div>
+        <div><button class="adm-btn adm-btn--solid" type="submit">Add link</button></div>
+        <p class="adm-hint">
+          File it under Elsewhere unless the site is expected to move onto Grackles one day.
+          A private link shows only on the launchers of the people you add to it.
+        </p>
+      </form>
+    </section>
+  </div>
+</AdminConsole>

@@ -1,0 +1,156 @@
+---
+import AdminConsole from '../../components/admin/AdminConsole.astro';
+import {
+  isAdmin, notFound, handleAction, loadMemberships, sortProjects, isLink, projectKind, personName,
+  type Outcome,
+} from '../../lib/admin/console';
+import { accessKey, cellName } from '../../lib/admin/access';
+import { findDuplicates } from '../../lib/admin/duplicates';
+
+export const prerender = false;
+
+/**
+ * Everybody against every project, one cell per membership.
+ *
+ * The whole site's access on one screen, which at this size is the clearest
+ * answer to "who can see what". Cells are collected and applied together, so
+ * a stray click changes nothing until Apply, and a handover of ownership can
+ * be made in one go (see planAccessChanges for the order that needs).
+ *
+ * A project's only owner is shown but locked. The database would refuse the
+ * change anyway; a control that looks usable and then fails is worse than one
+ * that says why it is not.
+ */
+
+const { supabase, user } = Astro.locals;
+if (!(await isAdmin(supabase, user))) return notFound();
+
+let outcome: Outcome | null = null;
+if (Astro.request.method === 'POST') {
+  outcome = await handleAction(supabase, user!, await Astro.request.formData(), Astro.url.origin);
+  if (outcome.redirect) return Astro.redirect(outcome.redirect);
+}
+
+const [{ data: people }, { data: projects }] = await Promise.all([
+  supabase.rpc('admin_people'),
+  supabase.rpc('admin_projects'),
+]);
+const memberships = await loadMemberships(supabase, people ?? []);
+const columns = sortProjects(projects ?? []);
+const firstLink = columns.findIndex(isLink);
+const duplicates = findDuplicates(people ?? []);
+
+const owners = new Map<string, number>();
+for (const [key, role] of memberships) {
+  if (role !== 'owner') continue;
+  const ws = key.split(':')[0];
+  owners.set(ws, (owners.get(ws) ?? 0) + 1);
+}
+
+const OPTIONS: [string, string][] = [['', '—'], ['viewer', 'viewer'], ['editor', 'editor'], ['owner', 'owner']];
+---
+
+<AdminConsole title="Access" tab="access" outcome={outcome}>
+  <p class="page-intro" style="margin:0 0 1rem">
+    Everyone down the side, every project across the top. Change any cell, then Apply.
+    Nothing is saved until you do.
+  </p>
+  <div class="adm-legend">
+    <span class="adm-chip adm-chip--owner">owner</span> manages the project and who is in it
+    <span class="adm-chip adm-chip--editor">editor</span> adds and changes entries
+    <span class="adm-chip adm-chip--viewer">viewer</span> reads a private project
+    <span>— no access beyond what is public</span>
+  </div>
+
+  <form method="POST" data-grid>
+    <input type="hidden" name="action" value="access" />
+    <div class="adm-grid-wrap">
+      <table class="adm-grid">
+        <thead>
+          <tr>
+            <th scope="col"><span class="adm-grid__app">Person</span></th>
+            {columns.map((p, i) => (
+              <th scope="col" class={i === firstLink ? 'adm-grid__links' : undefined}>
+                {projectKind(p) && <span class="adm-grid__app">{projectKind(p)}</span>}
+                <a href={`/admin/projects/${p.id}`}>{p.name}</a>
+                <span class="adm-grid__vis">{p.visibility}</span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {(people ?? []).map(person => (
+            <tr>
+              <th scope="row">
+                <a href={`/admin/people/${person.id}`}>{personName(person)}</a>
+                {person.is_admin && <span class="adm-chip adm-chip--admin">admin</span>}
+                {duplicates.has(person.id) && <span class="adm-chip adm-chip--warn" title={`Looks like ${duplicates.get(person.id)!.map(personName).join(', ')}`}>duplicate?</span>}
+                <small>{person.email}</small>
+              </th>
+              {columns.map((p, i) => {
+                const role = memberships.get(accessKey(p.id, person.id)) ?? '';
+                const locked = role === 'owner' && 1 >= (owners.get(p.id) ?? 0);
+                return (
+                  <td class={i === firstLink ? 'adm-grid__links' : undefined}>
+                    <select
+                      class="adm-cell"
+                      name={cellName(p.id, person.id)}
+                      data-role={role}
+                      data-was={role}
+                      disabled={locked}
+                      title={locked ? `${personName(person)} is the only owner of ${p.name}. Make someone else an owner first.` : `${personName(person)} in ${p.name}`}
+                      aria-label={`${personName(person)} in ${p.name}`}
+                    >
+                      {OPTIONS.map(([value, label]) => (
+                        <option value={value} selected={value === role}>{label}</option>
+                      ))}
+                    </select>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="adm-grid-bar">
+      <span data-grid-count>Change any cell, then apply.</span>
+      <span class="adm-grid-bar__actions">
+        <button type="reset" class="adm-btn" data-grid-reset>Undo changes</button>
+        <button type="submit" class="adm-btn adm-btn--solid">Apply</button>
+      </span>
+    </div>
+  </form>
+  <p class="adm-hint" style="margin-top:0.75rem">
+    Locked cells are a project's only owner. To hand a project over, make the new person
+    owner and the old one editor in the same Apply. Links are sites hosted elsewhere; access to
+    a private link decides who sees it on their launcher.
+  </p>
+</AdminConsole>
+
+<script>
+  // Colour a cell by its new value and count what is waiting. Delegated, so
+  // it keeps working after the console is swapped in place.
+  const refresh = (form: HTMLFormElement) => {
+    const cells = [...form.querySelectorAll<HTMLSelectElement>('select.adm-cell')];
+    let n = 0;
+    for (const c of cells) {
+      c.dataset.role = c.value;
+      const changed = c.value !== (c.dataset.was ?? '');
+      c.toggleAttribute('data-changed', changed);
+      if (changed) n++;
+    }
+    const label = form.querySelector('[data-grid-count]');
+    if (label) label.textContent = n === 0 ? 'Change any cell, then apply.' : `${n} change${n === 1 ? '' : 's'} waiting.`;
+  };
+
+  document.addEventListener('change', e => {
+    const form = (e.target as HTMLElement).closest?.('form[data-grid]') as HTMLFormElement | null;
+    if (form) refresh(form);
+  });
+  document.addEventListener('reset', e => {
+    const form = e.target as HTMLFormElement;
+    if (form.matches?.('form[data-grid]')) setTimeout(() => refresh(form));
+  });
+</script>

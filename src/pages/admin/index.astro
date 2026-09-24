@@ -1,538 +1,124 @@
 ---
-import AppShell from '../../layouts/AppShell.astro';
-import { loadEntitlements, describeGrantError } from '../../lib/grants';
-import { APPS, appBySlug, HOSTED_APPS, projectHref } from '../../lib/apps';
-import { slugify } from '../../lib/slug';
+import AdminConsole from '../../components/admin/AdminConsole.astro';
+import { isAdmin, notFound, handleAction, personName, when, type Outcome } from '../../lib/admin/console';
+import { findDuplicates } from '../../lib/admin/duplicates';
 import { money } from '../../lib/ai/usage';
-import type { AppSlug, MemberRole, Visibility } from '../../lib/database.types';
 
 export const prerender = false;
 
 /**
- * Everything on the site, for whoever runs it.
+ * The console's front page: the numbers, and anything that wants doing.
  *
- * 404 rather than 403 for everyone else, matching how a private workspace
- * behaves: a page that refuses differently from a page that does not exist is a
- * page that confirms it exists.
- *
- * Every read here goes through a SECURITY DEFINER function rather than a
- * widened policy, for the reason ai_admin_spend() already established — the
- * policies are right for every other page on the site, and this one needs a
- * different question asked by somebody entitled to ask it.
- *
- * Metadata and counts, never contents. An admin can see that a private Cigar
- * Lounge holds forty entries and who may read it; they cannot read the entries.
- * Being able to administer a project is not the same as being able to read it.
+ * "Needs attention" is deliberately short. It lists only things with a clear
+ * next step — two accounts that look like one person and both still hold
+ * something, an invitation that expired unaccepted — because a list that is
+ * never empty is a list nobody reads.
  */
 
 const { supabase, user } = Astro.locals;
-const notFound = new Response('Not found', { status: 404 });
+if (!(await isAdmin(supabase, user))) return notFound();
 
-if (!user) return notFound;
-const { isPlatformAdmin } = await loadEntitlements(supabase, user.id);
-if (!isPlatformAdmin) return notFound;
-
-// What a link may be filed under: everything this repo does not serve. The
-// hosted apps are missing on purpose — a project in one of those is something
-// this site runs, and /new is where it is started, with the entitlement check
-// that goes with it. 'external' is first because it is the answer nearly every
-// time; the other four are there for a site that is expected to move in and
-// wants its own identity before it does.
-const LINKABLE = APPS.filter(a => !a.hosted);
-
-let error: string | null = null;
-let notice: string | null = null;
-
-const SAYS: Record<string, string> = {
-  GRK20: 'That is the last platform admin — somebody has to be able to hand out entitlements.',
-  GRK21: 'That is the last owner of that project, and a project with no owner cannot be administered.',
-};
-
+let outcome: Outcome | null = null;
 if (Astro.request.method === 'POST') {
-  const form = await Astro.request.formData();
-  const action = String(form.get('action') ?? '');
-  const str = (k: string) => String(form.get(k) ?? '').trim();
-
-  // PromiseLike rather than Promise: PostgREST's builder is thenable but is not
-  // a Promise, and awaiting it is the only thing this needs of it.
-  const call = async (
-    fn: () => PromiseLike<{ error: { code?: string; message: string } | null }>,
-    said: string
-  ) => {
-    const { error: e } = await fn();
-    // The custom SQLSTATEs carry messages that name columns and thresholds —
-    // right in a log, wrong on a page. Same table-of-sentences approach as
-    // describeGrantError, which is where these codes' siblings live.
-    error = e ? (SAYS[e.code ?? ''] ?? e.message) : null;
-    if (!e) notice = said;
-  };
-
-  if (action === 'admin') {
-    await call(
-      () => supabase.rpc('admin_set_platform_admin', {
-        p_user: str('user_id'),
-        p_is_admin: form.get('is_admin') !== null,
-      }),
-      'Platform admins updated.'
-    );
-  }
-
-  if (action === 'grant') {
-    await call(
-      () => supabase.rpc('admin_set_grant', {
-        p_user: str('user_id'),
-        p_app: str('app') as AppSlug,
-        p_max: Number(str('max')) || 0,
-      }),
-      Number(str('max')) > 0 ? 'Granted.' : 'Withdrawn.'
-    );
-  }
-
-  if (action === 'add-link') {
-    const name = str('name');
-    const url = str('url');
-    // Same rule as /new and the settings page: an empty address means "use the
-    // name", because the tidy version of it is what somebody would have typed.
-    const slug = slugify(str('slug') || name);
-    const app = LINKABLE.some(a => a.slug === str('app')) ? (str('app') as AppSlug) : 'external';
-
-    if (!name) {
-      error = 'Give the link a name — it is what appears on the launcher.';
-    } else if (!slug) {
-      error = 'That name has no letters or numbers in it, so it cannot become an address. Set one below.';
-    } else if (!/^https?:\/\//.test(url)) {
-      error = 'A link has to point at an http:// or https:// address.';
-    } else {
-      // describeGrantError rather than the table above: add_link() raises the
-      // same GRK04 create_workspace() does, and that sentence is already
-      // written in one place.
-      const { error: e } = await supabase.rpc('add_link', {
-        p_name: name,
-        p_url: url,
-        p_slug: slug,
-        p_app: app,
-        p_visibility: str('visibility') === 'private' ? 'private' : 'public',
-      });
-
-      error = e ? describeGrantError(e) : null;
-      if (!e) notice = `${name} is on your launcher.`;
-    }
-  }
-
-  if (action === 'visibility') {
-    await call(
-      () => supabase.rpc('admin_set_visibility', {
-        p_workspace: str('workspace_id'),
-        p_visibility: str('visibility') as Visibility,
-      }),
-      'Visibility changed.'
-    );
-  }
-
-  if (action === 'member-role') {
-    await call(
-      () => supabase.rpc('admin_set_member_role', {
-        p_workspace: str('workspace_id'),
-        p_user: str('user_id'),
-        p_role: str('role') as MemberRole,
-      }),
-      'Role changed.'
-    );
-  }
-
-  if (action === 'member-remove') {
-    await call(
-      () => supabase.rpc('admin_remove_member', {
-        p_workspace: str('workspace_id'),
-        p_user: str('user_id'),
-      }),
-      'Member removed.'
-    );
-  }
-
-  if (action === 'revoke-invite') {
-    await call(() => supabase.rpc('admin_revoke_invite', { p_invite: str('invite_id') }), 'Invitation revoked.');
-  }
+  outcome = await handleAction(supabase, user!, await Astro.request.formData(), Astro.url.origin);
+  if (outcome.redirect) return Astro.redirect(outcome.redirect);
 }
 
-const [{ data: overview }, { data: projects }, { data: people }, { data: invites }] =
-  await Promise.all([
-    supabase.rpc('admin_overview'),
-    supabase.rpc('admin_projects'),
-    supabase.rpc('admin_people'),
-    supabase.rpc('admin_invites'),
-  ]);
-
+const [{ data: overview }, { data: people }, { data: invites }] = await Promise.all([
+  supabase.rpc('admin_overview'),
+  supabase.rpc('admin_people'),
+  supabase.rpc('admin_invites'),
+]);
 const totals = overview?.[0];
+type P = NonNullable<typeof people>[number];
 
-// Every roster up front rather than on open. A site this size is a handful of
-// queries; a disclosure that has to round-trip before it shows anything is one
-// nobody opens twice, and progressive enhancement for eight projects would be
-// more machinery than the thing it enhances.
-const rosters = new Map(
-  await Promise.all(
-    (projects ?? []).map(async p => {
-      const { data } = await supabase.rpc('admin_members', { p_workspace: p.id });
-      return [p.id, data ?? []] as const;
-    })
-  )
-);
+// Somebody holds something if they are in a project or may start one. An old
+// account holding nothing is harmless, and flagging it for ever would teach
+// the admin to ignore this list.
+const holds = (p: P) => p.memberships > 0 || Object.values(p.grants ?? {}).some(n => n > 0);
 
-const VISIBILITIES: Visibility[] = ['private', 'unlisted', 'public'];
-const ROLES: MemberRole[] = ['owner', 'editor', 'viewer'];
-
-
-const when = (iso: string) =>
-  new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-
-// Grouped by app, because that is how somebody thinks about this site — eight
-// sites, some of which have moved in.
-const byApp = new Map<AppSlug, typeof projects>();
-for (const p of projects ?? []) {
-  byApp.set(p.app, [...(byApp.get(p.app) ?? []), p]);
+const seen = new Set<string>();
+const duplicates: [P, P][] = [];
+for (const [id, twins] of findDuplicates(people ?? [])) {
+  const a = (people ?? []).find(p => p.id === id)!;
+  for (const b of twins) {
+    const pair = [a.id, b.id].sort().join();
+    if (seen.has(pair) || !(holds(a) && holds(b))) continue;
+    seen.add(pair);
+    duplicates.push([a, b]);
+  }
 }
+
+const expired = (invites ?? []).filter(i => new Date(i.expires_at) < new Date());
+const newest = [...(people ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 3);
 ---
 
-<AppShell title="Platform · Grackles">
-  <h1 class="page-title">Platform</h1>
-  <p class="page-intro">
-    Everything on the site. <a href="/admin/ai">AI controls</a> are separate, because
-    they are the only part that spends money and wants watching on its own.
-  </p>
-
-  {error && <p class="notice notice--error" role="alert">{error}</p>}
-  {notice && <p class="notice notice--ok">{notice}</p>}
-
+<AdminConsole title="Overview" tab="overview" outcome={outcome}>
   {totals && (
-    <div class="adm-summary">
-      <div class="adm-stat">
-        <span class="adm-stat__value">{totals.projects}</span>
-        <span class="adm-stat__label">
-          projects · {totals.public_projects} public
-          {totals.external > 0 && ` · ${totals.external} still elsewhere`}
-        </span>
-      </div>
-      <div class="adm-stat">
+    <div class="adm-stats">
+      <a class="adm-stat" href="/admin/people">
         <span class="adm-stat__value">{totals.people}</span>
         <span class="adm-stat__label">people · {totals.admins} admin{totals.admins === 1 ? '' : 's'}</span>
-      </div>
-      <div class="adm-stat">
+      </a>
+      <a class="adm-stat" href="/admin/projects">
+        <span class="adm-stat__value">{totals.projects}</span>
+        <span class="adm-stat__label">projects · {totals.public_projects} public</span>
+      </a>
+      <a class="adm-stat" href="/admin/access">
         <span class="adm-stat__value">{totals.memberships}</span>
-        <span class="adm-stat__label">
-          memberships
-          {totals.pending_invites > 0 && ` · ${totals.pending_invites} invited`}
-        </span>
-      </div>
-      <div class="adm-stat">
+        <span class="adm-stat__label">memberships</span>
+      </a>
+      <a class="adm-stat" href="/admin/invitations">
+        <span class="adm-stat__value">{totals.pending_invites}</span>
+        <span class="adm-stat__label">invitations waiting</span>
+      </a>
+      <a class="adm-stat" href="/admin/ai">
         <span class="adm-stat__value">{money(Number(totals.ai_spend_usd))}</span>
-        <span class="adm-stat__label">
-          AI this month
-          {totals.ai_jobs_running > 0 && ` · ${totals.ai_jobs_running} running`}
-        </span>
-      </div>
+        <span class="adm-stat__label">AI this month{totals.ai_jobs_running > 0 && ` · ${totals.ai_jobs_running} running`}</span>
+      </a>
     </div>
   )}
 
-  <p class="section-label">Add a link</p>
-  <p class="page-intro">
-    A site served from somewhere else, on your launcher. Everything this site runs is
-    started at <a href="/new">/new</a> instead, where the entitlement is checked and the
-    app's first records are seeded — a link has neither.
-  </p>
-  <form method="POST" class="adm-link-form">
-    <input type="hidden" name="action" value="add-link" />
-    <label class="field">
-      <span class="field__label">Name</span>
-      <input class="field__input" type="text" name="name" placeholder="Atelier Obscura" required />
-    </label>
-    <label class="field">
-      <span class="field__label">Points at</span>
-      <input class="field__input" type="url" name="url" placeholder="https://example.com/" required />
-    </label>
-    <label class="field">
-      <span class="field__label">Address (optional)</span>
-      <input class="field__input" type="text" name="slug" placeholder="from the name" />
-    </label>
-    <label class="field">
-      <span class="field__label">Filed under</span>
-      <select class="field__input" name="app">
-        {LINKABLE.map(a => (
-          <option value={a.slug} selected={a.slug === 'external'}>{a.name}</option>
-        ))}
-      </select>
-    </label>
-    <label class="field">
-      <span class="field__label">Who can see it</span>
-      <select class="field__input" name="visibility">
-        <option value="public" selected>public</option>
-        <option value="private">private</option>
-      </select>
-    </label>
-    <button class="button" type="submit">Add</button>
-  </form>
-  <p class="adm-hint">
-    <strong>Elsewhere</strong> is the answer unless the site is expected to move into this
-    repo one day — those four keep an app of their own so that moving one in is a cleared
-    column rather than a re-keyed project. Afterwards the name, the address, where it points
-    and deleting it are all on the link's own settings page.
-  </p>
-
-  <p class="section-label">Projects</p>
-  <p class="page-intro">
-    Counts, not contents. A private project's entries stay private — being able to
-    administer one is not the same as being able to read it.
-  </p>
-
-  {[...byApp.entries()].map(([app, rows]) => (
-    <>
-      <p class="adm-app">{appBySlug(app)?.name ?? app}</p>
-      <table class="adm-table">
-        <thead>
-          <tr>
-            <th>Project</th><th>Owner</th><th class="num">Members</th>
-            <th class="num">Records</th><th class="num">AI</th><th>Visibility</th><th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {(rows ?? []).map(p => (
-            <tr>
-              <td>
-                <a href={projectHref(p)}>{p.name}</a>
-                <span class="adm-muted"> /{p.slug}</span>
-                {p.external_url && <span class="adm-flag">elsewhere</span>}
-              </td>
-              <td>
-                {p.owner_name ?? <span class="adm-muted">nobody</span>}
-                {p.owner_email && <span class="adm-muted"> · {p.owner_email}</span>}
-              </td>
-              <td class="num">{p.members}</td>
-              <td class="num">
-                {p.external_url ? <span class="adm-muted">—</span> : p.records}
-              </td>
-              <td class="num">
-                {Number(p.ai_spend_usd) > 0 ? money(Number(p.ai_spend_usd)) : <span class="adm-muted">—</span>}
-              </td>
-              <td>
-                <form method="POST" class="inline-form">
-                  <input type="hidden" name="action" value="visibility" />
-                  <input type="hidden" name="workspace_id" value={p.id} />
-                  <select class="field__input field__input--auto" name="visibility"
-                          onchange="this.form.requestSubmit()">
-                    {VISIBILITIES.map(v => (
-                      <option value={v} selected={p.visibility === v}>{v}</option>
-                    ))}
-                  </select>
-                  <noscript><button class="button button--quiet" type="submit">Set</button></noscript>
-                </form>
-              </td>
-            </tr>
-            <tr class="adm-roster-row">
-              <td colspan="7">
-                <details>
-                  <summary class="adm-muted">
-                    {p.members} member{p.members === 1 ? '' : 's'}
-                  </summary>
-                  <ul class="adm-roster">
-                    {(rosters.get(p.id) ?? []).map(m => (
-                      <li>
-                        <span class="adm-roster__who">
-                          {m.display_name || m.email}
-                          <span class="adm-muted"> {m.email}</span>
-                        </span>
-                        <form method="POST" class="inline-form">
-                          <input type="hidden" name="action" value="member-role" />
-                          <input type="hidden" name="workspace_id" value={p.id} />
-                          <input type="hidden" name="user_id" value={m.user_id} />
-                          <select class="field__input field__input--auto" name="role">
-                            {ROLES.map(r => (
-                              <option value={r} selected={m.role === r}>{r}</option>
-                            ))}
-                          </select>
-                          <button class="button button--quiet" type="submit">Set</button>
-                        </form>
-                        <form method="POST" class="inline-form">
-                          <input type="hidden" name="action" value="member-remove" />
-                          <input type="hidden" name="workspace_id" value={p.id} />
-                          <input type="hidden" name="user_id" value={m.user_id} />
-                          <button class="button button--quiet" type="submit">Remove</button>
-                        </form>
-                      </li>
-                    ))}
-                  </ul>
-                  <p class="page-intro adm-hint">
-                    The last owner cannot be demoted or removed — a project nobody
-                    owns is a project nobody can administer.
-                    {p.owner_id === user.id && (
-                      <> This one is yours; <a href={`/settings/${appBySlug(p.app)?.path ?? p.app}/${p.slug}`}>its own settings page</a> can invite people too.</>
-                    )}
-                  </p>
-                </details>
-              </td>
-            </tr>
+  <div class="adm-overview">
+    <section class="adm-section">
+      <h2 class="adm-section__label">Needs attention</h2>
+      {duplicates.length === 0 && expired.length === 0 ? (
+        <p class="adm-hint">Nothing. Duplicate accounts and expired invitations will show up here.</p>
+      ) : (
+        <ul class="adm-list-plain">
+          {duplicates.map(([a, b]) => (
+            <li class="adm-attention">
+              <a href={`/admin/people/${a.id}`}><strong>{personName(a)}</strong></a> and{' '}
+              <a href={`/admin/people/${b.id}`}><strong>{personName(b)}</strong></a> may be the same person
+              ({a.email} and {b.email}). Both still have access. Withdraw it from the account they do not use.
+            </li>
           ))}
-        </tbody>
-      </table>
-    </>
-  ))}
+          {expired.length > 0 && (
+            <li class="adm-attention">
+              {expired.length} invitation{expired.length === 1 ? ' has' : 's have'} expired without being accepted.{' '}
+              <a href="/admin/invitations">Resend or revoke</a>
+            </li>
+          )}
+        </ul>
+      )}
+    </section>
 
-  <p class="section-label">People</p>
-  <p class="page-intro">
-    The four facts that decide what somebody can do here — admin, what they may
-    create, what they may spend, what they belong to — live in four tables and
-    have never been visible together. Handing them out one screen at a time is
-    how somebody ends up with an allowance and nothing to spend it on.
-  </p>
-
-  {(people ?? []).map(person => (
-    <div class="adm-person">
-      <div class="adm-person__head">
-        <strong>{person.display_name || person.email}</strong>
-        <span class="adm-muted"> {person.email}</span>
-        {person.is_admin && <span class="adm-flag">platform admin</span>}
+    <section class="adm-section">
+      <h2 class="adm-section__label">Quick actions</h2>
+      <div class="adm-quick">
+        <a class="adm-btn adm-btn--solid" href="/admin/people">Add or invite someone</a>
+        <a class="adm-btn" href="/admin/access">Change who can see what</a>
+        <a class="adm-btn" href="/admin/projects">Add a link</a>
       </div>
-
-      <div class="adm-person__facts">
-        <span>{person.owns} owned</span>
-        <span>{person.memberships} member of</span>
-        <span>
-          {person.ai_monthly_usd === null
-            ? 'no AI allowance'
-            : `${money(Number(person.ai_monthly_usd))}/month${person.ai_enabled ? '' : ' (off)'}`}
-          {Number(person.ai_spend_usd) > 0 && ` · ${money(Number(person.ai_spend_usd))} spent`}
-        </span>
-        <span class="adm-muted">joined {when(person.created_at)}</span>
-      </div>
-
-      <form method="POST" class="adm-person__row">
-        <input type="hidden" name="action" value="admin" />
-        <input type="hidden" name="user_id" value={person.id} />
-        <label class="grant-picker__option">
-          <input type="checkbox" name="is_admin" checked={person.is_admin} />
-          platform admin
-        </label>
-        <button class="button button--quiet" type="submit">Save</button>
-      </form>
-
-      <div class="adm-person__row">
-        {HOSTED_APPS.map(a => (
-          <form method="POST" class="inline-form">
-            <input type="hidden" name="action" value="grant" />
-            <input type="hidden" name="user_id" value={person.id} />
-            <input type="hidden" name="app" value={a.slug} />
-            <label class="grant-picker__option">
-              {a.name}
-              <input class="field__input field__input--auto" type="number" min="0" max="20"
-                     name="max" value={person.grants?.[a.slug] ?? 0} />
-            </label>
-            <button class="button button--quiet" type="submit">Set</button>
-          </form>
+      <h2 class="adm-section__label" style="margin-top:1rem">Newest accounts</h2>
+      <ul class="adm-list-plain">
+        {newest.map(p => (
+          <li>
+            <a href={`/admin/people/${p.id}`}>{personName(p)}</a>
+            <span class="adm-hint"> · joined {when(p.created_at)} · {p.memberships} project{p.memberships === 1 ? '' : 's'}</span>
+          </li>
         ))}
-      </div>
-      <p class="page-intro adm-hint">
-        How many projects they may start in each app. Zero withdraws it. Owning one
-        already spends one of them — an admin is unmetered and does not need any.
-      </p>
-    </div>
-  ))}
-
-  {(invites ?? []).length > 0 && (
-    <>
-      <p class="section-label">Invitations outstanding</p>
-      <table class="adm-table">
-        <thead>
-          <tr><th>Who</th><th>To</th><th>As</th><th>Also gets</th><th>From</th><th>Expires</th><th></th></tr>
-        </thead>
-        <tbody>
-          {(invites ?? []).map(i => (
-            <tr class={new Date(i.expires_at) < new Date() ? 'adm-stale' : ''}>
-              <td>{i.email}</td>
-              <td>{i.workspace_name ?? <span class="adm-muted">nothing — creation only</span>}</td>
-              <td>{i.workspace_name ? i.role : <span class="adm-muted">—</span>}</td>
-              <td>
-                {i.grant_apps.length > 0
-                  ? i.grant_apps.map(a => appBySlug(a)?.name ?? a).join(', ')
-                  : <span class="adm-muted">—</span>}
-              </td>
-              <td class="adm-muted">{i.invited_by ?? '—'}</td>
-              <td>
-                {when(i.expires_at)}
-                {new Date(i.expires_at) < new Date() && <span class="adm-flag">expired</span>}
-              </td>
-              <td>
-                <form method="POST" class="inline-form">
-                  <input type="hidden" name="action" value="revoke-invite" />
-                  <input type="hidden" name="invite_id" value={i.id} />
-                  <button class="button button--quiet" type="submit">Revoke</button>
-                </form>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
-  )}
-</AppShell>
-
-<style>
-  /* Wraps to one row per field on a phone and sits on one line on a desk,
-     which is the shape of every other form on this page. */
-  .adm-link-form {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 0.75rem;
-    margin-bottom: 0.5rem;
-  }
-  .adm-link-form .field { margin-bottom: 0; flex: 1 1 12rem; }
-  .adm-link-form .button { flex: 0 0 auto; }
-
-  .adm-summary { display: flex; flex-wrap: wrap; gap: 2rem; margin: 1.5rem 0; }
-  .adm-stat { display: flex; flex-direction: column; }
-  .adm-stat__value { font-size: 1.75rem; font-weight: 600; line-height: 1.1; }
-  .adm-stat__label { font-size: 0.85rem; opacity: 0.7; }
-
-  .adm-app { font-weight: 600; margin: 1.2rem 0 0.3rem; }
-
-  .adm-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.9rem; }
-  .adm-table th, .adm-table td {
-    text-align: left; padding: 0.4rem 0.6rem 0.4rem 0;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08); vertical-align: top;
-  }
-  .adm-table th { font-weight: 600; opacity: 0.7; font-size: 0.8rem; }
-  .adm-table .num { text-align: right; font-variant-numeric: tabular-nums; }
-  .adm-table .inline-form { margin: 0; }
-  .adm-stale td { opacity: 0.5; }
-
-  .adm-person {
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-    padding: 0.9rem 0;
-  }
-  .adm-person__head { margin-bottom: 0.2rem; }
-  .adm-person__facts {
-    display: flex; flex-wrap: wrap; gap: 1.2rem;
-    font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.5rem;
-  }
-  .adm-person__row {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;
-    margin-bottom: 0.4rem;
-  }
-  .adm-person__row .inline-form { margin: 0; display: flex; align-items: center; gap: 0.4rem; }
-  .adm-person__row input[type="number"] { width: 4rem; }
-  .adm-hint { font-size: 0.8rem; margin: 0; }
-
-  .adm-roster-row td { border-bottom: 1px solid rgba(0, 0, 0, 0.08); padding-bottom: 0.5rem; }
-  .adm-roster-row summary { cursor: pointer; font-size: 0.85rem; }
-  .adm-roster { list-style: none; padding: 0.4rem 0 0; margin: 0; }
-  .adm-roster li {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem;
-    padding: 0.2rem 0; font-size: 0.9rem;
-  }
-  .adm-roster__who { min-width: 16rem; }
-  .adm-roster .inline-form { margin: 0; display: flex; gap: 0.3rem; }
-
-  .adm-muted { opacity: 0.55; }
-  .adm-flag {
-    margin-left: 0.5rem; font-size: 0.75rem; padding: 0.05rem 0.4rem;
-    border-radius: 3px; background: rgba(0, 0, 0, 0.08);
-  }
-</style>
+      </ul>
+    </section>
+  </div>
+</AdminConsole>

@@ -692,6 +692,39 @@ off production afterwards: `anon` holds nothing on any `cp_` table or function,
 the two `app.` helpers are executable by nobody but their owner. The workspace
 `/learn/jamie` was created at the same time, private, owned by Jamie.
 
+### People (2026-09-24)
+
+| Migration | What it does |
+| --- | --- |
+| `20260924130000_admin_people` | `admin_person_projects()` — every project one person is in, and as what; `admin_add_member()` — a platform admin puts somebody who already has an account straight into any project |
+| `20260924130100_admin_people_grants` | Withdraws the EXECUTE on both that Supabase's default privileges had given `anon` — found by reading state back, as `20260917130000` was |
+
+`/admin` is organised by project; `/admin/people` is the other axis. Nothing
+here is new authority — an admin could already change anyone's role in any
+project — only the missing half of it: adding somebody without sending an
+invitation to an address that already has an account. `admin_add_member`
+refuses (`GRK24`) rather than overwrites when they are already in, so "add as
+viewer" cannot quietly demote an owner, and withdraws any invitation still
+waiting for them to that project.
+
+Its invitation clean-up compares with `lower()` although both columns are
+citext: citext's operators live in `extensions`, which is not on the function's
+search_path, so a bare `=` falls back to text equality and is case-sensitive.
+`tests/people.sh` (13 checks) caught it, and runs after `admin.sh` on the same
+cluster.
+
+**Applied 2026-09-24.** Verified first against a cluster built from
+`tests/baseline.sql` and every migration, with `test.sh` (50),
+`blackletter.sh` (20), `ai.sh` (112), `admin.sh` (21) and `people.sh` (13)
+passing. Read back off production afterwards: both functions are
+SECURITY DEFINER with `search_path = public, pg_temp`, executable by
+`authenticated` and not `anon`, and `admin_person_projects` called as Jamie
+returns what the tables hold.
+
+**Still open:** the eleven `admin_` functions from `20260814101800` are
+executable by `anon` for the same reason. Each raises 42501 for a non-admin, so
+nothing is exposed, but they want the same revoke in a migration of their own.
+
 ## Verifying
 
 `tests/` contains a reconstruction of the pre-migration schema plus Supabase
@@ -709,6 +742,7 @@ tests/test.sh
 tests/blackletter.sh
 tests/ai.sh
 tests/admin.sh
+tests/people.sh
 ```
 
 **All four suites want a fresh database, in that order.** `test.sh` writes rows

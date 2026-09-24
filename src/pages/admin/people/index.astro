@@ -1,0 +1,37 @@
+---
+import AdminConsole from '../../../components/admin/AdminConsole.astro';
+import PeopleList from '../../../components/admin/PeopleList.astro';
+import InviteForm from '../../../components/admin/InviteForm.astro';
+import { isAdmin, notFound, handleAction, type Outcome } from '../../../lib/admin/console';
+
+export const prerender = false;
+
+/** Everybody, with the form for bringing somebody new in beside the list. */
+
+const { supabase, user } = Astro.locals;
+if (!(await isAdmin(supabase, user))) return notFound();
+
+let outcome: Outcome | null = null;
+if (Astro.request.method === 'POST') {
+  outcome = await handleAction(supabase, user!, await Astro.request.formData(), Astro.url.origin);
+  if (outcome.redirect) return Astro.redirect(outcome.redirect);
+}
+
+const [{ data: people }, { data: projects }] = await Promise.all([
+  supabase.rpc('admin_people'),
+  supabase.rpc('admin_projects'),
+]);
+---
+
+<AdminConsole title="People" tab="people" outcome={outcome}>
+  <div class="adm-split">
+    <PeopleList people={people ?? []} />
+    <section class="adm-panel">
+      <div class="adm-panel__head">
+        <h2 class="adm-panel__title">Add or invite someone</h2>
+        <p class="adm-hint">Or pick a person on the left to see and change everything they can reach.</p>
+      </div>
+      <InviteForm projects={projects ?? []} />
+    </section>
+  </div>
+</AdminConsole>
