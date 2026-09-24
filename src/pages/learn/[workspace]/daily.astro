@@ -1,0 +1,78 @@
+---
+import CpLayout from '../../../layouts/CpLayout.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { deckBySlug } from '../../../lib/commonplace/decks';
+import { clock } from '../../../lib/commonplace/server';
+
+export const prerender = false;
+
+/**
+ * Today's challenge: ten places, the same for everybody in the project, one go
+ * each. Before playing it is a start button; after, the scoreboard.
+ *
+ * The scoreboard is counts and times from cp_daily_scores(), never the places,
+ * so it is safe to show to somebody who has not played yet.
+ */
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'commonplace', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+
+const base = `/learn/${workspace.slug}`;
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date());
+
+const [{ data: daily }, { data: scores }] = await Promise.all([
+  supabase.from('cp_daily').select('id, deck_ref').eq('workspace_id', workspace.id).eq('day', today).maybeSingle(),
+  supabase.rpc('cp_daily_scores', { p_workspace: workspace.id }),
+]);
+const mine = (scores ?? []).find(s => s.user_id === user.id);
+const deck = daily ? deckBySlug(daily.deck_ref) : null;
+const nice = new Date(`${today}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+---
+
+<CpLayout title={`Daily challenge · ${workspace.name}`} workspace={workspace}>
+  <main class="container cp-daily">
+    <header class="page-header">
+      <p class="eyebrow">Daily challenge · {nice}</p>
+      <h1 class="page-title">{deck ? deck.title : 'Ten places'}</h1>
+      <p class="page-intro">
+        Ten places to name, the same ten for everyone here. Three tries each, hints allowed, one go a day.
+        The map changes daily.
+      </p>
+    </header>
+
+    {
+      !mine && (
+        <p><a class="cp-button cp-button--big" href={`${base}/play/daily`}>Play today’s</a></p>
+      )
+    }
+    {
+      mine && !mine.finished && (
+        <p class="cp-quiet">You started today’s and did not finish it. Today’s go is spent; the scoreboard shows what was saved.</p>
+      )
+    }
+
+    {
+      (scores ?? []).length > 0 && (
+        <section>
+          <h2 class="section-label">Today</h2>
+          <table class="cp-table cp-scores">
+            <thead><tr><th></th><th>Known</th><th>Hinted</th><th>Revealed</th><th>Time</th></tr></thead>
+            <tbody>
+              {(scores ?? []).map((s, i) => (
+                <tr data-me={s.user_id === user.id ? '' : undefined}>
+                  <td>{s.finished ? `${i + 1}. ` : ''}{s.display_name}</td>
+                  <td>{s.finished ? `${s.clean + s.close} / ${s.total}` : 'playing'}</td>
+                  <td>{s.finished ? s.hinted : ''}</td>
+                  <td>{s.finished ? s.revealed : ''}</td>
+                  <td>{s.duration_ms != null ? clock(s.duration_ms) : ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )
+    }
+  </main>
+</CpLayout>

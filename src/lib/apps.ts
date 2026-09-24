@@ -60,6 +60,13 @@ export const APPS: AppDefinition[] = [
     hosted: true,
     tagline: 'Six letters, six guesses, one word a day.',
   },
+  {
+    slug: 'commonplace',
+    path: 'learn',
+    name: 'Commonplace',
+    hosted: true,
+    tagline: 'Maps and flashcards, and remembering them.',
+  },
   // No taglines below: an invented sentence about a site nobody has described
   // yet would read as fact. They get one when they move in.
   { slug: 'atelier-obscura', path: 'atelier', name: 'Atelier Obscura', hosted: false },

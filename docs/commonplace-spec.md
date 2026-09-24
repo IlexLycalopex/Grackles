@@ -1,9 +1,10 @@
 # Commonplace
 
-> **Spec only. Nothing here is built yet.** This covers the whole product, not a
-> minimum version. The build order at the bottom is how the work is sequenced,
-> not a cut of what is in scope. Every default in the brief was accepted, with
-> more ways to play added on top.
+> **Built, 2026-09-24.** Steps 1 to 8 of the build order below: the schema, the
+> content pipeline, the map, every mode, spaced repetition, the daily challenge
+> and flashcards. Step 9 (more countries' maps) is still to do. `README.md`
+> describes what exists; this document is the argument for why, kept as it was
+> written, with the notes at the bottom on where the building departed from it.
 
 A learning app for Grackles. Module one is **Gazetteer**, which teaches the
 names of places on a map: US states, countries by continent and capital cities.
@@ -667,3 +668,22 @@ Defaults are in place for all of these, so none of them blocks the build.
 | Disputed places | Included, labelled neutrally, can be turned off | A content decision rather than a technical one |
 | Canonical names | UK Foreign Office usage | Affects which name is shown as the answer, not which are accepted |
 | New cards per day | 20 | Too many makes review a chore; too few makes a 197-country deck take months |
+
+## What the building changed
+
+- **Custom decks live at `/cards/:deck`, built-in ones at `/deck/:deck`.** Two
+  paths rather than one with a check constraint keeping slugs apart, so a deck
+  called "Europe capitals" can exist without shadowing the built-in one.
+- **The small places tray is numbered, not named, in Name it.** A chip saying
+  "Malta" is the answer. Chips show a number until answered, then the name. In
+  Find it there is no tray: the enlarged dots are the targets.
+- **Somaliland is drawn inside Somalia and Northern Cyprus inside Cyprus.** The
+  atlas draws them apart; no UN member recognises either, and a quiz asking for
+  them by name takes a side.
+- **Tuvalu is a dot.** The 1:50m atlas does not draw it at all.
+- **The list view for screen readers is not built.** What exists instead: every
+  question is announced in a live region with its region, Tab moves between
+  unanswered places in Name it, and all controls are real buttons. A full list
+  view is the first accessibility item still open.
+- **Saved map selections (the spec's `map-selection` decks) are not built.** The
+  `kind` column is there for them.

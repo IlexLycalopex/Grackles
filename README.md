@@ -37,7 +37,7 @@ several people can share a project.
 | ✅ | The library — every book in one registry, read state derived from the reading list, the bookcase captured from photographs and deduplicated on the way in. **Applied 2026-09-01**: 265 readings became 260 books, 136 of them read |
 | ✅ | Project settings — name, address, where it lives and deleting one, with old addresses kept forwarding. **Applied 2026-09-17**, and reading it back added a second migration and a guard the local suite had never had |
 | ✅ | Adding a link at `/admin` — an outside site on the launcher without a migration or a deploy, filed under `external` |
-| ⬜ | Commonplace — a learning app: map quizzes first (Gazetteer), flashcards second. Spec only, see `docs/commonplace-spec.md` |
+| ✅ | Commonplace — the learning app. Map quizzes (US states, countries by continent, capitals) in eleven ways to play, flashcards with CSV import, and spaced repetition under both. See below and `docs/commonplace-spec.md` |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.
 Its nav is whatever the visitor is a member of: signed out it offers one thing,
@@ -118,6 +118,18 @@ every value of the enum — so this is the only thing stopping it being offered.
 
 /blackletter/:workspace            Blackletter — today's puzzle (?n=5, 6 or 7)
 /api/blackletter/:workspace/guess  one guess, marked
+
+/learn/:workspace                  Commonplace — what is due, today's challenge, every deck
+/learn/:workspace/deck/:deck       a built-in deck: the map coloured by what you know, and how to play it
+/learn/:workspace/play/:deck       one run (?mode=name, locate, capital, outline, free, …)
+/learn/:workspace/play/daily       today's challenge
+/learn/:workspace/review           everything due, by deck
+/learn/:workspace/daily            today's challenge and its scoreboard
+/learn/:workspace/progress         every deck, the recent runs, and the review settings
+/learn/:workspace/cards/new        a new flashcard deck (editors)
+/learn/:workspace/cards/:deck      a flashcard deck; /edit, /play and /export.csv below it
+/api/learn/:workspace/run          start a run, record an answer, finish
+/api/learn/:workspace/deck         save a flashcard deck, whole
 
 /wbpr/:workspace                   WBPR — the broadcast archive
 /wbpr/:workspace/phenomena         everything seen, folded by key
@@ -1299,6 +1311,57 @@ There is a spent `seed-blackletter` edge function on the project, stubbed out to
 return 410 and behind JWT verification. It was an earlier attempt at the same
 load, made unnecessary by the `http` route; the management API has no delete, so
 it wants removing from the dashboard.
+
+## Commonplace
+
+The sixth app, and the second game after Blackletter, though it is closer to a
+tool: the point is remembering, and the games are how. `docs/commonplace-spec.md`
+is the argument for every decision below and is worth reading before changing
+anything structural.
+
+**A card is a fact, not a row in a deck.** France is one fact, `place:FRA:name`,
+whether it is asked in Europe, the world or a capitals round. Decks are
+selections of facts (`lib/commonplace/decks.ts`), so knowing a place in one deck
+is knowing it in all of them, and a person's progress (`cp_card_state`) has no
+workspace column at all. Naming a shape and finding it are separate facts with
+separate schedules, because people are rarely equally good at both.
+
+**Built-in content is files.** `scripts/build-gazetteer.mjs` turns Natural Earth
+(via world-atlas) and the US Census boundaries (via us-atlas) into pre-projected
+SVG paths in `src/data/gazetteer/`, which the server draws as plain `<path>`
+elements. The browser never loads a mapping library. Every name, alternative
+name, region and capital comes from `scripts/gazetteer/countries.mjs` and
+`us-states.mjs`, which are the files to review; the build refuses a deck in which
+two places share an answer, fails any map over its size budget, and writes every
+judgement call it made (disputed places, territories, merged shapes) and every
+near-collision pair (Niger and Nigeria) to `report.json`. Run it by hand and
+commit the output:
+
+```bash
+node --experimental-strip-types scripts/build-gazetteer.mjs
+```
+
+**Marking is in the browser; time is not.** `lib/commonplace/mark.ts` decides
+exact, close or wrong, forgiving a slip of one or two letters unless the slip
+lands as near to another answer in the deck. It runs in the browser because it
+has to feel instant, and on a map the question is the shape, which is on the page
+anyway. The cp_* functions accept the result but stamp both ends of a run with the
+server's clock, so a personal best cannot be typed in. If the daily scoreboard
+ever matters enough to protect, the spec describes moving the marker into SQL.
+
+**Scheduling is FSRS** (ts-fsrs), also in the browser, with only the resulting
+state saved alongside the answer in one call. The four results map to FSRS's four
+ratings; Free recall, Neighbours and Multiple choice record runs but never move a
+schedule, because they do not test one fact on its own.
+
+**Everybody's progress is private.** Own rows only on card state, runs and
+answers. The daily scoreboard is a function returning counts and times, never
+places, the same line Blackletter draws between a share grid and a guess.
+
+Tests: `src/lib/commonplace/*.test.ts` (marking, hints, grades, scheduling,
+settings, deck integrity, neighbours, CSV) and `supabase/tests/commonplace.sh`
+(39 checks: privacy, the server's clock, one daily go, deck saves keeping card
+ids and refusing to adopt another deck's card).
 
 ## Running it
 

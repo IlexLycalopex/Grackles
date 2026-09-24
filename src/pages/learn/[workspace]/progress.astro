@@ -1,0 +1,128 @@
+---
+import CpLayout from '../../../layouts/CpLayout.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { MAP_DECKS, deckPlaceKeys, placeRef } from '../../../lib/commonplace/decks';
+import { mastery, MASTERY_LABEL, MASTERY_ORDER, type Mastery } from '../../../lib/commonplace/schedule';
+import { MODES, type ModeId } from '../../../lib/commonplace/modes';
+import { clock, loadPrefs, loadStates, toStored } from '../../../lib/commonplace/server';
+
+export const prerender = false;
+
+/**
+ * How much is known, deck by deck, the last few runs, and the two settings
+ * that shape reviewing: how sure to be (retention) and how much new per day.
+ */
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'commonplace', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+
+let saved: string | null = null;
+let problem: string | null = null;
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const retention = Number(form.get('retention'));
+  const perDay = Number(form.get('new_per_day'));
+  const { error } = await supabase.rpc('cp_set_prefs', { p_retention: retention, p_new_per_day: perDay });
+  if (error) problem = 'Those numbers are out of range: retention between 70% and 97%, new cards between 0 and 200.';
+  else saved = 'Saved.';
+}
+
+const base = `/learn/${workspace.slug}`;
+const now = new Date();
+const [states, prefs, { data: runs }] = await Promise.all([
+  loadStates(supabase),
+  loadPrefs(supabase),
+  supabase.from('cp_runs').select('deck_ref, mode, clean, close, total, started_at, finished_at')
+    .eq('workspace_id', workspace.id).not('finished_at', 'is', null)
+    .order('finished_at', { ascending: false }).limit(20),
+]);
+
+const rows = MAP_DECKS.map(deck => {
+  const keys = deckPlaceKeys(deck);
+  const dir = deck.topic === 'capitals' ? 'capital' : 'name';
+  const tally: Record<Mastery, number> = { new: 0, learning: 0, due: 0, known: 0, mastered: 0 };
+  for (const k of keys) {
+    const row = states.get(placeRef(k, dir));
+    tally[mastery(row ? toStored(row) : null, now)]++;
+  }
+  return { deck, total: keys.length, tally };
+});
+const seenTotal = states.size;
+const title = (ref: string) => MAP_DECKS.find(d => d.slug === ref)?.title ?? (ref.startsWith('cards-') ? ref.slice(6) : ref);
+---
+
+<CpLayout title={`Progress · ${workspace.name}`} workspace={workspace}>
+  <main class="container cp-progress">
+    <header class="page-header">
+      <p class="eyebrow">Progress</p>
+      <h1 class="page-title">{seenTotal} facts seen</h1>
+      <p class="page-intro">Each bar is one deck, from mastered on the left to not yet seen on the right.</p>
+    </header>
+
+    <ul class="cp-legend">
+      {MASTERY_ORDER.slice().reverse().map(m => <li data-mastery={m}><span class="cp-swatch" />{MASTERY_LABEL[m]}</li>)}
+    </ul>
+    <ul class="cp-bars">
+      {
+        rows.map(r => (
+          <li>
+            <a href={`${base}/deck/${r.deck.slug}`}>{r.deck.title}</a>
+            <span class="cp-bar-stack" role="img" aria-label={MASTERY_ORDER.map(m => `${r.tally[m]} ${MASTERY_LABEL[m].toLowerCase()}`).join(', ')}>
+              {MASTERY_ORDER.slice().reverse().map(m =>
+                r.tally[m] ? <span data-mastery={m} style={`flex:${r.tally[m]}`} /> : null
+              )}
+            </span>
+            <span class="cp-quiet">{r.tally.known + r.tally.mastered} / {r.total}</span>
+          </li>
+        ))
+      }
+    </ul>
+
+    {
+      (runs ?? []).length > 0 && (
+        <section>
+          <h2 class="section-label">Recent runs</h2>
+          <table class="cp-table">
+            <thead><tr><th>When</th><th>Deck</th><th>Mode</th><th>Known</th><th>Time</th></tr></thead>
+            <tbody>
+              {(runs ?? []).map(r => (
+                <tr>
+                  <td>{new Date(r.finished_at!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</td>
+                  <td>{title(r.deck_ref)}</td>
+                  <td>{MODES[r.mode as ModeId]?.label ?? r.mode}</td>
+                  <td>{r.clean + r.close} / {r.total}</td>
+                  <td>{clock(new Date(r.finished_at!).getTime() - new Date(r.started_at).getTime())}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )
+    }
+
+    <section class="cp-prefs">
+      <h2 class="section-label">How you review</h2>
+      <form method="post" class="cp-form">
+        <label>
+          How sure to be before a card is shown again
+          <select name="retention">
+            {[0.8, 0.85, 0.9, 0.93, 0.95].map(v => (
+              <option value={v} selected={Math.abs(prefs.retention - v) < 0.001}>{Math.round(v * 100)}%{v === 0.9 ? ' (recommended)' : ''}</option>
+            ))}
+          </select>
+          <small>Higher means more reviews and fewer lapses. 90% is the usual balance.</small>
+        </label>
+        <label>
+          New cards a day
+          <input type="number" name="new_per_day" min="0" max="200" value={prefs.new_per_day} />
+          <small>Too many makes review a chore within a fortnight. Twenty takes the world’s countries in about ten days.</small>
+        </label>
+        <button class="cp-button" type="submit">Save</button>
+        {saved && <p class="cp-ok">{saved}</p>}
+        {problem && <p class="cp-error" role="alert">{problem}</p>}
+      </form>
+    </section>
+  </main>
+</CpLayout>

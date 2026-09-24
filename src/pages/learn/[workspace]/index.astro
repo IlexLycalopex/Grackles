@@ -1,0 +1,146 @@
+---
+import CpLayout from '../../../layouts/CpLayout.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { MAP_DECKS, deckPlaceKeys, homeDeck, parseRef, placeRef } from '../../../lib/commonplace/decks';
+import { mastery } from '../../../lib/commonplace/schedule';
+import { cardDecks, listDecks, loadStates, loadPrefs, newRemaining, toStored } from '../../../lib/commonplace/server';
+
+export const prerender = false;
+
+/**
+ * The front door: what is due, today's challenge, and every deck with how
+ * much of it is known.
+ */
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'commonplace', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+// Progress belongs to a person, so there is nothing to show before sign-in.
+if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+
+const base = `/learn/${workspace.slug}`;
+const now = new Date();
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(now);
+
+const [states, prefs, decks, cardHome, { data: dailyRow }] = await Promise.all([
+  loadStates(supabase),
+  loadPrefs(supabase),
+  listDecks(supabase, workspace.id),
+  cardDecks(supabase, workspace.id),
+  supabase.from('cp_daily').select('id, deck_ref').eq('workspace_id', workspace.id).eq('day', today).maybeSingle(),
+]);
+
+let dailyPlayed = false;
+if (dailyRow) {
+  const { data: mine } = await supabase.from('cp_runs').select('id').eq('daily_id', dailyRow.id).eq('user_id', user.id).maybeSingle();
+  dailyPlayed = !!mine;
+}
+
+// What is due, by the deck it is reviewed in.
+const dueBy = new Map<string, number>();
+let dueTotal = 0;
+for (const [ref, row] of states) {
+  if (new Date(row.due_at) > now) continue;
+  const parsed = parseRef(ref);
+  const home = parsed?.kind === 'card' ? (cardHome.get(parsed.id) ? `cards:${cardHome.get(parsed.id)!.slug}` : null) : homeDeck(ref);
+  if (!home) continue;
+  dueBy.set(home, (dueBy.get(home) ?? 0) + 1);
+  dueTotal++;
+}
+
+const tiles = MAP_DECKS.map(deck => {
+  const keys = deckPlaceKeys(deck);
+  const dir = deck.topic === 'capitals' ? 'capital' : 'name';
+  let known = 0;
+  let seen = 0;
+  for (const k of keys) {
+    const row = states.get(placeRef(k, dir));
+    if (!row) continue;
+    seen++;
+    const m = mastery(toStored(row), now);
+    if (m === 'known' || m === 'mastered') known++;
+  }
+  return { deck, total: keys.length, known, seen, due: dueBy.get(deck.slug) ?? 0 };
+});
+const places = tiles.filter(t => t.deck.topic === 'places');
+const capitals = tiles.filter(t => t.deck.topic === 'capitals');
+const fresh = newRemaining(states, prefs);
+
+const cardCounts = new Map<string, number>();
+for (const { slug } of cardHome.values()) cardCounts.set(slug, (cardCounts.get(slug) ?? 0) + 1);
+const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0);
+---
+
+<CpLayout title={`${workspace.name} · Commonplace`} description="Maps and flashcards, and remembering them." workspace={workspace}>
+  <main class="container cp-hub">
+    <header class="page-header">
+      <p class="eyebrow">Commonplace</p>
+      <h1 class="page-title">{workspace.name}</h1>
+    </header>
+
+    <section class="cp-today" aria-label="Today">
+      <a class="cp-today__card" href={`${base}/review`} data-empty={dueTotal ? undefined : ''}>
+        <span class="cp-today__num">{dueTotal}</span>
+        <span class="cp-today__label">{dueTotal === 1 ? 'card due' : 'cards due'}</span>
+        <span class="cp-today__sub">{dueTotal ? `About ${Math.max(1, Math.round(dueTotal * 12 / 60))} min` : 'Nothing due. Learn something new.'}</span>
+      </a>
+      <a class="cp-today__card" href={`${base}/daily`}>
+        <span class="cp-today__num">{dailyPlayed ? '✓' : '10'}</span>
+        <span class="cp-today__label">Daily challenge</span>
+        <span class="cp-today__sub">{dailyPlayed ? 'Played. See the scoreboard.' : 'Ten places, the same for everyone here.'}</span>
+      </a>
+      <div class="cp-today__card cp-today__card--plain">
+        <span class="cp-today__num">{fresh}</span>
+        <span class="cp-today__label">new cards left today</span>
+        <span class="cp-today__sub"><a href={`${base}/progress`}>Change the daily allowance</a></span>
+      </div>
+    </section>
+
+    {
+      [['Places', places], ['Capitals', capitals]].map(([label, list]) => (
+        <section class="cp-decks">
+          <h2 class="section-label">{label as string}</h2>
+          <ul class="cp-deck-grid">
+            {(list as typeof tiles).map(t => (
+              <li>
+                <a class="cp-deck" href={`${base}/deck/${t.deck.slug}`}>
+                  <span class="cp-deck__title">{t.deck.title}</span>
+                  <span class="cp-deck__meta">
+                    {t.known} of {t.total} known{t.due ? ` · ${t.due} due` : ''}
+                  </span>
+                  <span class="cp-meter" aria-hidden="true">
+                    <span style={`width:${pct(t.seen, t.total)}%`} data-part="seen" />
+                    <span style={`width:${pct(t.known, t.total)}%`} data-part="known" />
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))
+    }
+
+    <section class="cp-decks">
+      <h2 class="section-label">Flashcards</h2>
+      {
+        decks.length ? (
+          <ul class="cp-deck-grid">
+            {decks.map(d => (
+              <li>
+                <a class="cp-deck" href={`${base}/cards/${d.slug}`}>
+                  <span class="cp-deck__title">{d.title}</span>
+                  <span class="cp-deck__meta">
+                    {cardCounts.get(d.slug) ?? 0} cards{dueBy.get(`cards:${d.slug}`) ? ` · ${dueBy.get(`cards:${d.slug}`)} due` : ''}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p class="cp-quiet">No flashcard decks yet. Vocabulary, definitions, anything that is a prompt and an answer.</p>
+        )
+      }
+      {workspace.canWrite && <p><a class="cp-button" href={`${base}/cards/new`}>New deck</a></p>}
+    </section>
+  </main>
+</CpLayout>

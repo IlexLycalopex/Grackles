@@ -143,6 +143,114 @@ export type Database = {
           },
         ];
       };
+      // ── Commonplace ──────────────────────────────────────────────────
+      // Every write goes through a cp_* function; the only direct write any
+      // role holds is deleting a deck. Insert and Update are `never` so a
+      // page cannot be written against a privilege nobody has.
+      cp_decks: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          slug: string;
+          title: string;
+          kind: 'flashcards';
+          settings: Json;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      cp_cards: {
+        Row: {
+          id: string;
+          deck_id: string;
+          position: number;
+          prompt: string;
+          answer: string;
+          accepts: string[];
+          hint: string;
+          notes: string;
+          tags: string[];
+          reverse: boolean;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      /** Own rows only, whatever the project. See the schema migration on why. */
+      cp_card_state: {
+        Row: {
+          user_id: string;
+          card_ref: string;
+          stability: number;
+          difficulty: number;
+          due_at: string;
+          last_at: string;
+          reps: number;
+          lapses: number;
+          state: number;
+          learning_steps: number;
+          scheduled_days: number;
+          last_result: 'clean' | 'close' | 'hinted' | 'revealed';
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      cp_prefs: {
+        Row: { user_id: string; retention: number; new_per_day: number; updated_at: string };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      cp_daily: {
+        Row: { id: string; workspace_id: string; day: string; deck_ref: string; card_refs: string[]; created_at: string };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      cp_runs: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          user_id: string;
+          deck_ref: string;
+          mode: string;
+          settings: Json;
+          scope: string;
+          pb_key: string;
+          started_at: string;
+          finished_at: string | null;
+          total: number;
+          clean: number;
+          close: number;
+          hinted: number;
+          revealed: number;
+          daily_id: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      cp_run_answers: {
+        Row: {
+          run_id: string;
+          card_ref: string;
+          result: 'clean' | 'close' | 'hinted' | 'revealed';
+          attempts: number;
+          hints: number;
+          ms: number;
+          answered_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       workspace_slug_history: {
         // Addresses a project used to answer to. Written only by the trigger
         // on `workspaces`, and read-only to everybody, which is why Insert and
@@ -1682,6 +1790,72 @@ export type Database = {
           distribution: Record<string, number>;
         };
       };
+      /** Commonplace: open a run. Both clocks are the server's. GRK40 daily already played, GRK41 not today's. */
+      cp_start_run: {
+        Args: {
+          p_workspace: string;
+          p_deck_ref: string;
+          p_mode: string;
+          p_settings: Json;
+          p_scope: string;
+          p_pb_key: string;
+          p_total: number;
+          p_daily?: string | null;
+        };
+        Returns: string;
+      };
+      /** Commonplace: one answer, and the card's new schedule when the mode keeps one. GRK42 run finished. */
+      cp_record_answer: {
+        Args: {
+          p_run: string;
+          p_card_ref: string;
+          p_result: string;
+          p_attempts: number;
+          p_hints: number;
+          p_ms: number;
+          p_state?: Json | null;
+        };
+        Returns: undefined;
+      };
+      cp_finish_run: {
+        Args: { p_run: string };
+        Returns: CpFinish;
+      };
+      cp_daily_today: {
+        Args: { p_workspace: string; p_deck_ref: string; p_card_refs: string[] };
+        Returns: CpDaily;
+      };
+      /** Counts and times, never cards. */
+      cp_daily_scores: {
+        Args: { p_workspace: string; p_day?: string };
+        Returns: {
+          user_id: string;
+          display_name: string;
+          finished: boolean;
+          clean: number;
+          close: number;
+          hinted: number;
+          revealed: number;
+          total: number;
+          duration_ms: number | null;
+        }[];
+      };
+      /** GRK04 address taken, GRK43 too many cards. */
+      cp_save_deck: {
+        Args: {
+          p_workspace: string;
+          p_id: string | null;
+          p_slug: string;
+          p_title: string;
+          p_settings: Json;
+          p_cards: Json;
+        };
+        Returns: string;
+      };
+      cp_set_prefs: {
+        Args: { p_retention: number; p_new_per_day: number };
+        Returns: undefined;
+      };
       smoke_from_humidor: {
         Args: {
           p_cigar_id: string;
@@ -2017,6 +2191,7 @@ export type Database = {
         | 'scoundrel'
         | 'wbpr'
         | 'blackletter'
+        | 'commonplace'
         | 'external';
       member_role: 'owner' | 'editor' | 'viewer';
       visibility: 'private' | 'unlisted' | 'public';
@@ -2049,6 +2224,26 @@ export interface BlackletterGame {
   status: BlackletterStatus;
   /** Null while the game is live. See blackletter_state. */
   answer: string | null;
+}
+
+/** What cp_finish_run() returns. */
+export interface CpFinish {
+  clean: number;
+  close: number;
+  hinted: number;
+  revealed: number;
+  total: number;
+  duration_ms: number;
+  previous_best: { known: number; total: number; duration_ms: number; finished_at: string } | null;
+}
+
+/** What cp_daily_today() returns. */
+export interface CpDaily {
+  id: string;
+  day: string;
+  deck_ref: string;
+  card_refs: string[];
+  run: { id: string; finished: boolean } | null;
 }
 
 export type AppSlug = Enums<'app_slug'>;

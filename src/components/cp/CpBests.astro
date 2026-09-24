@@ -1,0 +1,66 @@
+---
+import { MODES, type ModeId } from '../../lib/commonplace/modes';
+import { clock } from '../../lib/commonplace/server';
+
+/**
+ * The viewer's best run per mode at one deck, and the last few runs. Own runs
+ * only, by policy: nobody else's bests are readable.
+ */
+interface Props {
+  deckRef: string;
+}
+
+const { deckRef } = Astro.props;
+const { supabase } = Astro.locals;
+
+const { data: runs } = await supabase
+  .from('cp_runs')
+  .select('mode, pb_key, clean, close, total, started_at, finished_at')
+  .eq('deck_ref', deckRef)
+  .not('finished_at', 'is', null)
+  .order('finished_at', { ascending: false })
+  .limit(200);
+
+const duration = (r: { started_at: string; finished_at: string | null }) =>
+  new Date(r.finished_at!).getTime() - new Date(r.started_at).getTime();
+
+const best = new Map<string, NonNullable<typeof runs>[number]>();
+for (const r of runs ?? []) {
+  const had = best.get(r.pb_key);
+  const known = r.clean + r.close;
+  if (!had || known > had.clean + had.close || (known === had.clean + had.close && duration(r) < duration(had))) {
+    best.set(r.pb_key, r);
+  }
+}
+const bests = [...best.values()].sort((a, b) => a.mode.localeCompare(b.mode)).slice(0, 12);
+const recent = (runs ?? []).slice(0, 5);
+const when = (s: string) => new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+const settingsOf = (key: string) => key.split('|').slice(2).filter(p => !/^(t(up|off)|h|a3|n0|all)$/.test(p)).join(', ');
+---
+
+{
+  bests.length > 0 && (
+    <section class="cp-bests">
+      <h2 class="section-label">Your bests here</h2>
+      <table class="cp-table">
+        <thead><tr><th>Mode</th><th>Known</th><th>Time</th><th>Settings</th></tr></thead>
+        <tbody>
+          {bests.map(r => (
+            <tr>
+              <td>{MODES[r.mode as ModeId]?.label ?? r.mode}</td>
+              <td>{r.clean + r.close} / {r.total}</td>
+              <td>{clock(duration(r))}</td>
+              <td class="cp-quiet">{settingsOf(r.pb_key)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <h2 class="section-label">Recently</h2>
+      <ul class="cp-recent">
+        {recent.map(r => (
+          <li>{when(r.finished_at!)} · {MODES[r.mode as ModeId]?.label ?? r.mode} · {r.clean + r.close} / {r.total} in {clock(duration(r))}</li>
+        ))}
+      </ul>
+    </section>
+  )
+}

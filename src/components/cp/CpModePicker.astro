@@ -1,0 +1,122 @@
+---
+import { MODES, modesFor, SCOPES, DEFAULTS } from '../../lib/commonplace/modes';
+import { REGION_LABEL, type Topic } from '../../lib/commonplace/decks';
+
+/**
+ * Pick a way to play, and the rules around it. A plain GET form: the settings
+ * become the play page's query string, so a run can be bookmarked or shared.
+ *
+ * A checkbox that defaults to on is followed by a hidden input of the same
+ * name set to 0. Checked, the browser sends "1" first and the play page reads
+ * the first value; unchecked, only the "0" is sent.
+ */
+interface Props {
+  action: string;
+  kind: 'map' | 'flashcards';
+  topic?: Topic;
+  regions?: string[];
+  hasTerritories?: boolean;
+  hasDisputed?: boolean;
+}
+
+const { action, kind, topic, regions = [], hasTerritories = false, hasDisputed = false } = Astro.props;
+const modes = modesFor(kind, topic).filter(m => m !== 'review');
+// Learn is listed first but is not the default: most visits are to play.
+const first = modes[1];
+---
+
+<form class="cp-picker" method="get" action={action}>
+  <fieldset class="cp-modes">
+    <legend class="section-label">How to play</legend>
+    <div class="cp-mode-grid">
+      {
+        modes.map(id => (
+          <label class="cp-mode">
+            <input type="radio" name="mode" value={id} checked={id === first} />
+            <span class="cp-mode__name">{MODES[id].label}</span>
+            <span class="cp-mode__blurb">{MODES[id].blurb}</span>
+            {!MODES[id].schedules && <span class="cp-mode__note">Practice: does not change your reviews</span>}
+          </label>
+        ))
+      }
+    </div>
+  </fieldset>
+
+  <details class="cp-settings">
+    <summary>Settings</summary>
+    <div class="cp-settings__grid">
+      <label>What to include
+        <select name="scope">
+          {Object.entries(SCOPES).filter(([k]) => kind === 'map' || k !== 'small').map(([k, v]) => <option value={k}>{v}</option>)}
+          {regions.length > 0 && (
+            <optgroup label="A region">
+              {regions.map(r => <option value={r}>{REGION_LABEL[r] ?? r}</option>)}
+            </optgroup>
+          )}
+        </select>
+      </label>
+      <label>How many
+        <select name="length">
+          <option value="0">All of them</option>
+          <option value="10">10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+        </select>
+      </label>
+      <label>Order
+        <select name="order">
+          <option value="random">Random</option>
+          {kind === 'map' && <option value="west">West to east</option>}
+          {kind === 'map' && <option value="largest">Largest first</option>}
+          {kind === 'map' && <option value="smallest">Smallest first</option>}
+          {kind === 'flashcards' && <option value="deck">As in the deck</option>}
+        </select>
+      </label>
+      <label>Timer
+        <select name="timer">
+          <option value="up">Count up</option>
+          <option value="off">Off</option>
+          <option value="3">3 minutes</option>
+          <option value="5">5 minutes</option>
+          <option value="10">10 minutes</option>
+          <option value="15">15 minutes</option>
+        </select>
+      </label>
+      <label>Tries before the answer is shown
+        <select name="attempts">
+          <option value="3">3</option>
+          <option value="1">1</option>
+          <option value="5">5</option>
+          <option value="0">Unlimited</option>
+        </select>
+      </label>
+      {kind === 'map' && (
+        <label>After an answer
+          <select name="advance">
+            <option value="nearest">Nearest unanswered place</option>
+            <option value="next">Next in order</option>
+            <option value="stay">Stay; I will pick</option>
+          </select>
+        </label>
+      )}
+      {kind === 'flashcards' && (
+        <label>Direction
+          <select name="direction">
+            <option value="fwd">Front to back (and back to front where ticked)</option>
+            <option value="rev">Back to front only</option>
+            <option value="both">Both ways, every card</option>
+          </select>
+        </label>
+      )}
+      <div class="cp-checks">
+        <label><input type="checkbox" name="hints" value="1" checked={DEFAULTS.hints} /><input type="hidden" name="hints" value="0" /> Hints</label>
+        <label><input type="checkbox" name="sudden" value="1" /> Sudden death: the first wrong answer ends the run</label>
+        {kind === 'map' && <label><input type="checkbox" name="labels" value="1" checked /><input type="hidden" name="labels" value="0" /> Label places once answered</label>}
+        {hasTerritories && <label><input type="checkbox" name="territories" value="1" /> Include territories</label>}
+        {hasDisputed && <label><input type="checkbox" name="disputed" value="1" checked /><input type="hidden" name="disputed" value="0" /> Include disputed places</label>}
+      </div>
+    </div>
+  </details>
+
+  <p><button class="cp-button cp-button--big" type="submit">Play</button></p>
+</form>

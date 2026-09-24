@@ -1,0 +1,107 @@
+---
+import CpLayout from '../../../../layouts/CpLayout.astro';
+import CpPlay from '../../../../components/cp/CpPlay.astro';
+import { resolveWorkspace } from '../../../../lib/workspace';
+import { MAP_DECKS, deckBySlug, deckPlaceKeys, homeDeck } from '../../../../lib/commonplace/decks';
+import { MODES, modesFor, parseSettings, pbKey, settingsQuery, DEFAULTS, type ModeId } from '../../../../lib/commonplace/modes';
+import { buildMapItems, emptyReason, proposeDaily, type PlayData } from '../../../../lib/commonplace/play';
+import { loadMap, loadPrefs, loadStates, newRemaining } from '../../../../lib/commonplace/server';
+import type { CpDaily } from '../../../../lib/database.types';
+
+export const prerender = false;
+
+/**
+ * One run at a built-in deck, in any mode. `/play/daily` is today's challenge.
+ *
+ * Everything the run needs is worked out here and handed to the page as one
+ * JSON block: the questions, their answers, the viewer's schedule for each, and
+ * the settings. The map is drawn here too. The script only plays.
+ */
+
+const { supabase, user } = Astro.locals;
+const { workspace: slug, deck: deckSlug } = Astro.params;
+
+const workspace = await resolveWorkspace(supabase, 'commonplace', slug!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname + Astro.url.search)}`);
+
+const base = `/learn/${workspace.slug}`;
+const q = Astro.url.searchParams;
+const isDaily = deckSlug === 'daily';
+
+let daily: CpDaily | null = null;
+let deck = deckBySlug(deckSlug!);
+let mode: ModeId;
+let settings = parseSettings(q);
+
+if (isDaily) {
+  // A proposal: the function keeps whichever arrived first today.
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date());
+  const proposal = proposeDaily(workspace.id, day, s => deckPlaceKeys(deckBySlug(s)!));
+  const { data: today } = await supabase.rpc('cp_daily_today', {
+    p_workspace: workspace.id,
+    p_deck_ref: proposal.slug,
+    p_card_refs: proposal.refs,
+  });
+  daily = today;
+  if (!daily) return new Response('The daily challenge could not be set up.', { status: 500 });
+  if (daily.run) return Astro.redirect(`${base}/daily`);
+  deck = deckBySlug(daily.deck_ref);
+  mode = 'daily';
+  // Fixed, so everybody plays the same game.
+  settings = { ...DEFAULTS, order: 'deck', advance: 'next', territories: true };
+} else {
+  if (!deck) return new Response('Not found', { status: 404 });
+  const asked = q.get('mode') as ModeId;
+  mode = modesFor('map', deck.topic).includes(asked) ? asked : modesFor('map', deck.topic)[1];
+}
+if (!deck) return new Response('Not found', { status: 404 });
+
+const [map, states, prefs] = await Promise.all([loadMap(deck.map), loadStates(supabase), loadPrefs(supabase)]);
+const only = q.get('only')?.split(',').filter(Boolean).slice(0, 400) ?? null;
+
+const built = buildMapItems({
+  deck, map, mode, settings, states,
+  newRemaining: newRemaining(states, prefs),
+  only,
+  fixed: daily?.card_refs ?? null,
+});
+
+// Where to go after a review: the next deck with anything due.
+let nextReview: PlayData['nextReview'] = null;
+if (mode === 'review') {
+  const now = new Date();
+  const due = new Map<string, number>();
+  for (const [ref, row] of states) {
+    if (new Date(row.due_at) > now) continue;
+    const home = homeDeck(ref);
+    if (home && home !== deck.slug) due.set(home, (due.get(home) ?? 0) + 1);
+  }
+  const nextDeck = MAP_DECKS.find(d => due.has(d.slug));
+  if (nextDeck) nextReview = { href: `${base}/play/${nextDeck.slug}?mode=review`, label: `Next: ${nextDeck.title} (${due.get(nextDeck.slug)} due)` };
+}
+
+const againHref = isDaily ? `${base}/daily` : `${base}/play/${deck.slug}?${settingsQuery(settings, mode)}`;
+const data: PlayData = {
+  api: `/api/learn/${workspace.slug}/run`,
+  deckRef: deck.slug,
+  deckTitle: isDaily ? `Daily challenge · ${deck.title}` : deck.title,
+  deckHref: isDaily ? `${base}/daily` : `${base}/deck/${deck.slug}`,
+  kind: 'map',
+  mode,
+  modeLabel: MODES[mode].label,
+  settings,
+  pbKey: isDaily ? 'daily' : pbKey(deck.slug, mode, settings),
+  daily: daily?.id ?? null,
+  retention: prefs.retention,
+  againHref,
+  missedHref: isDaily ? '' : `${base}/play/${deck.slug}?${settingsQuery({ ...settings, scope: 'all' }, mode === 'review' || mode === 'learn' ? modesFor('map', deck.topic)[1] : mode)}`,
+  nextReview,
+  empty: built.items.length ? null : emptyReason(mode, settings),
+  ...built,
+};
+---
+
+<CpLayout title={`${data.modeLabel} · ${deck.title} · ${workspace.name}`} workspace={workspace} bare>
+  <CpPlay data={data} map={map} />
+</CpLayout>

@@ -672,6 +672,18 @@ create policy workspaces_insert on public.workspaces for insert
   with check (owner_id = auth.uid());
 ```
 
+### Commonplace (2026-09-24)
+
+| Migration | What it does |
+| --- | --- |
+| `20260924120000_commonplace_app_slug` | `commonplace` joins the `app_slug` enum, on its own for the usual reason |
+| `20260924120100_commonplace_schema` | `cp_decks`, `cp_cards`, `cp_card_state`, `cp_prefs`, `cp_daily`, `cp_runs`, `cp_run_answers`; select-only grants (plus deleting a deck), own-rows policies on everything personal |
+| `20260924120200_commonplace_rpcs` | `cp_start_run`, `cp_record_answer`, `cp_finish_run`, `cp_daily_today`, `cp_daily_scores`, `cp_save_deck`, `cp_set_prefs` |
+
+Error codes `GRK40` already played today's challenge, `GRK41` not today's
+challenge, `GRK42` run already finished, `GRK43` more than 2,000 cards.
+`tests/commonplace.sh` (39 checks) runs after `test.sh` on the same cluster.
+
 ## Verifying
 
 `tests/` contains a reconstruction of the pre-migration schema plus Supabase

@@ -443,6 +443,12 @@ async function holdings(w: string, of: AppSlug): Promise<{ n: number; noun: stri
       const { count } = await supabase.from('wbpr_broadcasts').select('id', opts).eq('workspace_id', w);
       return { n: count ?? 0, noun: 'broadcasts' };
     }
+    case 'commonplace': {
+      // Decks are the project's; progress is each person's own and goes with
+      // them, so the count that matters before a delete is the decks.
+      const { count } = await supabase.from('cp_decks').select('id', opts).eq('workspace_id', w);
+      return { n: count ?? 0, noun: 'flashcard decks' };
+    }
     default:
       return null;
   }

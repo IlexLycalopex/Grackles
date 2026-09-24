@@ -1,0 +1,137 @@
+---
+import CpMap from './CpMap.astro';
+import type { PlayData } from '../../lib/commonplace/play';
+import type { GazetteerMap } from '../../lib/commonplace/server';
+
+/**
+ * The play screen's markup, for every mode. The script at the bottom
+ * (lib/commonplace/client/play.ts) decides which parts are shown.
+ */
+interface Props {
+  data: PlayData;
+  map?: GazetteerMap | null;
+}
+
+const { data, map } = Astro.props;
+const flash = !map;
+---
+
+<main class="cp-play" id="cpPlay" data-kind={data.kind} data-mode={data.mode}>
+  <header class="cp-bar">
+    <a class="cp-bar__deck" href={data.deckHref}>{data.deckTitle}</a>
+    <span class="cp-bar__mode">{data.modeLabel}</span>
+    <span class="cp-bar__progress" id="cpProgress"></span>
+    <span class="cp-bar__timer" id="cpTimer" aria-label="Time"></span>
+    <button class="cp-link" type="button" id="cpFinishBtn">Finish</button>
+  </header>
+
+  {
+    data.empty ? (
+      <section class="cp-empty container">
+        <p>{data.empty}</p>
+        <p><a class="cp-button" href={data.deckHref}>Back to the deck</a></p>
+      </section>
+    ) : (
+      <div class="cp-stage">
+        {map && (
+          <div class="cp-mapwrap">
+            <CpMap map={map} inPlay={data.inPlay} id="cpMap" />
+            <svg class="cp-outline" id="cpOutline" viewBox="0 0 10 10" aria-label="The shape to name" />
+            <div class="cp-zoom" role="group" aria-label="Zoom">
+              <button type="button" data-zoom="in" aria-label="Zoom in">+</button>
+              <button type="button" data-zoom="out" aria-label="Zoom out">−</button>
+              <button type="button" data-zoom="fit" aria-label="Whole map">⤢</button>
+            </div>
+          </div>
+        )}
+        {flash && (
+          <div class="cp-flash" aria-live="polite">
+            <p class="cp-flash__prompt" id="cpCardPrompt"></p>
+            <p class="cp-flash__answer" id="cpCardAnswer" hidden></p>
+          </div>
+        )}
+
+        <section class="cp-panel" aria-label="Question">
+          <p class="cp-prompt" id="cpPrompt"></p>
+
+          <form class="cp-answer" id="cpForm" autocomplete="off" hidden>
+            <label class="visually-hidden" for="cpInput">Your answer</label>
+            <input
+              id="cpInput"
+              type="text"
+              inputmode="text"
+              autocomplete="off"
+              autocapitalize="off"
+              autocorrect="off"
+              spellcheck="false"
+              enterkeyhint="go"
+              placeholder="Type the answer"
+            />
+            <button class="cp-button" type="submit">Enter</button>
+          </form>
+
+          <p class="cp-hint" id="cpHint" aria-live="polite"></p>
+
+          <div class="cp-choices" id="cpChoices" hidden></div>
+
+          <div class="cp-flip" id="cpFlip" hidden>
+            <button class="cp-button" type="button" id="cpShowBtn">Show the answer</button>
+            <div class="cp-grades" hidden>
+              <button type="button" data-grade="1">Again</button>
+              <button type="button" data-grade="2">Hard</button>
+              <button type="button" data-grade="3">Good</button>
+              <button type="button" data-grade="4">Easy</button>
+            </div>
+          </div>
+
+          <div class="cp-actions">
+            <button class="cp-link" type="button" id="cpHintBtn" hidden title="Hint (?)">Hint</button>
+            <button class="cp-link" type="button" id="cpRevealBtn" hidden title="Reveal (Ctrl+Enter)">Reveal</button>
+            <button class="cp-button" type="button" id="cpNextBtn" hidden>Next</button>
+            <button class="cp-link" type="button" id="cpDoneBtn" hidden>Done</button>
+          </div>
+
+          <p class="cp-feedback" id="cpFeedback" role="status" aria-live="polite"></p>
+          <p class="cp-notice" id="cpNotice" role="alert" hidden></p>
+
+          {map && (
+            <div class="cp-tray" id="cpTray" hidden>
+              <p class="cp-tray__label">Small places</p>
+              <div class="cp-tray__chips"></div>
+            </div>
+          )}
+          <p class="visually-hidden" id="cpLive" aria-live="polite"></p>
+        </section>
+      </div>
+    )
+  }
+
+  <section class="cp-results container" id="cpResults" hidden aria-labelledby="cpResHead">
+    <h2 id="cpResHead"></h2>
+    <p class="cp-results__time" id="cpResTime"></p>
+    <dl class="cp-tally">
+      <div data-result="clean"><dt>Right first time</dt><dd id="cpRes-clean">0</dd></div>
+      <div data-result="close"><dt>With a slip</dt><dd id="cpRes-close">0</dd></div>
+      <div data-result="hinted"><dt>With a hint</dt><dd id="cpRes-hinted">0</dd></div>
+      <div data-result="revealed"><dt>Revealed</dt><dd id="cpRes-revealed">0</dd></div>
+      <div data-result="missed"><dt>Not reached</dt><dd id="cpRes-missed">0</dd></div>
+    </dl>
+    <p class="cp-results__best" id="cpResBest"></p>
+    <ul class="cp-results__list" id="cpResList"></ul>
+    <p class="cp-results__links">
+      <a class="cp-button" href={data.againHref}>Play again</a>
+      <a class="cp-button cp-button--quiet" id="cpMissed" href="#" hidden>Only the ones I missed</a>
+      {data.nextReview && <a class="cp-button cp-button--quiet" href={data.nextReview.href}>{data.nextReview.label}</a>}
+      <a class="cp-link" href={data.deckHref}>Back to the deck</a>
+    </p>
+  </section>
+</main>
+
+{/* `<` escaped: flashcards are typed by people, and "</script>" in a prompt
+    would otherwise end this block and start running whatever came next. */}
+<script is:inline type="application/json" id="cpData" set:html={JSON.stringify(data).replace(/</g, '\\u003c')} />
+
+<script>
+  import { startPlay } from '../../lib/commonplace/client/play';
+  startPlay();
+</script>

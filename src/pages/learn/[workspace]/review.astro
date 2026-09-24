@@ -1,0 +1,79 @@
+---
+import CpLayout from '../../../layouts/CpLayout.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { MAP_DECKS, homeDeck, parseRef } from '../../../lib/commonplace/decks';
+import { cardDecks, listDecks, loadStates } from '../../../lib/commonplace/server';
+
+export const prerender = false;
+
+/**
+ * Everything due, grouped by the deck it is reviewed in. Each group opens that
+ * deck's map (or cards) in Review mode, and the end of one review links to the
+ * next group, so a whole day's reviews run one after another.
+ */
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'commonplace', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+
+const base = `/learn/${workspace.slug}`;
+const now = new Date();
+const [states, cardHome, decks] = await Promise.all([
+  loadStates(supabase),
+  cardDecks(supabase, workspace.id),
+  listDecks(supabase, workspace.id),
+]);
+
+const due = new Map<string, number>();
+let soon = 0;
+const tomorrow = now.getTime() + 24 * 3600 * 1000;
+for (const [ref, row] of states) {
+  const at = new Date(row.due_at).getTime();
+  if (at > now.getTime()) {
+    if (at <= tomorrow) soon++;
+    continue;
+  }
+  const p = parseRef(ref);
+  const home = p?.kind === 'card' ? (cardHome.has(p.id) ? `cards:${cardHome.get(p.id)!.slug}` : null) : homeDeck(ref);
+  if (home) due.set(home, (due.get(home) ?? 0) + 1);
+}
+
+const groups = [
+  ...MAP_DECKS.filter(d => due.has(d.slug)).map(d => ({
+    title: d.title, count: due.get(d.slug)!, href: `${base}/play/${d.slug}?mode=review`,
+  })),
+  ...decks.filter(d => due.has(`cards:${d.slug}`)).map(d => ({
+    title: d.title, count: due.get(`cards:${d.slug}`)!, href: `${base}/cards/${d.slug}/play?mode=review`,
+  })),
+];
+const total = groups.reduce((s, g) => s + g.count, 0);
+---
+
+<CpLayout title={`Review · ${workspace.name}`} workspace={workspace}>
+  <main class="container cp-review">
+    <header class="page-header">
+      <p class="eyebrow">Review</p>
+      <h1 class="page-title">{total ? `${total} due` : 'Nothing due'}</h1>
+      <p class="page-intro">
+        {total
+          ? 'Each is asked the way it was learnt: a name typed, a place clicked, a card turned over.'
+          : soon
+            ? `${soon} more will be due in the next day.`
+            : 'Learn something new from any deck, and it will come back here when it is time.'}
+      </p>
+    </header>
+    {
+      groups.length > 0 && (
+        <>
+          <p><a class="cp-button cp-button--big" href={groups[0].href}>Start with {groups[0].title}</a></p>
+          <ul class="cp-review-list">
+            {groups.map(g => (
+              <li><a href={g.href}>{g.title}</a> <span class="cp-quiet">{g.count} due</span></li>
+            ))}
+          </ul>
+        </>
+      )
+    }
+  </main>
+</CpLayout>

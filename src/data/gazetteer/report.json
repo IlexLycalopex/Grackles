@@ -1,0 +1,778 @@
+{
+  "generated_from": {
+    "world-atlas": "2.0.2",
+    "us-atlas": "3.0.1"
+  },
+  "maps": {
+    "world": {
+      "places": 203,
+      "small": 113,
+      "bytes": 139647,
+      "gzipped": 45157
+    },
+    "europe": {
+      "places": 51,
+      "small": 7,
+      "bytes": 50112,
+      "gzipped": 18280
+    },
+    "africa": {
+      "places": 55,
+      "small": 6,
+      "bytes": 48069,
+      "gzipped": 17244
+    },
+    "asia": {
+      "places": 51,
+      "small": 11,
+      "bytes": 69270,
+      "gzipped": 25338
+    },
+    "north-america": {
+      "places": 25,
+      "small": 13,
+      "bytes": 66175,
+      "gzipped": 24786
+    },
+    "south-america": {
+      "places": 14,
+      "small": 0,
+      "bytes": 26812,
+      "gzipped": 10209
+    },
+    "oceania": {
+      "places": 15,
+      "small": 9,
+      "bytes": 26993,
+      "gzipped": 11056
+    },
+    "us-states": {
+      "places": 51,
+      "small": 3,
+      "bytes": 56969,
+      "gzipped": 20629
+    }
+  },
+  "judgements": [
+    "Somaliland is drawn as part of SOM",
+    "N. Cyprus is drawn as part of CYP",
+    "France borders Brazil and Suriname only through French Guiana, so those borders belong to GUF",
+    "Tuvalu is not drawn by the 1:50m atlas and is played as a dot",
+    "Territories (Greenland, Puerto Rico, French Guiana, the Falklands, New Caledonia, DC) are off by default",
+    "Disputed places (Kosovo, Taiwan, Palestine, Western Sahara) are on by default and labelled by common English name",
+    "Western Sahara has no capital card",
+    "Antarctica is not drawn"
+  ],
+  "near_collisions": [
+    {
+      "deck": "countries",
+      "a": [
+        "DZA",
+        "algeria"
+      ],
+      "b": [
+        "NGA",
+        "nigeria"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "BDI",
+        "burundi"
+      ],
+      "b": [
+        "BRN",
+        "brunei"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "CAF",
+        "car"
+      ],
+      "b": [
+        "TCD",
+        "chad"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "CAF",
+        "car"
+      ],
+      "b": [
+        "LAO",
+        "lao"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "CAF",
+        "car"
+      ],
+      "b": [
+        "ARE",
+        "uae"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "COG",
+        "congo"
+      ],
+      "b": [
+        "TGO",
+        "togo"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "COG",
+        "congo"
+      ],
+      "b": [
+        "TON",
+        "tonga"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "COD",
+        "drc"
+      ],
+      "b": [
+        "PRK",
+        "dprk"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "GMB",
+        "gambia"
+      ],
+      "b": [
+        "NAM",
+        "namibia"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "GMB",
+        "gambia"
+      ],
+      "b": [
+        "ZMB",
+        "zambia"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "GHA",
+        "ghana"
+      ],
+      "b": [
+        "CHN",
+        "china"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "GHA",
+        "ghana"
+      ],
+      "b": [
+        "GUY",
+        "guyana"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "LBR",
+        "liberia"
+      ],
+      "b": [
+        "NGA",
+        "nigeria"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "MWI",
+        "malawi"
+      ],
+      "b": [
+        "MLI",
+        "mali"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "MLI",
+        "mali"
+      ],
+      "b": [
+        "MLT",
+        "malta"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "NAM",
+        "namibia"
+      ],
+      "b": [
+        "ZMB",
+        "zambia"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "NER",
+        "niger"
+      ],
+      "b": [
+        "NGA",
+        "nigeria"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "RWA",
+        "rwanda"
+      ],
+      "b": [
+        "UGA",
+        "uganda"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "SOM",
+        "somalia"
+      ],
+      "b": [
+        "ROU",
+        "romania"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "TGO",
+        "togo"
+      ],
+      "b": [
+        "TON",
+        "tonga"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "CHN",
+        "china"
+      ],
+      "b": [
+        "CHL",
+        "chile"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "IRN",
+        "iran"
+      ],
+      "b": [
+        "IRQ",
+        "iraq"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "IRN",
+        "iran"
+      ],
+      "b": [
+        "OMN",
+        "oman"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "IRN",
+        "persia"
+      ],
+      "b": [
+        "SRB",
+        "serbia"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "LAO",
+        "lao"
+      ],
+      "b": [
+        "ARE",
+        "uae"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "PRK",
+        "north korea"
+      ],
+      "b": [
+        "KOR",
+        "south korea"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "SYR",
+        "syria"
+      ],
+      "b": [
+        "SRB",
+        "serbia"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "ARE",
+        "uae"
+      ],
+      "b": [
+        "GBR",
+        "uk"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "ARE",
+        "uae"
+      ],
+      "b": [
+        "USA",
+        "usa"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "ARE",
+        "uae"
+      ],
+      "b": [
+        "USA",
+        "us"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "AUT",
+        "austria"
+      ],
+      "b": [
+        "AUS",
+        "australia"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "ISL",
+        "iceland"
+      ],
+      "b": [
+        "IRL",
+        "ireland"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "NLD",
+        "holland"
+      ],
+      "b": [
+        "POL",
+        "poland"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "SVK",
+        "slovakia"
+      ],
+      "b": [
+        "SVN",
+        "slovenia"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "GBR",
+        "uk"
+      ],
+      "b": [
+        "USA",
+        "usa"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "GBR",
+        "uk"
+      ],
+      "b": [
+        "USA",
+        "us"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "CAN",
+        "canada"
+      ],
+      "b": [
+        "PAN",
+        "panama"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "USA",
+        "usa"
+      ],
+      "b": [
+        "CUB",
+        "cuba"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "USA",
+        "usa"
+      ],
+      "b": [
+        "FSM",
+        "fsm"
+      ]
+    },
+    {
+      "deck": "countries",
+      "a": [
+        "USA",
+        "us"
+      ],
+      "b": [
+        "FSM",
+        "fsm"
+      ]
+    },
+    {
+      "deck": "states",
+      "a": [
+        "US-AR",
+        "arkansas"
+      ],
+      "b": [
+        "US-KS",
+        "kansas"
+      ]
+    },
+    {
+      "deck": "states",
+      "a": [
+        "US-NC",
+        "north carolina"
+      ],
+      "b": [
+        "US-SC",
+        "south carolina"
+      ]
+    },
+    {
+      "deck": "states",
+      "a": [
+        "US-ND",
+        "north dakota"
+      ],
+      "b": [
+        "US-SD",
+        "south dakota"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "CPV",
+        "praia"
+      ],
+      "b": [
+        "FRA",
+        "paris"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "CAF",
+        "bangui"
+      ],
+      "b": [
+        "GMB",
+        "banjul"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "ERI",
+        "asmara"
+      ],
+      "b": [
+        "KAZ",
+        "astana"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "ERI",
+        "asmara"
+      ],
+      "b": [
+        "TUR",
+        "ankara"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "GNB",
+        "bissau"
+      ],
+      "b": [
+        "BHS",
+        "nassau"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "MOZ",
+        "maputo"
+      ],
+      "b": [
+        "MHL",
+        "majuro"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "SEN",
+        "dakar"
+      ],
+      "b": [
+        "BGD",
+        "dhaka"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "SSD",
+        "juba"
+      ],
+      "b": [
+        "FJI",
+        "suva"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "TGO",
+        "lome"
+      ],
+      "b": [
+        "ITA",
+        "rome"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "TGO",
+        "lome"
+      ],
+      "b": [
+        "PER",
+        "lima"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "BHR",
+        "manama"
+      ],
+      "b": [
+        "PHL",
+        "manila"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "BHR",
+        "manama"
+      ],
+      "b": [
+        "YEM",
+        "sanaa"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "BHR",
+        "manama"
+      ],
+      "b": [
+        "NIC",
+        "managua"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "IND",
+        "delhi"
+      ],
+      "b": [
+        "TLS",
+        "dili"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "ALB",
+        "tirana"
+      ],
+      "b": [
+        "KIR",
+        "tarawa"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "CZE",
+        "prague"
+      ],
+      "b": [
+        "NLD",
+        "hague"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "DEU",
+        "berlin"
+      ],
+      "b": [
+        "CHE",
+        "bern"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "LVA",
+        "riga"
+      ],
+      "b": [
+        "PER",
+        "lima"
+      ]
+    },
+    {
+      "deck": "capitals",
+      "a": [
+        "JAM",
+        "kingston"
+      ],
+      "b": [
+        "VCT",
+        "kingstown"
+      ]
+    },
+    {
+      "deck": "state capitals",
+      "a": [
+        "US-CO",
+        "denver"
+      ],
+      "b": [
+        "US-DE",
+        "dover"
+      ]
+    },
+    {
+      "deck": "state capitals",
+      "a": [
+        "US-OH",
+        "columbus"
+      ],
+      "b": [
+        "US-SC",
+        "columbia"
+      ]
+    }
+  ],
+  "counts": {
+    "countries": 198,
+    "territories": 5,
+    "states": 50,
+    "capitals": 197
+  }
+}

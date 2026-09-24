@@ -1,0 +1,70 @@
+---
+import '../styles/commonplace.css';
+import NavToggle from '../components/NavToggle.astro';
+import type { ResolvedWorkspace } from '../lib/workspace';
+
+interface Props {
+  title: string;
+  description?: string;
+  workspace: ResolvedWorkspace;
+  /** The play screen takes the whole window and drops the footer. */
+  bare?: boolean;
+}
+
+const { title, description = '', workspace, bare = false } = Astro.props;
+const base = `/learn/${workspace.slug}`;
+const pathname = Astro.url.pathname;
+const canonical = new URL(pathname, Astro.site ?? Astro.url.origin);
+const { user } = Astro.locals;
+
+const links = [
+  { href: base, label: 'Decks' },
+  { href: `${base}/review`, label: 'Review' },
+  { href: `${base}/daily`, label: 'Daily' },
+  { href: `${base}/progress`, label: 'Progress' },
+];
+---
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical.href} />
+    <link rel="icon" href="/grackles-logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    {/* The shared Grackles faces, as Cedarhouse loads them. */}
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Karla:wght@300;400;500&family=Space+Mono&display=swap"
+      rel="stylesheet"
+    />
+    {workspace.visibility !== 'public' && <meta name="robots" content="noindex, nofollow" />}
+  </head>
+  <body data-bare={bare ? '' : undefined}>
+    <nav class="site-nav">
+      <div class="container site-nav__inner">
+        <a href={base} class="site-nav__logo">Commonplace</a>
+        <NavToggle />
+        <div class="site-nav__links" id="site-nav-links">
+          {
+            links.map(l => (
+              <a href={l.href} class={`site-nav__pill${pathname === l.href ? ' active' : ''}`}>
+                {l.label}
+              </a>
+            ))
+          }
+          {workspace.role && <a class="site-nav__pill site-nav__role" href={`/settings/learn/${workspace.slug}`}>{workspace.role}</a>}
+          <a class="site-nav__pill" href={user ? '/dashboard' : `/login?next=${encodeURIComponent(pathname)}`}>
+            {user ? 'Projects' : 'Sign in'}
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <slot />
+
+    {!bare && <footer class="site-footer container">Commonplace · {workspace.name}</footer>}
+  </body>
+</html>

@@ -1,0 +1,5079 @@
+{
+ "DZA": {
+  "name": "Algeria",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "north-africa",
+  "tags": [],
+  "capital": {
+   "name": "Algiers",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ESH",
+   "LBY",
+   "MAR",
+   "MLI",
+   "MRT",
+   "NER",
+   "TUN"
+  ]
+ },
+ "AGO": {
+  "name": "Angola",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "central-africa",
+  "tags": [],
+  "capital": {
+   "name": "Luanda",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "COD",
+   "COG",
+   "NAM",
+   "ZMB"
+  ]
+ },
+ "BEN": {
+  "name": "Benin",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "west-africa",
+  "tags": [],
+  "capital": {
+   "name": "Porto-Novo",
+   "accepts": [],
+   "also": [
+    "Cotonou"
+   ]
+  },
+  "neighbours": [
+   "BFA",
+   "NER",
+   "NGA",
+   "TGO"
+  ]
+ },
+ "BWA": {
+  "name": "Botswana",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "southern-africa",
+  "tags": [],
+  "capital": {
+   "name": "Gaborone",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "NAM",
+   "ZAF",
+   "ZWE"
+  ]
+ },
+ "BFA": {
+  "name": "Burkina Faso",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "west-africa",
+  "tags": [],
+  "capital": {
+   "name": "Ouagadougou",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BEN",
+   "CIV",
+   "GHA",
+   "MLI",
+   "NER",
+   "TGO"
+  ]
+ },
+ "BDI": {
+  "name": "Burundi",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Gitega",
+   "accepts": [],
+   "also": [
+    "Bujumbura"
+   ]
+  },
+  "neighbours": [
+   "COD",
+   "RWA",
+   "TZA"
+  ]
+ },
+ "CPV": {
+  "name": "Cape Verde",
+  "accepts": [
+   "Cabo Verde"
+  ],
+  "continents": [
+   "africa"
+  ],
+  "region": "west-africa",
+  "tags": [],
+  "capital": {
+   "name": "Praia",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "CMR": {
+  "name": "Cameroon",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "central-africa",
+  "tags": [],
+  "capital": {
+   "name": "Yaoundé",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "CAF",
+   "COG",
+   "GAB",
+   "GNQ",
+   "NGA",
+   "TCD"
+  ]
+ },
+ "CAF": {
+  "name": "Central African Republic",
+  "accepts": [
+   "CAR"
+  ],
+  "continents": [
+   "africa"
+  ],
+  "region": "central-africa",
+  "tags": [],
+  "capital": {
+   "name": "Bangui",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "CMR",
+   "COD",
+   "COG",
+   "SDN",
+   "SSD",
+   "TCD"
+  ]
+ },
+ "TCD": {
+  "name": "Chad",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "central-africa",
+  "tags": [],
+  "capital": {
+   "name": "N'Djamena",
+   "accepts": [
+    "Ndjamena"
+   ],
+   "also": []
+  },
+  "neighbours": [
+   "CAF",
+   "CMR",
+   "LBY",
+   "NER",
+   "NGA",
+   "SDN"
+  ]
+ },
+ "COM": {
+  "name": "Comoros",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Moroni",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "COG": {
+  "name": "Republic of the Congo",
+  "accepts": [
+   "Congo",
+   "Congo-Brazzaville",
+   "Congo Republic"
+  ],
+  "continents": [
+   "africa"
+  ],
+  "region": "central-africa",
+  "tags": [],
+  "capital": {
+   "name": "Brazzaville",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AGO",
+   "CAF",
+   "CMR",
+   "COD",
+   "GAB"
+  ]
+ },
+ "COD": {
+  "name": "Democratic Republic of the Congo",
+  "accepts": [
+   "DRC",
+   "DR Congo",
+   "Congo-Kinshasa",
+   "DRC Congo"
+  ],
+  "continents": [
+   "africa"
+  ],
+  "region": "central-africa",
+  "tags": [],
+  "capital": {
+   "name": "Kinshasa",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AGO",
+   "BDI",
+   "CAF",
+   "COG",
+   "RWA",
+   "SSD",
+   "TZA",
+   "UGA",
+   "ZMB"
+  ]
+ },
+ "CIV": {
+  "name": "Côte d'Ivoire",
+  "accepts": [
+   "Ivory Coast",
+   "Cote dIvoire"
+  ],
+  "continents": [
+   "africa"
+  ],
+  "region": "west-africa",
+  "tags": [],
+  "capital": {
+   "name": "Yamoussoukro",
+   "accepts": [],
+   "also": [
+    "Abidjan"
+   ]
+  },
+  "neighbours": [
+   "BFA",
+   "GHA",
+   "GIN",
+   "LBR",
+   "MLI"
+  ]
+ },
+ "DJI": {
+  "name": "Djibouti",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Djibouti",
+   "accepts": [
+    "Djibouti City"
+   ],
+   "also": []
+  },
+  "neighbours": [
+   "ERI",
+   "ETH",
+   "SOM"
+  ]
+ },
+ "EGY": {
+  "name": "Egypt",
+  "accepts": [],
+  "continents": [
+   "africa",
+   "asia"
+  ],
+  "region": "north-africa",
+  "tags": [],
+  "capital": {
+   "name": "Cairo",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ISR",
+   "LBY",
+   "PSE",
+   "SDN"
+  ]
+ },
+ "GNQ": {
+  "name": "Equatorial Guinea",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "central-africa",
+  "tags": [],
+  "capital": {
+   "name": "Malabo",
+   "accepts": [],
+   "also": [
+    "Ciudad de la Paz"
+   ]
+  },
+  "neighbours": [
+   "CMR",
+   "GAB"
+  ]
+ },
+ "ERI": {
+  "name": "Eritrea",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Asmara",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "DJI",
+   "ETH",
+   "SDN"
+  ]
+ },
+ "SWZ": {
+  "name": "Eswatini",
+  "accepts": [
+   "Swaziland"
+  ],
+  "continents": [
+   "africa"
+  ],
+  "region": "southern-africa",
+  "tags": [],
+  "capital": {
+   "name": "Mbabane",
+   "accepts": [],
+   "also": [
+    "Lobamba"
+   ]
+  },
+  "neighbours": [
+   "MOZ",
+   "ZAF"
+  ]
+ },
+ "ETH": {
+  "name": "Ethiopia",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Addis Ababa",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "DJI",
+   "ERI",
+   "KEN",
+   "SDN",
+   "SOM",
+   "SSD"
+  ]
+ },
+ "GAB": {
+  "name": "Gabon",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "central-africa",
+  "tags": [],
+  "capital": {
+   "name": "Libreville",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "CMR",
+   "COG",
+   "GNQ"
+  ]
+ },
+ "GMB": {
+  "name": "The Gambia",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "west-africa",
+  "tags": [],
+  "capital": {
+   "name": "Banjul",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "SEN"
+  ]
+ },
+ "GHA": {
+  "name": "Ghana",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "west-africa",
+  "tags": [],
+  "capital": {
+   "name": "Accra",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BFA",
+   "CIV",
+   "TGO"
+  ]
+ },
+ "GIN": {
+  "name": "Guinea",
+  "accepts": [
+   "Guinea-Conakry"
+  ],
+  "continents": [
+   "africa"
+  ],
+  "region": "west-africa",
+  "tags": [],
+  "capital": {
+   "name": "Conakry",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "CIV",
+   "GNB",
+   "LBR",
+   "MLI",
+   "SEN",
+   "SLE"
+  ]
+ },
+ "GNB": {
+  "name": "Guinea-Bissau",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "west-africa",
+  "tags": [],
+  "capital": {
+   "name": "Bissau",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "GIN",
+   "SEN"
+  ]
+ },
+ "KEN": {
+  "name": "Kenya",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Nairobi",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ETH",
+   "SOM",
+   "SSD",
+   "TZA",
+   "UGA"
+  ]
+ },
+ "LSO": {
+  "name": "Lesotho",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "southern-africa",
+  "tags": [],
+  "capital": {
+   "name": "Maseru",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ZAF"
+  ]
+ },
+ "LBR": {
+  "name": "Liberia",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "west-africa",
+  "tags": [],
+  "capital": {
+   "name": "Monrovia",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "CIV",
+   "GIN",
+   "SLE"
+  ]
+ },
+ "LBY": {
+  "name": "Libya",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "north-africa",
+  "tags": [],
+  "capital": {
+   "name": "Tripoli",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "DZA",
+   "EGY",
+   "NER",
+   "SDN",
+   "TCD",
+   "TUN"
+  ]
+ },
+ "MDG": {
+  "name": "Madagascar",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Antananarivo",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "MWI": {
+  "name": "Malawi",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Lilongwe",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "MOZ",
+   "TZA",
+   "ZMB"
+  ]
+ },
+ "MLI": {
+  "name": "Mali",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "west-africa",
+  "tags": [],
+  "capital": {
+   "name": "Bamako",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BFA",
+   "CIV",
+   "DZA",
+   "GIN",
+   "MRT",
+   "NER",
+   "SEN"
+  ]
+ },
+ "MRT": {
+  "name": "Mauritania",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "west-africa",
+  "tags": [],
+  "capital": {
+   "name": "Nouakchott",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "DZA",
+   "ESH",
+   "MLI",
+   "SEN"
+  ]
+ },
+ "MUS": {
+  "name": "Mauritius",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Port Louis",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "MAR": {
+  "name": "Morocco",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "north-africa",
+  "tags": [],
+  "capital": {
+   "name": "Rabat",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "DZA",
+   "ESH"
+  ]
+ },
+ "MOZ": {
+  "name": "Mozambique",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Maputo",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "MWI",
+   "SWZ",
+   "TZA",
+   "ZAF",
+   "ZMB",
+   "ZWE"
+  ]
+ },
+ "NAM": {
+  "name": "Namibia",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "southern-africa",
+  "tags": [],
+  "capital": {
+   "name": "Windhoek",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AGO",
+   "BWA",
+   "ZAF",
+   "ZMB"
+  ]
+ },
+ "NER": {
+  "name": "Niger",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "west-africa",
+  "tags": [],
+  "capital": {
+   "name": "Niamey",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BEN",
+   "BFA",
+   "DZA",
+   "LBY",
+   "MLI",
+   "NGA",
+   "TCD"
+  ]
+ },
+ "NGA": {
+  "name": "Nigeria",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "west-africa",
+  "tags": [],
+  "capital": {
+   "name": "Abuja",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BEN",
+   "CMR",
+   "NER",
+   "TCD"
+  ]
+ },
+ "RWA": {
+  "name": "Rwanda",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Kigali",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BDI",
+   "COD",
+   "TZA",
+   "UGA"
+  ]
+ },
+ "STP": {
+  "name": "São Tomé and Príncipe",
+  "accepts": [
+   "Sao Tome"
+  ],
+  "continents": [
+   "africa"
+  ],
+  "region": "central-africa",
+  "tags": [],
+  "capital": {
+   "name": "São Tomé",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "SEN": {
+  "name": "Senegal",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "west-africa",
+  "tags": [],
+  "capital": {
+   "name": "Dakar",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "GIN",
+   "GMB",
+   "GNB",
+   "MLI",
+   "MRT"
+  ]
+ },
+ "SYC": {
+  "name": "Seychelles",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Victoria",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "SLE": {
+  "name": "Sierra Leone",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "west-africa",
+  "tags": [],
+  "capital": {
+   "name": "Freetown",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "GIN",
+   "LBR"
+  ]
+ },
+ "SOM": {
+  "name": "Somalia",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Mogadishu",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "DJI",
+   "ETH",
+   "KEN"
+  ]
+ },
+ "ZAF": {
+  "name": "South Africa",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "southern-africa",
+  "tags": [],
+  "capital": {
+   "name": "Pretoria",
+   "accepts": [
+    "Tshwane"
+   ],
+   "also": [
+    "Cape Town",
+    "Bloemfontein"
+   ]
+  },
+  "neighbours": [
+   "BWA",
+   "LSO",
+   "MOZ",
+   "NAM",
+   "SWZ",
+   "ZWE"
+  ]
+ },
+ "SSD": {
+  "name": "South Sudan",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Juba",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "CAF",
+   "COD",
+   "ETH",
+   "KEN",
+   "SDN",
+   "UGA"
+  ]
+ },
+ "SDN": {
+  "name": "Sudan",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "north-africa",
+  "tags": [],
+  "capital": {
+   "name": "Khartoum",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "CAF",
+   "EGY",
+   "ERI",
+   "ETH",
+   "LBY",
+   "SSD",
+   "TCD"
+  ]
+ },
+ "TZA": {
+  "name": "Tanzania",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Dodoma",
+   "accepts": [],
+   "also": [
+    "Dar es Salaam"
+   ]
+  },
+  "neighbours": [
+   "BDI",
+   "COD",
+   "KEN",
+   "MOZ",
+   "MWI",
+   "RWA",
+   "UGA",
+   "ZMB"
+  ]
+ },
+ "TGO": {
+  "name": "Togo",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "west-africa",
+  "tags": [],
+  "capital": {
+   "name": "Lomé",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BEN",
+   "BFA",
+   "GHA"
+  ]
+ },
+ "TUN": {
+  "name": "Tunisia",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "north-africa",
+  "tags": [],
+  "capital": {
+   "name": "Tunis",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "DZA",
+   "LBY"
+  ]
+ },
+ "UGA": {
+  "name": "Uganda",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Kampala",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "COD",
+   "KEN",
+   "RWA",
+   "SSD",
+   "TZA"
+  ]
+ },
+ "ZMB": {
+  "name": "Zambia",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Lusaka",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AGO",
+   "COD",
+   "MOZ",
+   "MWI",
+   "NAM",
+   "TZA",
+   "ZWE"
+  ]
+ },
+ "ZWE": {
+  "name": "Zimbabwe",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "east-africa",
+  "tags": [],
+  "capital": {
+   "name": "Harare",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BWA",
+   "MOZ",
+   "ZAF",
+   "ZMB"
+  ]
+ },
+ "ESH": {
+  "name": "Western Sahara",
+  "accepts": [],
+  "continents": [
+   "africa"
+  ],
+  "region": "north-africa",
+  "tags": [
+   "disputed"
+  ],
+  "capital": null,
+  "neighbours": [
+   "DZA",
+   "MAR",
+   "MRT"
+  ]
+ },
+ "AFG": {
+  "name": "Afghanistan",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "south-asia",
+  "tags": [],
+  "capital": {
+   "name": "Kabul",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "CHN",
+   "IRN",
+   "PAK",
+   "TJK",
+   "TKM",
+   "UZB"
+  ]
+ },
+ "ARM": {
+  "name": "Armenia",
+  "accepts": [],
+  "continents": [
+   "asia",
+   "europe"
+  ],
+  "region": "caucasus",
+  "tags": [],
+  "capital": {
+   "name": "Yerevan",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AZE",
+   "GEO",
+   "IRN",
+   "TUR"
+  ]
+ },
+ "AZE": {
+  "name": "Azerbaijan",
+  "accepts": [],
+  "continents": [
+   "asia",
+   "europe"
+  ],
+  "region": "caucasus",
+  "tags": [],
+  "capital": {
+   "name": "Baku",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ARM",
+   "GEO",
+   "IRN",
+   "RUS",
+   "TUR"
+  ]
+ },
+ "BHR": {
+  "name": "Bahrain",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "middle-east",
+  "tags": [],
+  "capital": {
+   "name": "Manama",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "BGD": {
+  "name": "Bangladesh",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "south-asia",
+  "tags": [],
+  "capital": {
+   "name": "Dhaka",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "IND",
+   "MMR"
+  ]
+ },
+ "BTN": {
+  "name": "Bhutan",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "south-asia",
+  "tags": [],
+  "capital": {
+   "name": "Thimphu",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "CHN",
+   "IND"
+  ]
+ },
+ "BRN": {
+  "name": "Brunei",
+  "accepts": [
+   "Brunei Darussalam"
+  ],
+  "continents": [
+   "asia"
+  ],
+  "region": "southeast-asia",
+  "tags": [],
+  "capital": {
+   "name": "Bandar Seri Begawan",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "MYS"
+  ]
+ },
+ "KHM": {
+  "name": "Cambodia",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "southeast-asia",
+  "tags": [],
+  "capital": {
+   "name": "Phnom Penh",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "LAO",
+   "THA",
+   "VNM"
+  ]
+ },
+ "CHN": {
+  "name": "China",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "east-asia",
+  "tags": [],
+  "capital": {
+   "name": "Beijing",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AFG",
+   "BTN",
+   "IND",
+   "KAZ",
+   "KGZ",
+   "LAO",
+   "MMR",
+   "MNG",
+   "NPL",
+   "PAK",
+   "PRK",
+   "RUS",
+   "TJK",
+   "VNM"
+  ]
+ },
+ "CYP": {
+  "name": "Cyprus",
+  "accepts": [],
+  "continents": [
+   "asia",
+   "europe"
+  ],
+  "region": "middle-east",
+  "tags": [],
+  "capital": {
+   "name": "Nicosia",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "GEO": {
+  "name": "Georgia",
+  "accepts": [],
+  "continents": [
+   "asia",
+   "europe"
+  ],
+  "region": "caucasus",
+  "tags": [],
+  "capital": {
+   "name": "Tbilisi",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ARM",
+   "AZE",
+   "RUS",
+   "TUR"
+  ]
+ },
+ "IND": {
+  "name": "India",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "south-asia",
+  "tags": [],
+  "capital": {
+   "name": "New Delhi",
+   "accepts": [
+    "Delhi"
+   ],
+   "also": []
+  },
+  "neighbours": [
+   "BGD",
+   "BTN",
+   "CHN",
+   "MMR",
+   "NPL",
+   "PAK"
+  ]
+ },
+ "IDN": {
+  "name": "Indonesia",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "southeast-asia",
+  "tags": [],
+  "capital": {
+   "name": "Jakarta",
+   "accepts": [],
+   "also": [
+    "Nusantara"
+   ]
+  },
+  "neighbours": [
+   "MYS",
+   "PNG",
+   "TLS"
+  ]
+ },
+ "IRN": {
+  "name": "Iran",
+  "accepts": [
+   "Persia"
+  ],
+  "continents": [
+   "asia"
+  ],
+  "region": "middle-east",
+  "tags": [],
+  "capital": {
+   "name": "Tehran",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AFG",
+   "ARM",
+   "AZE",
+   "IRQ",
+   "PAK",
+   "TKM",
+   "TUR"
+  ]
+ },
+ "IRQ": {
+  "name": "Iraq",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "middle-east",
+  "tags": [],
+  "capital": {
+   "name": "Baghdad",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "IRN",
+   "JOR",
+   "KWT",
+   "SAU",
+   "SYR",
+   "TUR"
+  ]
+ },
+ "ISR": {
+  "name": "Israel",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "middle-east",
+  "tags": [],
+  "capital": {
+   "name": "Jerusalem",
+   "accepts": [],
+   "also": [
+    "Tel Aviv"
+   ]
+  },
+  "neighbours": [
+   "EGY",
+   "JOR",
+   "LBN",
+   "PSE",
+   "SYR"
+  ]
+ },
+ "JPN": {
+  "name": "Japan",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "east-asia",
+  "tags": [],
+  "capital": {
+   "name": "Tokyo",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "JOR": {
+  "name": "Jordan",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "middle-east",
+  "tags": [],
+  "capital": {
+   "name": "Amman",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "IRQ",
+   "ISR",
+   "PSE",
+   "SAU",
+   "SYR"
+  ]
+ },
+ "KAZ": {
+  "name": "Kazakhstan",
+  "accepts": [],
+  "continents": [
+   "asia",
+   "europe"
+  ],
+  "region": "central-asia",
+  "tags": [],
+  "capital": {
+   "name": "Astana",
+   "accepts": [
+    "Nur-Sultan"
+   ],
+   "also": []
+  },
+  "neighbours": [
+   "CHN",
+   "KGZ",
+   "RUS",
+   "TKM",
+   "UZB"
+  ]
+ },
+ "KWT": {
+  "name": "Kuwait",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "middle-east",
+  "tags": [],
+  "capital": {
+   "name": "Kuwait City",
+   "accepts": [
+    "Kuwait"
+   ],
+   "also": []
+  },
+  "neighbours": [
+   "IRQ",
+   "SAU"
+  ]
+ },
+ "KGZ": {
+  "name": "Kyrgyzstan",
+  "accepts": [
+   "Kyrgyz Republic"
+  ],
+  "continents": [
+   "asia"
+  ],
+  "region": "central-asia",
+  "tags": [],
+  "capital": {
+   "name": "Bishkek",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "CHN",
+   "KAZ",
+   "TJK",
+   "UZB"
+  ]
+ },
+ "LAO": {
+  "name": "Laos",
+  "accepts": [
+   "Lao",
+   "Lao PDR"
+  ],
+  "continents": [
+   "asia"
+  ],
+  "region": "southeast-asia",
+  "tags": [],
+  "capital": {
+   "name": "Vientiane",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "CHN",
+   "KHM",
+   "MMR",
+   "THA",
+   "VNM"
+  ]
+ },
+ "LBN": {
+  "name": "Lebanon",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "middle-east",
+  "tags": [],
+  "capital": {
+   "name": "Beirut",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ISR",
+   "SYR"
+  ]
+ },
+ "MYS": {
+  "name": "Malaysia",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "southeast-asia",
+  "tags": [],
+  "capital": {
+   "name": "Kuala Lumpur",
+   "accepts": [],
+   "also": [
+    "Putrajaya"
+   ]
+  },
+  "neighbours": [
+   "BRN",
+   "IDN",
+   "THA"
+  ]
+ },
+ "MDV": {
+  "name": "Maldives",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "south-asia",
+  "tags": [],
+  "capital": {
+   "name": "Malé",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "MNG": {
+  "name": "Mongolia",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "east-asia",
+  "tags": [],
+  "capital": {
+   "name": "Ulaanbaatar",
+   "accepts": [
+    "Ulan Bator"
+   ],
+   "also": []
+  },
+  "neighbours": [
+   "CHN",
+   "RUS"
+  ]
+ },
+ "MMR": {
+  "name": "Myanmar",
+  "accepts": [
+   "Burma"
+  ],
+  "continents": [
+   "asia"
+  ],
+  "region": "southeast-asia",
+  "tags": [],
+  "capital": {
+   "name": "Naypyidaw",
+   "accepts": [
+    "Nay Pyi Taw",
+    "Naypyitaw"
+   ],
+   "also": []
+  },
+  "neighbours": [
+   "BGD",
+   "CHN",
+   "IND",
+   "LAO",
+   "THA"
+  ]
+ },
+ "NPL": {
+  "name": "Nepal",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "south-asia",
+  "tags": [],
+  "capital": {
+   "name": "Kathmandu",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "CHN",
+   "IND"
+  ]
+ },
+ "PRK": {
+  "name": "North Korea",
+  "accepts": [
+   "DPRK"
+  ],
+  "continents": [
+   "asia"
+  ],
+  "region": "east-asia",
+  "tags": [],
+  "capital": {
+   "name": "Pyongyang",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "CHN",
+   "KOR",
+   "RUS"
+  ]
+ },
+ "OMN": {
+  "name": "Oman",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "middle-east",
+  "tags": [],
+  "capital": {
+   "name": "Muscat",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ARE",
+   "SAU",
+   "YEM"
+  ]
+ },
+ "PAK": {
+  "name": "Pakistan",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "south-asia",
+  "tags": [],
+  "capital": {
+   "name": "Islamabad",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AFG",
+   "CHN",
+   "IND",
+   "IRN"
+  ]
+ },
+ "PSE": {
+  "name": "Palestine",
+  "accepts": [
+   "Palestinian Territories",
+   "State of Palestine"
+  ],
+  "continents": [
+   "asia"
+  ],
+  "region": "middle-east",
+  "tags": [
+   "disputed"
+  ],
+  "capital": {
+   "name": "Ramallah",
+   "accepts": [],
+   "also": [
+    "East Jerusalem"
+   ]
+  },
+  "neighbours": [
+   "EGY",
+   "ISR",
+   "JOR"
+  ]
+ },
+ "PHL": {
+  "name": "Philippines",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "southeast-asia",
+  "tags": [],
+  "capital": {
+   "name": "Manila",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "QAT": {
+  "name": "Qatar",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "middle-east",
+  "tags": [],
+  "capital": {
+   "name": "Doha",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "SAU"
+  ]
+ },
+ "SAU": {
+  "name": "Saudi Arabia",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "middle-east",
+  "tags": [],
+  "capital": {
+   "name": "Riyadh",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ARE",
+   "IRQ",
+   "JOR",
+   "KWT",
+   "OMN",
+   "QAT",
+   "YEM"
+  ]
+ },
+ "SGP": {
+  "name": "Singapore",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "southeast-asia",
+  "tags": [],
+  "capital": {
+   "name": "Singapore",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "KOR": {
+  "name": "South Korea",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "east-asia",
+  "tags": [],
+  "capital": {
+   "name": "Seoul",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "PRK"
+  ]
+ },
+ "LKA": {
+  "name": "Sri Lanka",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "south-asia",
+  "tags": [],
+  "capital": {
+   "name": "Sri Jayawardenepura Kotte",
+   "accepts": [
+    "Kotte"
+   ],
+   "also": [
+    "Colombo"
+   ]
+  },
+  "neighbours": []
+ },
+ "SYR": {
+  "name": "Syria",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "middle-east",
+  "tags": [],
+  "capital": {
+   "name": "Damascus",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "IRQ",
+   "ISR",
+   "JOR",
+   "LBN",
+   "TUR"
+  ]
+ },
+ "TWN": {
+  "name": "Taiwan",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "east-asia",
+  "tags": [
+   "disputed"
+  ],
+  "capital": {
+   "name": "Taipei",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "TJK": {
+  "name": "Tajikistan",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "central-asia",
+  "tags": [],
+  "capital": {
+   "name": "Dushanbe",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AFG",
+   "CHN",
+   "KGZ",
+   "UZB"
+  ]
+ },
+ "THA": {
+  "name": "Thailand",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "southeast-asia",
+  "tags": [],
+  "capital": {
+   "name": "Bangkok",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "KHM",
+   "LAO",
+   "MMR",
+   "MYS"
+  ]
+ },
+ "TLS": {
+  "name": "Timor-Leste",
+  "accepts": [
+   "East Timor"
+  ],
+  "continents": [
+   "asia"
+  ],
+  "region": "southeast-asia",
+  "tags": [],
+  "capital": {
+   "name": "Dili",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "IDN"
+  ]
+ },
+ "TUR": {
+  "name": "Turkey",
+  "accepts": [
+   "Türkiye"
+  ],
+  "continents": [
+   "asia",
+   "europe"
+  ],
+  "region": "middle-east",
+  "tags": [],
+  "capital": {
+   "name": "Ankara",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ARM",
+   "AZE",
+   "BGR",
+   "GEO",
+   "GRC",
+   "IRN",
+   "IRQ",
+   "SYR"
+  ]
+ },
+ "TKM": {
+  "name": "Turkmenistan",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "central-asia",
+  "tags": [],
+  "capital": {
+   "name": "Ashgabat",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AFG",
+   "IRN",
+   "KAZ",
+   "UZB"
+  ]
+ },
+ "ARE": {
+  "name": "United Arab Emirates",
+  "accepts": [
+   "UAE",
+   "Emirates"
+  ],
+  "continents": [
+   "asia"
+  ],
+  "region": "middle-east",
+  "tags": [],
+  "capital": {
+   "name": "Abu Dhabi",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "OMN",
+   "SAU"
+  ]
+ },
+ "UZB": {
+  "name": "Uzbekistan",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "central-asia",
+  "tags": [],
+  "capital": {
+   "name": "Tashkent",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AFG",
+   "KAZ",
+   "KGZ",
+   "TJK",
+   "TKM"
+  ]
+ },
+ "VNM": {
+  "name": "Vietnam",
+  "accepts": [
+   "Viet Nam"
+  ],
+  "continents": [
+   "asia"
+  ],
+  "region": "southeast-asia",
+  "tags": [],
+  "capital": {
+   "name": "Hanoi",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "CHN",
+   "KHM",
+   "LAO"
+  ]
+ },
+ "YEM": {
+  "name": "Yemen",
+  "accepts": [],
+  "continents": [
+   "asia"
+  ],
+  "region": "middle-east",
+  "tags": [],
+  "capital": {
+   "name": "Sanaa",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "OMN",
+   "SAU"
+  ]
+ },
+ "RUS": {
+  "name": "Russia",
+  "accepts": [
+   "Russian Federation"
+  ],
+  "continents": [
+   "europe",
+   "asia"
+  ],
+  "region": "eastern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Moscow",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AZE",
+   "BLR",
+   "CHN",
+   "EST",
+   "FIN",
+   "GEO",
+   "KAZ",
+   "LTU",
+   "LVA",
+   "MNG",
+   "NOR",
+   "POL",
+   "PRK",
+   "UKR"
+  ]
+ },
+ "ALB": {
+  "name": "Albania",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "balkans",
+  "tags": [],
+  "capital": {
+   "name": "Tirana",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "GRC",
+   "MKD",
+   "MNE",
+   "XKX"
+  ]
+ },
+ "AND": {
+  "name": "Andorra",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "southern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Andorra la Vella",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ESP",
+   "FRA"
+  ]
+ },
+ "AUT": {
+  "name": "Austria",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "western-europe",
+  "tags": [],
+  "capital": {
+   "name": "Vienna",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "CHE",
+   "CZE",
+   "DEU",
+   "HUN",
+   "ITA",
+   "LIE",
+   "SVK",
+   "SVN"
+  ]
+ },
+ "BLR": {
+  "name": "Belarus",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "eastern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Minsk",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "LTU",
+   "LVA",
+   "POL",
+   "RUS",
+   "UKR"
+  ]
+ },
+ "BEL": {
+  "name": "Belgium",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "western-europe",
+  "tags": [],
+  "capital": {
+   "name": "Brussels",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "DEU",
+   "FRA",
+   "LUX",
+   "NLD"
+  ]
+ },
+ "BIH": {
+  "name": "Bosnia and Herzegovina",
+  "accepts": [
+   "Bosnia",
+   "Bosnia-Herzegovina"
+  ],
+  "continents": [
+   "europe"
+  ],
+  "region": "balkans",
+  "tags": [],
+  "capital": {
+   "name": "Sarajevo",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "HRV",
+   "MNE",
+   "SRB"
+  ]
+ },
+ "BGR": {
+  "name": "Bulgaria",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "balkans",
+  "tags": [],
+  "capital": {
+   "name": "Sofia",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "GRC",
+   "MKD",
+   "ROU",
+   "SRB",
+   "TUR"
+  ]
+ },
+ "HRV": {
+  "name": "Croatia",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "balkans",
+  "tags": [],
+  "capital": {
+   "name": "Zagreb",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BIH",
+   "HUN",
+   "MNE",
+   "SRB",
+   "SVN"
+  ]
+ },
+ "CZE": {
+  "name": "Czechia",
+  "accepts": [
+   "Czech Republic"
+  ],
+  "continents": [
+   "europe"
+  ],
+  "region": "eastern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Prague",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AUT",
+   "DEU",
+   "POL",
+   "SVK"
+  ]
+ },
+ "DNK": {
+  "name": "Denmark",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "northern-europe",
+  "tags": [
+   "nordic"
+  ],
+  "capital": {
+   "name": "Copenhagen",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "DEU"
+  ]
+ },
+ "EST": {
+  "name": "Estonia",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "northern-europe",
+  "tags": [
+   "baltics"
+  ],
+  "capital": {
+   "name": "Tallinn",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "LVA",
+   "RUS"
+  ]
+ },
+ "FIN": {
+  "name": "Finland",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "northern-europe",
+  "tags": [
+   "nordic"
+  ],
+  "capital": {
+   "name": "Helsinki",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "NOR",
+   "RUS",
+   "SWE"
+  ]
+ },
+ "FRA": {
+  "name": "France",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "western-europe",
+  "tags": [],
+  "capital": {
+   "name": "Paris",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AND",
+   "BEL",
+   "CHE",
+   "DEU",
+   "ESP",
+   "ITA",
+   "LUX",
+   "MCO"
+  ]
+ },
+ "DEU": {
+  "name": "Germany",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "western-europe",
+  "tags": [],
+  "capital": {
+   "name": "Berlin",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AUT",
+   "BEL",
+   "CHE",
+   "CZE",
+   "DNK",
+   "FRA",
+   "LUX",
+   "NLD",
+   "POL"
+  ]
+ },
+ "GRC": {
+  "name": "Greece",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "southern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Athens",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ALB",
+   "BGR",
+   "MKD",
+   "TUR"
+  ]
+ },
+ "HUN": {
+  "name": "Hungary",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "eastern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Budapest",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AUT",
+   "HRV",
+   "ROU",
+   "SRB",
+   "SVK",
+   "SVN",
+   "UKR"
+  ]
+ },
+ "ISL": {
+  "name": "Iceland",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "northern-europe",
+  "tags": [
+   "nordic"
+  ],
+  "capital": {
+   "name": "Reykjavík",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "IRL": {
+  "name": "Ireland",
+  "accepts": [
+   "Republic of Ireland",
+   "Eire"
+  ],
+  "continents": [
+   "europe"
+  ],
+  "region": "northern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Dublin",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "GBR"
+  ]
+ },
+ "ITA": {
+  "name": "Italy",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "southern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Rome",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AUT",
+   "CHE",
+   "FRA",
+   "SMR",
+   "SVN",
+   "VAT"
+  ]
+ },
+ "XKX": {
+  "name": "Kosovo",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "balkans",
+  "tags": [
+   "disputed"
+  ],
+  "capital": {
+   "name": "Pristina",
+   "accepts": [
+    "Prishtina",
+    "Priština"
+   ],
+   "also": []
+  },
+  "neighbours": [
+   "ALB",
+   "MKD",
+   "MNE",
+   "SRB"
+  ]
+ },
+ "LVA": {
+  "name": "Latvia",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "northern-europe",
+  "tags": [
+   "baltics"
+  ],
+  "capital": {
+   "name": "Riga",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BLR",
+   "EST",
+   "LTU",
+   "RUS"
+  ]
+ },
+ "LIE": {
+  "name": "Liechtenstein",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "western-europe",
+  "tags": [],
+  "capital": {
+   "name": "Vaduz",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AUT",
+   "CHE"
+  ]
+ },
+ "LTU": {
+  "name": "Lithuania",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "northern-europe",
+  "tags": [
+   "baltics"
+  ],
+  "capital": {
+   "name": "Vilnius",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BLR",
+   "LVA",
+   "POL",
+   "RUS"
+  ]
+ },
+ "LUX": {
+  "name": "Luxembourg",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "western-europe",
+  "tags": [],
+  "capital": {
+   "name": "Luxembourg",
+   "accepts": [
+    "Luxembourg City"
+   ],
+   "also": []
+  },
+  "neighbours": [
+   "BEL",
+   "DEU",
+   "FRA"
+  ]
+ },
+ "MLT": {
+  "name": "Malta",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "southern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Valletta",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "MDA": {
+  "name": "Moldova",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "eastern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Chișinău",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ROU",
+   "UKR"
+  ]
+ },
+ "MCO": {
+  "name": "Monaco",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "western-europe",
+  "tags": [],
+  "capital": {
+   "name": "Monaco",
+   "accepts": [
+    "Monaco-Ville"
+   ],
+   "also": []
+  },
+  "neighbours": [
+   "FRA"
+  ]
+ },
+ "MNE": {
+  "name": "Montenegro",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "balkans",
+  "tags": [],
+  "capital": {
+   "name": "Podgorica",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ALB",
+   "BIH",
+   "HRV",
+   "SRB",
+   "XKX"
+  ]
+ },
+ "NLD": {
+  "name": "Netherlands",
+  "accepts": [
+   "Holland"
+  ],
+  "continents": [
+   "europe"
+  ],
+  "region": "western-europe",
+  "tags": [],
+  "capital": {
+   "name": "Amsterdam",
+   "accepts": [],
+   "also": [
+    "The Hague"
+   ]
+  },
+  "neighbours": [
+   "BEL",
+   "DEU"
+  ]
+ },
+ "MKD": {
+  "name": "North Macedonia",
+  "accepts": [
+   "Macedonia"
+  ],
+  "continents": [
+   "europe"
+  ],
+  "region": "balkans",
+  "tags": [],
+  "capital": {
+   "name": "Skopje",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ALB",
+   "BGR",
+   "GRC",
+   "SRB",
+   "XKX"
+  ]
+ },
+ "NOR": {
+  "name": "Norway",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "northern-europe",
+  "tags": [
+   "nordic"
+  ],
+  "capital": {
+   "name": "Oslo",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "FIN",
+   "RUS",
+   "SWE"
+  ]
+ },
+ "POL": {
+  "name": "Poland",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "eastern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Warsaw",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BLR",
+   "CZE",
+   "DEU",
+   "LTU",
+   "RUS",
+   "SVK",
+   "UKR"
+  ]
+ },
+ "PRT": {
+  "name": "Portugal",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "southern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Lisbon",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ESP"
+  ]
+ },
+ "ROU": {
+  "name": "Romania",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "eastern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Bucharest",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BGR",
+   "HUN",
+   "MDA",
+   "SRB",
+   "UKR"
+  ]
+ },
+ "SMR": {
+  "name": "San Marino",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "southern-europe",
+  "tags": [],
+  "capital": {
+   "name": "San Marino",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ITA"
+  ]
+ },
+ "SRB": {
+  "name": "Serbia",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "balkans",
+  "tags": [],
+  "capital": {
+   "name": "Belgrade",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BGR",
+   "BIH",
+   "HRV",
+   "HUN",
+   "MKD",
+   "MNE",
+   "ROU",
+   "XKX"
+  ]
+ },
+ "SVK": {
+  "name": "Slovakia",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "eastern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Bratislava",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AUT",
+   "CZE",
+   "HUN",
+   "POL",
+   "UKR"
+  ]
+ },
+ "SVN": {
+  "name": "Slovenia",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "balkans",
+  "tags": [],
+  "capital": {
+   "name": "Ljubljana",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AUT",
+   "HRV",
+   "HUN",
+   "ITA"
+  ]
+ },
+ "ESP": {
+  "name": "Spain",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "southern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Madrid",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "AND",
+   "FRA",
+   "PRT"
+  ]
+ },
+ "SWE": {
+  "name": "Sweden",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "northern-europe",
+  "tags": [
+   "nordic"
+  ],
+  "capital": {
+   "name": "Stockholm",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "FIN",
+   "NOR"
+  ]
+ },
+ "CHE": {
+  "name": "Switzerland",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "western-europe",
+  "tags": [],
+  "capital": {
+   "name": "Bern",
+   "accepts": [
+    "Berne"
+   ],
+   "also": []
+  },
+  "neighbours": [
+   "AUT",
+   "DEU",
+   "FRA",
+   "ITA",
+   "LIE"
+  ]
+ },
+ "UKR": {
+  "name": "Ukraine",
+  "accepts": [],
+  "continents": [
+   "europe"
+  ],
+  "region": "eastern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Kyiv",
+   "accepts": [
+    "Kiev"
+   ],
+   "also": []
+  },
+  "neighbours": [
+   "BLR",
+   "HUN",
+   "MDA",
+   "POL",
+   "ROU",
+   "RUS",
+   "SVK"
+  ]
+ },
+ "GBR": {
+  "name": "United Kingdom",
+  "accepts": [
+   "UK",
+   "Great Britain",
+   "Britain",
+   "United Kingdom of Great Britain and Northern Ireland"
+  ],
+  "continents": [
+   "europe"
+  ],
+  "region": "northern-europe",
+  "tags": [],
+  "capital": {
+   "name": "London",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "IRL"
+  ]
+ },
+ "VAT": {
+  "name": "Vatican City",
+  "accepts": [
+   "Vatican",
+   "Holy See"
+  ],
+  "continents": [
+   "europe"
+  ],
+  "region": "southern-europe",
+  "tags": [],
+  "capital": {
+   "name": "Vatican City",
+   "accepts": [
+    "Vatican"
+   ],
+   "also": []
+  },
+  "neighbours": [
+   "ITA"
+  ]
+ },
+ "CAN": {
+  "name": "Canada",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "northern-america",
+  "tags": [],
+  "capital": {
+   "name": "Ottawa",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "USA"
+  ]
+ },
+ "USA": {
+  "name": "United States",
+  "accepts": [
+   "USA",
+   "US",
+   "United States of America",
+   "America"
+  ],
+  "continents": [
+   "north-america"
+  ],
+  "region": "northern-america",
+  "tags": [],
+  "capital": {
+   "name": "Washington, D.C.",
+   "accepts": [
+    "Washington",
+    "Washington DC"
+   ],
+   "also": []
+  },
+  "neighbours": [
+   "CAN",
+   "MEX"
+  ]
+ },
+ "MEX": {
+  "name": "Mexico",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "central-america",
+  "tags": [],
+  "capital": {
+   "name": "Mexico City",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BLZ",
+   "GTM",
+   "USA"
+  ]
+ },
+ "GTM": {
+  "name": "Guatemala",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "central-america",
+  "tags": [],
+  "capital": {
+   "name": "Guatemala City",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BLZ",
+   "HND",
+   "MEX",
+   "SLV"
+  ]
+ },
+ "BLZ": {
+  "name": "Belize",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "central-america",
+  "tags": [],
+  "capital": {
+   "name": "Belmopan",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "GTM",
+   "MEX"
+  ]
+ },
+ "SLV": {
+  "name": "El Salvador",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "central-america",
+  "tags": [],
+  "capital": {
+   "name": "San Salvador",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "GTM",
+   "HND"
+  ]
+ },
+ "HND": {
+  "name": "Honduras",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "central-america",
+  "tags": [],
+  "capital": {
+   "name": "Tegucigalpa",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "GTM",
+   "NIC",
+   "SLV"
+  ]
+ },
+ "NIC": {
+  "name": "Nicaragua",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "central-america",
+  "tags": [],
+  "capital": {
+   "name": "Managua",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "CRI",
+   "HND"
+  ]
+ },
+ "CRI": {
+  "name": "Costa Rica",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "central-america",
+  "tags": [],
+  "capital": {
+   "name": "San José",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "NIC",
+   "PAN"
+  ]
+ },
+ "PAN": {
+  "name": "Panama",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "central-america",
+  "tags": [],
+  "capital": {
+   "name": "Panama City",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "COL",
+   "CRI"
+  ]
+ },
+ "CUB": {
+  "name": "Cuba",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "caribbean",
+  "tags": [],
+  "capital": {
+   "name": "Havana",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "JAM": {
+  "name": "Jamaica",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "caribbean",
+  "tags": [],
+  "capital": {
+   "name": "Kingston",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "HTI": {
+  "name": "Haiti",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "caribbean",
+  "tags": [],
+  "capital": {
+   "name": "Port-au-Prince",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "DOM"
+  ]
+ },
+ "DOM": {
+  "name": "Dominican Republic",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "caribbean",
+  "tags": [],
+  "capital": {
+   "name": "Santo Domingo",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "HTI"
+  ]
+ },
+ "BHS": {
+  "name": "The Bahamas",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "caribbean",
+  "tags": [],
+  "capital": {
+   "name": "Nassau",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "ATG": {
+  "name": "Antigua and Barbuda",
+  "accepts": [
+   "Antigua"
+  ],
+  "continents": [
+   "north-america"
+  ],
+  "region": "caribbean",
+  "tags": [],
+  "capital": {
+   "name": "St John's",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "DMA": {
+  "name": "Dominica",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "caribbean",
+  "tags": [],
+  "capital": {
+   "name": "Roseau",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "LCA": {
+  "name": "St Lucia",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "caribbean",
+  "tags": [],
+  "capital": {
+   "name": "Castries",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "VCT": {
+  "name": "St Vincent and the Grenadines",
+  "accepts": [
+   "St Vincent"
+  ],
+  "continents": [
+   "north-america"
+  ],
+  "region": "caribbean",
+  "tags": [],
+  "capital": {
+   "name": "Kingstown",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "GRD": {
+  "name": "Grenada",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "caribbean",
+  "tags": [],
+  "capital": {
+   "name": "St George's",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "BRB": {
+  "name": "Barbados",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "caribbean",
+  "tags": [],
+  "capital": {
+   "name": "Bridgetown",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "KNA": {
+  "name": "St Kitts and Nevis",
+  "accepts": [
+   "St Christopher and Nevis"
+  ],
+  "continents": [
+   "north-america"
+  ],
+  "region": "caribbean",
+  "tags": [],
+  "capital": {
+   "name": "Basseterre",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "TTO": {
+  "name": "Trinidad and Tobago",
+  "accepts": [
+   "Trinidad"
+  ],
+  "continents": [
+   "north-america"
+  ],
+  "region": "caribbean",
+  "tags": [],
+  "capital": {
+   "name": "Port of Spain",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "GRL": {
+  "name": "Greenland",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "northern-america",
+  "tags": [
+   "territory"
+  ],
+  "capital": {
+   "name": "Nuuk",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "PRI": {
+  "name": "Puerto Rico",
+  "accepts": [],
+  "continents": [
+   "north-america"
+  ],
+  "region": "caribbean",
+  "tags": [
+   "territory"
+  ],
+  "capital": {
+   "name": "San Juan",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "ARG": {
+  "name": "Argentina",
+  "accepts": [],
+  "continents": [
+   "south-america"
+  ],
+  "region": "south-america",
+  "tags": [],
+  "capital": {
+   "name": "Buenos Aires",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BOL",
+   "BRA",
+   "CHL",
+   "PRY",
+   "URY"
+  ]
+ },
+ "BOL": {
+  "name": "Bolivia",
+  "accepts": [],
+  "continents": [
+   "south-america"
+  ],
+  "region": "south-america",
+  "tags": [],
+  "capital": {
+   "name": "Sucre",
+   "accepts": [],
+   "also": [
+    "La Paz"
+   ]
+  },
+  "neighbours": [
+   "ARG",
+   "BRA",
+   "CHL",
+   "PER",
+   "PRY"
+  ]
+ },
+ "BRA": {
+  "name": "Brazil",
+  "accepts": [],
+  "continents": [
+   "south-america"
+  ],
+  "region": "south-america",
+  "tags": [],
+  "capital": {
+   "name": "Brasília",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ARG",
+   "BOL",
+   "COL",
+   "GUF",
+   "GUY",
+   "PER",
+   "PRY",
+   "SUR",
+   "URY",
+   "VEN"
+  ]
+ },
+ "CHL": {
+  "name": "Chile",
+  "accepts": [],
+  "continents": [
+   "south-america"
+  ],
+  "region": "south-america",
+  "tags": [],
+  "capital": {
+   "name": "Santiago",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ARG",
+   "BOL",
+   "PER"
+  ]
+ },
+ "COL": {
+  "name": "Colombia",
+  "accepts": [],
+  "continents": [
+   "south-america"
+  ],
+  "region": "south-america",
+  "tags": [],
+  "capital": {
+   "name": "Bogotá",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BRA",
+   "ECU",
+   "PAN",
+   "PER",
+   "VEN"
+  ]
+ },
+ "ECU": {
+  "name": "Ecuador",
+  "accepts": [],
+  "continents": [
+   "south-america"
+  ],
+  "region": "south-america",
+  "tags": [],
+  "capital": {
+   "name": "Quito",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "COL",
+   "PER"
+  ]
+ },
+ "GUY": {
+  "name": "Guyana",
+  "accepts": [],
+  "continents": [
+   "south-america"
+  ],
+  "region": "south-america",
+  "tags": [],
+  "capital": {
+   "name": "Georgetown",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BRA",
+   "SUR",
+   "VEN"
+  ]
+ },
+ "PRY": {
+  "name": "Paraguay",
+  "accepts": [],
+  "continents": [
+   "south-america"
+  ],
+  "region": "south-america",
+  "tags": [],
+  "capital": {
+   "name": "Asunción",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ARG",
+   "BOL",
+   "BRA"
+  ]
+ },
+ "PER": {
+  "name": "Peru",
+  "accepts": [],
+  "continents": [
+   "south-america"
+  ],
+  "region": "south-america",
+  "tags": [],
+  "capital": {
+   "name": "Lima",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BOL",
+   "BRA",
+   "CHL",
+   "COL",
+   "ECU"
+  ]
+ },
+ "SUR": {
+  "name": "Suriname",
+  "accepts": [
+   "Surinam"
+  ],
+  "continents": [
+   "south-america"
+  ],
+  "region": "south-america",
+  "tags": [],
+  "capital": {
+   "name": "Paramaribo",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BRA",
+   "GUF",
+   "GUY"
+  ]
+ },
+ "URY": {
+  "name": "Uruguay",
+  "accepts": [],
+  "continents": [
+   "south-america"
+  ],
+  "region": "south-america",
+  "tags": [],
+  "capital": {
+   "name": "Montevideo",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "ARG",
+   "BRA"
+  ]
+ },
+ "VEN": {
+  "name": "Venezuela",
+  "accepts": [],
+  "continents": [
+   "south-america"
+  ],
+  "region": "south-america",
+  "tags": [],
+  "capital": {
+   "name": "Caracas",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BRA",
+   "COL",
+   "GUY"
+  ]
+ },
+ "GUF": {
+  "name": "French Guiana",
+  "accepts": [],
+  "continents": [
+   "south-america"
+  ],
+  "region": "south-america",
+  "tags": [
+   "territory"
+  ],
+  "capital": {
+   "name": "Cayenne",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "BRA",
+   "SUR"
+  ]
+ },
+ "FLK": {
+  "name": "Falkland Islands",
+  "accepts": [
+   "Falklands",
+   "Malvinas",
+   "Islas Malvinas"
+  ],
+  "continents": [
+   "south-america"
+  ],
+  "region": "south-america",
+  "tags": [
+   "territory"
+  ],
+  "capital": {
+   "name": "Stanley",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "AUS": {
+  "name": "Australia",
+  "accepts": [],
+  "continents": [
+   "oceania"
+  ],
+  "region": "australasia",
+  "tags": [],
+  "capital": {
+   "name": "Canberra",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "NZL": {
+  "name": "New Zealand",
+  "accepts": [
+   "Aotearoa"
+  ],
+  "continents": [
+   "oceania"
+  ],
+  "region": "australasia",
+  "tags": [],
+  "capital": {
+   "name": "Wellington",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "FJI": {
+  "name": "Fiji",
+  "accepts": [],
+  "continents": [
+   "oceania"
+  ],
+  "region": "melanesia",
+  "tags": [],
+  "capital": {
+   "name": "Suva",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "PNG": {
+  "name": "Papua New Guinea",
+  "accepts": [
+   "PNG"
+  ],
+  "continents": [
+   "oceania"
+  ],
+  "region": "melanesia",
+  "tags": [],
+  "capital": {
+   "name": "Port Moresby",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "IDN"
+  ]
+ },
+ "SLB": {
+  "name": "Solomon Islands",
+  "accepts": [
+   "Solomons"
+  ],
+  "continents": [
+   "oceania"
+  ],
+  "region": "melanesia",
+  "tags": [],
+  "capital": {
+   "name": "Honiara",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "VUT": {
+  "name": "Vanuatu",
+  "accepts": [],
+  "continents": [
+   "oceania"
+  ],
+  "region": "melanesia",
+  "tags": [],
+  "capital": {
+   "name": "Port Vila",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "KIR": {
+  "name": "Kiribati",
+  "accepts": [],
+  "continents": [
+   "oceania"
+  ],
+  "region": "micronesia",
+  "tags": [],
+  "capital": {
+   "name": "South Tarawa",
+   "accepts": [
+    "Tarawa"
+   ],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "MHL": {
+  "name": "Marshall Islands",
+  "accepts": [],
+  "continents": [
+   "oceania"
+  ],
+  "region": "micronesia",
+  "tags": [],
+  "capital": {
+   "name": "Majuro",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "FSM": {
+  "name": "Micronesia",
+  "accepts": [
+   "Federated States of Micronesia",
+   "FSM"
+  ],
+  "continents": [
+   "oceania"
+  ],
+  "region": "micronesia",
+  "tags": [],
+  "capital": {
+   "name": "Palikir",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "NRU": {
+  "name": "Nauru",
+  "accepts": [],
+  "continents": [
+   "oceania"
+  ],
+  "region": "micronesia",
+  "tags": [],
+  "capital": {
+   "name": "Yaren",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "PLW": {
+  "name": "Palau",
+  "accepts": [],
+  "continents": [
+   "oceania"
+  ],
+  "region": "micronesia",
+  "tags": [],
+  "capital": {
+   "name": "Ngerulmud",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "WSM": {
+  "name": "Samoa",
+  "accepts": [],
+  "continents": [
+   "oceania"
+  ],
+  "region": "polynesia",
+  "tags": [],
+  "capital": {
+   "name": "Apia",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "TON": {
+  "name": "Tonga",
+  "accepts": [],
+  "continents": [
+   "oceania"
+  ],
+  "region": "polynesia",
+  "tags": [],
+  "capital": {
+   "name": "Nuku'alofa",
+   "accepts": [
+    "Nukualofa"
+   ],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "TUV": {
+  "name": "Tuvalu",
+  "accepts": [],
+  "continents": [
+   "oceania"
+  ],
+  "region": "polynesia",
+  "tags": [],
+  "capital": {
+   "name": "Funafuti",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "NCL": {
+  "name": "New Caledonia",
+  "accepts": [],
+  "continents": [
+   "oceania"
+  ],
+  "region": "melanesia",
+  "tags": [
+   "territory"
+  ],
+  "capital": {
+   "name": "Nouméa",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "US-AL": {
+  "name": "Alabama",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [],
+  "capital": {
+   "name": "Montgomery",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-FL",
+   "US-GA",
+   "US-MS",
+   "US-TN"
+  ]
+ },
+ "US-AK": {
+  "name": "Alaska",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "west",
+  "tags": [],
+  "capital": {
+   "name": "Juneau",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "US-AZ": {
+  "name": "Arizona",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "west",
+  "tags": [],
+  "capital": {
+   "name": "Phoenix",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-CA",
+   "US-NM",
+   "US-NV",
+   "US-UT"
+  ]
+ },
+ "US-AR": {
+  "name": "Arkansas",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [],
+  "capital": {
+   "name": "Little Rock",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-LA",
+   "US-MO",
+   "US-MS",
+   "US-OK",
+   "US-TN",
+   "US-TX"
+  ]
+ },
+ "US-CA": {
+  "name": "California",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "west",
+  "tags": [],
+  "capital": {
+   "name": "Sacramento",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-AZ",
+   "US-NV",
+   "US-OR"
+  ]
+ },
+ "US-CO": {
+  "name": "Colorado",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "west",
+  "tags": [],
+  "capital": {
+   "name": "Denver",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-KS",
+   "US-NE",
+   "US-NM",
+   "US-OK",
+   "US-UT",
+   "US-WY"
+  ]
+ },
+ "US-CT": {
+  "name": "Connecticut",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "new-england",
+  "tags": [],
+  "capital": {
+   "name": "Hartford",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-MA",
+   "US-NY",
+   "US-RI"
+  ]
+ },
+ "US-DE": {
+  "name": "Delaware",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [],
+  "capital": {
+   "name": "Dover",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-MD",
+   "US-NJ",
+   "US-PA"
+  ]
+ },
+ "US-FL": {
+  "name": "Florida",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [],
+  "capital": {
+   "name": "Tallahassee",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-AL",
+   "US-GA"
+  ]
+ },
+ "US-GA": {
+  "name": "Georgia",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [],
+  "capital": {
+   "name": "Atlanta",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-AL",
+   "US-FL",
+   "US-NC",
+   "US-SC",
+   "US-TN"
+  ]
+ },
+ "US-HI": {
+  "name": "Hawaii",
+  "accepts": [
+   "Hawai'i"
+  ],
+  "continents": [
+   "us"
+  ],
+  "region": "west",
+  "tags": [],
+  "capital": {
+   "name": "Honolulu",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": []
+ },
+ "US-ID": {
+  "name": "Idaho",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "west",
+  "tags": [],
+  "capital": {
+   "name": "Boise",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-MT",
+   "US-NV",
+   "US-OR",
+   "US-UT",
+   "US-WA",
+   "US-WY"
+  ]
+ },
+ "US-IL": {
+  "name": "Illinois",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "midwest",
+  "tags": [],
+  "capital": {
+   "name": "Springfield",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-IA",
+   "US-IN",
+   "US-KY",
+   "US-MO",
+   "US-WI"
+  ]
+ },
+ "US-IN": {
+  "name": "Indiana",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "midwest",
+  "tags": [],
+  "capital": {
+   "name": "Indianapolis",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-IL",
+   "US-KY",
+   "US-MI",
+   "US-OH"
+  ]
+ },
+ "US-IA": {
+  "name": "Iowa",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "midwest",
+  "tags": [],
+  "capital": {
+   "name": "Des Moines",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-IL",
+   "US-MN",
+   "US-MO",
+   "US-NE",
+   "US-SD",
+   "US-WI"
+  ]
+ },
+ "US-KS": {
+  "name": "Kansas",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "midwest",
+  "tags": [],
+  "capital": {
+   "name": "Topeka",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-CO",
+   "US-MO",
+   "US-NE",
+   "US-OK"
+  ]
+ },
+ "US-KY": {
+  "name": "Kentucky",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [],
+  "capital": {
+   "name": "Frankfort",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-IL",
+   "US-IN",
+   "US-MO",
+   "US-OH",
+   "US-TN",
+   "US-VA",
+   "US-WV"
+  ]
+ },
+ "US-LA": {
+  "name": "Louisiana",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [],
+  "capital": {
+   "name": "Baton Rouge",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-AR",
+   "US-MS",
+   "US-TX"
+  ]
+ },
+ "US-ME": {
+  "name": "Maine",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "new-england",
+  "tags": [],
+  "capital": {
+   "name": "Augusta",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-NH"
+  ]
+ },
+ "US-MD": {
+  "name": "Maryland",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [],
+  "capital": {
+   "name": "Annapolis",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-DC",
+   "US-DE",
+   "US-PA",
+   "US-VA",
+   "US-WV"
+  ]
+ },
+ "US-MA": {
+  "name": "Massachusetts",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "new-england",
+  "tags": [],
+  "capital": {
+   "name": "Boston",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-CT",
+   "US-NH",
+   "US-NY",
+   "US-RI",
+   "US-VT"
+  ]
+ },
+ "US-MI": {
+  "name": "Michigan",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "midwest",
+  "tags": [],
+  "capital": {
+   "name": "Lansing",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-IN",
+   "US-OH",
+   "US-WI"
+  ]
+ },
+ "US-MN": {
+  "name": "Minnesota",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "midwest",
+  "tags": [],
+  "capital": {
+   "name": "Saint Paul",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-IA",
+   "US-ND",
+   "US-SD",
+   "US-WI"
+  ]
+ },
+ "US-MS": {
+  "name": "Mississippi",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [],
+  "capital": {
+   "name": "Jackson",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-AL",
+   "US-AR",
+   "US-LA",
+   "US-TN"
+  ]
+ },
+ "US-MO": {
+  "name": "Missouri",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "midwest",
+  "tags": [],
+  "capital": {
+   "name": "Jefferson City",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-AR",
+   "US-IA",
+   "US-IL",
+   "US-KS",
+   "US-KY",
+   "US-NE",
+   "US-OK",
+   "US-TN"
+  ]
+ },
+ "US-MT": {
+  "name": "Montana",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "west",
+  "tags": [],
+  "capital": {
+   "name": "Helena",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-ID",
+   "US-ND",
+   "US-SD",
+   "US-WY"
+  ]
+ },
+ "US-NE": {
+  "name": "Nebraska",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "midwest",
+  "tags": [],
+  "capital": {
+   "name": "Lincoln",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-CO",
+   "US-IA",
+   "US-KS",
+   "US-MO",
+   "US-SD",
+   "US-WY"
+  ]
+ },
+ "US-NV": {
+  "name": "Nevada",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "west",
+  "tags": [],
+  "capital": {
+   "name": "Carson City",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-AZ",
+   "US-CA",
+   "US-ID",
+   "US-OR",
+   "US-UT"
+  ]
+ },
+ "US-NH": {
+  "name": "New Hampshire",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "new-england",
+  "tags": [],
+  "capital": {
+   "name": "Concord",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-MA",
+   "US-ME",
+   "US-VT"
+  ]
+ },
+ "US-NJ": {
+  "name": "New Jersey",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "mid-atlantic",
+  "tags": [],
+  "capital": {
+   "name": "Trenton",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-DE",
+   "US-NY",
+   "US-PA"
+  ]
+ },
+ "US-NM": {
+  "name": "New Mexico",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "west",
+  "tags": [],
+  "capital": {
+   "name": "Santa Fe",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-AZ",
+   "US-CO",
+   "US-OK",
+   "US-TX"
+  ]
+ },
+ "US-NY": {
+  "name": "New York",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "mid-atlantic",
+  "tags": [],
+  "capital": {
+   "name": "Albany",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-CT",
+   "US-MA",
+   "US-NJ",
+   "US-PA",
+   "US-VT"
+  ]
+ },
+ "US-NC": {
+  "name": "North Carolina",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [],
+  "capital": {
+   "name": "Raleigh",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-GA",
+   "US-SC",
+   "US-TN",
+   "US-VA"
+  ]
+ },
+ "US-ND": {
+  "name": "North Dakota",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "midwest",
+  "tags": [],
+  "capital": {
+   "name": "Bismarck",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-MN",
+   "US-MT",
+   "US-SD"
+  ]
+ },
+ "US-OH": {
+  "name": "Ohio",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "midwest",
+  "tags": [],
+  "capital": {
+   "name": "Columbus",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-IN",
+   "US-KY",
+   "US-MI",
+   "US-PA",
+   "US-WV"
+  ]
+ },
+ "US-OK": {
+  "name": "Oklahoma",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [],
+  "capital": {
+   "name": "Oklahoma City",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-AR",
+   "US-CO",
+   "US-KS",
+   "US-MO",
+   "US-NM",
+   "US-TX"
+  ]
+ },
+ "US-OR": {
+  "name": "Oregon",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "west",
+  "tags": [],
+  "capital": {
+   "name": "Salem",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-CA",
+   "US-ID",
+   "US-NV",
+   "US-WA"
+  ]
+ },
+ "US-PA": {
+  "name": "Pennsylvania",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "mid-atlantic",
+  "tags": [],
+  "capital": {
+   "name": "Harrisburg",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-DE",
+   "US-MD",
+   "US-NJ",
+   "US-NY",
+   "US-OH",
+   "US-WV"
+  ]
+ },
+ "US-RI": {
+  "name": "Rhode Island",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "new-england",
+  "tags": [],
+  "capital": {
+   "name": "Providence",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-CT",
+   "US-MA"
+  ]
+ },
+ "US-SC": {
+  "name": "South Carolina",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [],
+  "capital": {
+   "name": "Columbia",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-GA",
+   "US-NC"
+  ]
+ },
+ "US-SD": {
+  "name": "South Dakota",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "midwest",
+  "tags": [],
+  "capital": {
+   "name": "Pierre",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-IA",
+   "US-MN",
+   "US-MT",
+   "US-ND",
+   "US-NE",
+   "US-WY"
+  ]
+ },
+ "US-TN": {
+  "name": "Tennessee",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [],
+  "capital": {
+   "name": "Nashville",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-AL",
+   "US-AR",
+   "US-GA",
+   "US-KY",
+   "US-MO",
+   "US-MS",
+   "US-NC",
+   "US-VA"
+  ]
+ },
+ "US-TX": {
+  "name": "Texas",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [],
+  "capital": {
+   "name": "Austin",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-AR",
+   "US-LA",
+   "US-NM",
+   "US-OK"
+  ]
+ },
+ "US-UT": {
+  "name": "Utah",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "west",
+  "tags": [],
+  "capital": {
+   "name": "Salt Lake City",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-AZ",
+   "US-CO",
+   "US-ID",
+   "US-NV",
+   "US-WY"
+  ]
+ },
+ "US-VT": {
+  "name": "Vermont",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "new-england",
+  "tags": [],
+  "capital": {
+   "name": "Montpelier",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-MA",
+   "US-NH",
+   "US-NY"
+  ]
+ },
+ "US-VA": {
+  "name": "Virginia",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [],
+  "capital": {
+   "name": "Richmond",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-DC",
+   "US-KY",
+   "US-MD",
+   "US-NC",
+   "US-TN",
+   "US-WV"
+  ]
+ },
+ "US-WA": {
+  "name": "Washington",
+  "accepts": [
+   "Washington State"
+  ],
+  "continents": [
+   "us"
+  ],
+  "region": "west",
+  "tags": [],
+  "capital": {
+   "name": "Olympia",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-ID",
+   "US-OR"
+  ]
+ },
+ "US-WV": {
+  "name": "West Virginia",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [],
+  "capital": {
+   "name": "Charleston",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-KY",
+   "US-MD",
+   "US-OH",
+   "US-PA",
+   "US-VA"
+  ]
+ },
+ "US-WI": {
+  "name": "Wisconsin",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "midwest",
+  "tags": [],
+  "capital": {
+   "name": "Madison",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-IA",
+   "US-IL",
+   "US-MI",
+   "US-MN"
+  ]
+ },
+ "US-WY": {
+  "name": "Wyoming",
+  "accepts": [],
+  "continents": [
+   "us"
+  ],
+  "region": "west",
+  "tags": [],
+  "capital": {
+   "name": "Cheyenne",
+   "accepts": [],
+   "also": []
+  },
+  "neighbours": [
+   "US-CO",
+   "US-ID",
+   "US-MT",
+   "US-NE",
+   "US-SD",
+   "US-UT"
+  ]
+ },
+ "US-DC": {
+  "name": "District of Columbia",
+  "accepts": [
+   "DC",
+   "Washington DC",
+   "Washington, D.C."
+  ],
+  "continents": [
+   "us"
+  ],
+  "region": "south",
+  "tags": [
+   "territory"
+  ],
+  "capital": null,
+  "neighbours": [
+   "US-MD",
+   "US-VA"
+  ]
+ }
+}

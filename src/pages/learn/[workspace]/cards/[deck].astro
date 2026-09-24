@@ -1,0 +1,121 @@
+---
+import CpLayout from '../../../../layouts/CpLayout.astro';
+import CpModePicker from '../../../../components/cp/CpModePicker.astro';
+import CpBests from '../../../../components/cp/CpBests.astro';
+import ConfirmDelete from '../../../../components/ConfirmDelete.astro';
+import { resolveWorkspace } from '../../../../lib/workspace';
+import { mastery, weakest, MASTERY_LABEL, MASTERY_ORDER, type Mastery } from '../../../../lib/commonplace/schedule';
+import { loadDeck, loadStates, toStored } from '../../../../lib/commonplace/server';
+import { slugTag } from '../../../../lib/commonplace/play';
+
+export const prerender = false;
+
+/** A flashcard deck: its cards, how well each is known, and the ways to play it. */
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'commonplace', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+
+const found = await loadDeck(supabase, workspace.id, Astro.params.deck!);
+if (!found) return new Response('Not found', { status: 404 });
+const { deck, cards, settings } = found;
+
+const base = `/learn/${workspace.slug}`;
+const here = `${base}/cards/${deck.slug}`;
+
+// Deleting, the way every other app here does it: ?delete=1 shows the
+// confirmation, and a POST carrying intent=delete does it.
+if (Astro.request.method === 'POST' && workspace.canWrite) {
+  const form = await Astro.request.formData();
+  if (form.get('intent') === 'delete') {
+    const { error } = await supabase.from('cp_decks').delete().eq('id', deck.id).eq('workspace_id', workspace.id);
+    if (!error) return Astro.redirect(base, 303);
+    console.error('cp_decks delete failed', error);
+  }
+}
+const confirming = workspace.canWrite && Astro.url.searchParams.get('delete') === '1';
+const states = await loadStates(supabase);
+const now = new Date();
+
+const tally: Record<Mastery, number> = { new: 0, learning: 0, due: 0, known: 0, mastered: 0 };
+let due = 0;
+const rows = cards.map(c => {
+  const dirs = c.reverse ? ['fwd', 'rev'] : ['fwd'];
+  let m: Mastery | null = null;
+  for (const d of dirs) {
+    const row = states.get(`card:${c.id}:${d}`);
+    const md = mastery(row ? toStored(row) : null, now);
+    if (md === 'due') due++;
+    m = m ? weakest(m, md) : md;
+  }
+  tally[m!]++;
+  return { card: c, mastery: m! };
+});
+const tags = [...new Set(cards.flatMap(c => c.tags))].sort();
+---
+
+<CpLayout title={`${deck.title} · ${workspace.name}`} workspace={workspace}>
+  <main class="container cp-deckpage">
+    <header class="page-header">
+      <p class="eyebrow"><a href={base}>Decks</a> · Flashcards</p>
+      <h1 class="page-title">{deck.title}</h1>
+      {settings.blurb && <p class="page-intro">{settings.blurb}</p>}
+      <p class="cp-quiet">{cards.length} cards
+        {workspace.canWrite && <> · <a href={`${here}/edit`}>Edit</a></>}
+        {cards.length > 0 && <> · <a href={`${here}/export.csv`} download={`${deck.slug}.csv`}>Export CSV</a></>}
+      </p>
+    </header>
+
+    {
+      cards.length === 0 ? (
+        <p class="cp-quiet">No cards yet.{workspace.canWrite && <> <a href={`${here}/edit`}>Add some</a>, or import a spreadsheet.</>}</p>
+      ) : (
+        <>
+          <ul class="cp-legend">
+            {MASTERY_ORDER.map(m => <li data-mastery={m}><span class="cp-swatch" />{MASTERY_LABEL[m]} <b>{tally[m]}</b></li>)}
+          </ul>
+          {due > 0 && <p><a class="cp-button" href={`${here}/play?mode=review`}>Review {due} due</a></p>}
+
+          <CpModePicker action={`${here}/play`} kind="flashcards" regions={tags.map(slugTag)} />
+
+          <details class="cp-cardlist">
+            <summary>All {cards.length} cards</summary>
+            <table class="cp-table">
+              <thead><tr><th>Prompt</th><th>Answer</th><th></th></tr></thead>
+              <tbody>
+                {rows.map(r => (
+                  <tr>
+                    <td>{r.card.prompt}</td>
+                    <td>{r.card.answer}{r.card.reverse && <span class="cp-quiet" title="Also asked back to front"> ⇄</span>}</td>
+                    <td><span class="cp-chip" data-mastery={r.mastery}>{MASTERY_LABEL[r.mastery]}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
+
+          <CpBests deckRef={`cards-${deck.slug}`} />
+        </>
+      )
+    }
+
+    {
+      workspace.canWrite && (
+        <section class="cp-danger">
+          {confirming ? (
+            <ConfirmDelete
+              prefix="cp-form"
+              title={deck.title}
+              detail={`${cards.length} cards.`}
+              consequences={['Everybody’s progress on these cards goes with them.']}
+              cancelHref={here}
+            />
+          ) : (
+            <a class="cp-link cp-link--danger" href={`${here}?delete=1`}>Delete this deck</a>
+          )}
+        </section>
+      )
+    }
+  </main>
+</CpLayout>

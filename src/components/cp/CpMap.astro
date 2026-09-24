@@ -1,0 +1,86 @@
+---
+import type { GazetteerMap } from '../../lib/commonplace/server';
+
+/**
+ * A Gazetteer map, drawn on the server.
+ *
+ * Every place is a real <path> carrying its key, centre and bounds as data
+ * attributes, so the page is a working map before any script runs, and the
+ * play script finds everything it needs in the markup rather than in a second
+ * download of the same geometry.
+ *
+ * Small places get a dot as well as their shape: a target big enough to tap
+ * on a phone. The dot and the shape share a key, so either answers.
+ */
+interface Props {
+  map: GazetteerMap;
+  /** Keys drawn as playable. Anything else on the map is grey. Default: all. */
+  inPlay?: Iterable<string>;
+  /** Per key, for the progress map: new, learning, due, known, mastered. */
+  mastery?: Record<string, string>;
+  id?: string;
+  label?: string;
+  /**
+   * Names to show on hover. Only ever passed by the progress map: on the play
+   * screen a tooltip would be the answer.
+   */
+  names?: Record<string, string>;
+}
+
+const { map, inPlay, mastery, id, label, names } = Astro.props;
+const playing = inPlay ? new Set(inPlay) : null;
+const places = Object.entries(map.places);
+const small = places.filter(([, p]) => p.small);
+---
+
+<svg
+  class="cp-map"
+  id={id}
+  viewBox={map.viewBox.join(' ')}
+  preserveAspectRatio="xMidYMid meet"
+  role="img"
+  aria-label={label ?? `Map: ${map.title}`}
+  data-map={map.id}
+>
+  <path class="cp-map__context" d={map.context} />
+  <g class="cp-map__places">
+    {
+      places.map(([key, p]) =>
+        p.d ? (
+          <path
+            class="place"
+            d={p.d}
+            data-key={key}
+            data-c={p.c.join(',')}
+            data-b={p.b.join(',')}
+            data-small={p.small ? '1' : '0'}
+            data-cap={p.cap?.join(',')}
+            data-off={playing && !playing.has(key) ? '' : undefined}
+            data-mastery={mastery?.[key]}
+          >{names?.[key] && <title>{names[key]}</title>}</path>
+        ) : null
+      )
+    }
+  </g>
+  <g class="cp-map__dots">
+    {
+      small.map(([key, p]) => (
+        <circle
+          class="dot"
+          cx={p.c[0]}
+          cy={p.c[1]}
+          r="4"
+          data-key={key}
+          data-c={p.d ? undefined : p.c.join(',')}
+          data-b={p.d ? undefined : p.b.join(',')}
+          data-small={p.d ? undefined : '1'}
+          data-cap={p.d ? undefined : p.cap?.join(',')}
+          data-off={playing && !playing.has(key) ? '' : undefined}
+          data-mastery={mastery?.[key]}
+        >{names?.[key] && <title>{names[key]}</title>}</circle>
+      ))
+    }
+  </g>
+  <g class="cp-map__caps"></g>
+  <g class="cp-map__labels"></g>
+</svg>

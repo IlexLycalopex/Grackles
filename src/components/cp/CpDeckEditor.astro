@@ -1,0 +1,239 @@
+---
+import type { Tables } from '../../lib/database.types';
+import type { DeckSettings } from '../../lib/commonplace/server';
+
+/**
+ * The flashcard deck editor: a table you can type straight into, plus CSV
+ * import with a preview. Saves the whole deck in one request; card ids ride
+ * along so progress stays attached to a card through an edit.
+ */
+interface Props {
+  workspace: string;
+  deck: Tables<'cp_decks'> | null;
+  cards: Tables<'cp_cards'>[];
+  settings: DeckSettings;
+}
+
+const { workspace, deck, cards, settings } = Astro.props;
+const initial = {
+  api: `/api/learn/${workspace}/deck`,
+  base: `/learn/${workspace}`,
+  id: deck?.id ?? null,
+  // Kept through a rename, so links to the deck keep working.
+  slug: deck?.slug ?? '',
+  title: deck?.title ?? '',
+  settings,
+  cards: cards.map(c => ({
+    id: c.id, prompt: c.prompt, answer: c.answer, accepts: c.accepts, hint: c.hint, notes: c.notes, tags: c.tags, reverse: c.reverse,
+  })),
+};
+---
+
+<main class="container cp-editor">
+  <header class="page-header">
+    <p class="eyebrow"><a href={`/learn/${workspace}`}>Decks</a> · {deck ? 'Edit' : 'New deck'}</p>
+    <h1 class="page-title">{deck ? deck.title : 'A new deck'}</h1>
+  </header>
+
+  <form class="cp-form" id="cpEditor">
+    <label>Name <input type="text" name="title" required maxlength="120" value={initial.title} placeholder="French: animals" /></label>
+    <label>What it is for <input type="text" name="blurb" maxlength="300" value={settings.blurb} placeholder="Optional. One line." /></label>
+
+    <fieldset class="cp-marking">
+      <legend>Marking</legend>
+      <label><input type="checkbox" name="typos" checked={settings.typos} /> Forgive a slip of a letter or two</label>
+      <label><input type="checkbox" name="accents" checked={settings.accents === 'close'} /> A missing accent counts as a slip, not a match</label>
+      <label><input type="checkbox" name="caseSensitive" checked={settings.caseSensitive} /> Capital letters matter</label>
+    </fieldset>
+
+    <details class="cp-import">
+      <summary>Import from a spreadsheet</summary>
+      <p class="cp-quiet">
+        Save the sheet as CSV. Columns: <code>prompt, answer, accepts, hint, notes, tags, reverse</code>.
+        Only the first two are needed. Separate several accepted answers or tags with <code>|</code>.
+        Put <code>yes</code> under reverse to be asked it back to front as well.
+      </p>
+      <input type="file" id="cpCsvFile" accept=".csv,text/csv" />
+      <textarea id="cpCsvText" rows="5" placeholder="Or paste it here: the dog,le chien"></textarea>
+      <p><button type="button" class="cp-button cp-button--quiet" id="cpCsvCheck">Check it</button></p>
+      <div id="cpCsvPreview" hidden>
+        <p id="cpCsvSummary"></p>
+        <ul class="cp-problems" id="cpCsvProblems"></ul>
+        <p>
+          <button type="button" class="cp-button" id="cpCsvAdd">Add to the deck</button>
+          <button type="button" class="cp-button cp-button--quiet" id="cpCsvReplace">Replace every card</button>
+        </p>
+      </div>
+    </details>
+
+    <div class="cp-card-table-wrap">
+      <table class="cp-card-table">
+        <thead>
+          <tr>
+            <th>Prompt</th><th>Answer</th><th>Also accept <small>(a | b)</small></th><th>Hint</th><th>Notes</th><th>Tags</th><th title="Also ask back to front">⇄</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="cpRows"></tbody>
+      </table>
+    </div>
+    <p><button type="button" class="cp-button cp-button--quiet" id="cpAddRow">Add a card</button> <span class="cp-quiet" id="cpCount"></span></p>
+
+    <ul class="cp-problems" id="cpProblems"></ul>
+    <p class="cp-error" id="cpError" role="alert" hidden></p>
+    <p><button type="submit" class="cp-button cp-button--big">Save the deck</button></p>
+  </form>
+</main>
+
+<script is:inline type="application/json" id="cpEditorData" set:html={JSON.stringify(initial).replace(/</g, '\\u003c')} />
+
+<script>
+  import { parseCards, checkCards, type CardDraft } from '../../lib/commonplace/csv';
+
+  const data = JSON.parse(document.getElementById('cpEditorData')!.textContent!);
+  let cards: CardDraft[] = data.cards.length ? data.cards : [blank()];
+  const form = document.getElementById('cpEditor') as HTMLFormElement;
+  const rows = document.getElementById('cpRows')!;
+  const count = document.getElementById('cpCount')!;
+  const problemsEl = document.getElementById('cpProblems')!;
+  const errorEl = document.getElementById('cpError')!;
+
+  function blank(): CardDraft {
+    return { prompt: '', answer: '', accepts: [], hint: '', notes: '', tags: [], reverse: false };
+  }
+
+  const FIELDS: [keyof CardDraft, string][] = [
+    ['prompt', 'Prompt'], ['answer', 'Answer'], ['accepts', 'Also accept'], ['hint', 'Hint'], ['notes', 'Notes'], ['tags', 'Tags'],
+  ];
+
+  function render() {
+    rows.replaceChildren(...cards.map((c, i) => {
+      const tr = document.createElement('tr');
+      for (const [field, label] of FIELDS) {
+        const td = document.createElement('td');
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.setAttribute('aria-label', `${label}, card ${i + 1}`);
+        const v = c[field];
+        input.value = Array.isArray(v) ? v.join(' | ') : String(v ?? '');
+        input.addEventListener('input', () => {
+          const next = field === 'accepts' || field === 'tags'
+            ? input.value.split('|').map(s => s.trim()).filter(Boolean)
+            : input.value;
+          (cards[i] as unknown as Record<string, unknown>)[field] = next;
+        });
+        input.addEventListener('keydown', e => {
+          // Enter in the last row's last field starts a new card.
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            if (i === cards.length - 1) { cards.push(blank()); render(); focusRow(cards.length - 1); }
+            else focusRow(i + 1);
+          }
+        });
+        td.appendChild(input);
+        tr.appendChild(td);
+      }
+      const rev = document.createElement('td');
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = c.reverse;
+      box.setAttribute('aria-label', `Also ask card ${i + 1} back to front`);
+      box.addEventListener('change', () => { cards[i].reverse = box.checked; });
+      rev.appendChild(box);
+      tr.appendChild(rev);
+      const del = document.createElement('td');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cp-link';
+      btn.textContent = 'Remove';
+      btn.addEventListener('click', () => { cards.splice(i, 1); if (!cards.length) cards.push(blank()); render(); });
+      del.appendChild(btn);
+      tr.appendChild(del);
+      return tr;
+    }));
+    count.textContent = `${cards.filter(c => c.prompt || c.answer).length} cards`;
+  }
+
+  function focusRow(i: number) {
+    rows.children[i]?.querySelector('input')?.focus();
+  }
+
+  document.getElementById('cpAddRow')!.addEventListener('click', () => {
+    cards.push(blank());
+    render();
+    focusRow(cards.length - 1);
+  });
+
+  // ── Import ──
+  let pending: CardDraft[] = [];
+  const text = document.getElementById('cpCsvText') as HTMLTextAreaElement;
+  document.getElementById('cpCsvFile')!.addEventListener('change', async e => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) { text.value = await file.text(); check(); }
+  });
+  document.getElementById('cpCsvCheck')!.addEventListener('click', check);
+  function check() {
+    const { cards: parsed, problems } = parseCards(text.value);
+    pending = parsed;
+    document.getElementById('cpCsvPreview')!.hidden = false;
+    document.getElementById('cpCsvSummary')!.textContent = problems.length
+      ? `${parsed.length} rows, ${problems.length} to fix first:`
+      : `${parsed.length} cards, ready.`;
+    document.getElementById('cpCsvProblems')!.replaceChildren(...problems.slice(0, 50).map(p => {
+      const li = document.createElement('li');
+      li.textContent = `Line ${p.line}: ${p.message}`;
+      return li;
+    }));
+    for (const id of ['cpCsvAdd', 'cpCsvReplace']) (document.getElementById(id) as HTMLButtonElement).disabled = problems.length > 0;
+  }
+  document.getElementById('cpCsvAdd')!.addEventListener('click', () => {
+    cards = [...cards.filter(c => c.prompt || c.answer), ...pending];
+    render();
+  });
+  document.getElementById('cpCsvReplace')!.addEventListener('click', () => {
+    // Ids of cards that survive by prompt are kept, so replacing a deck with
+    // an edited export of itself does not reset anybody's progress.
+    const byPrompt = new Map(cards.filter(c => c.id).map(c => [c.prompt.trim().toLowerCase(), c.id]));
+    cards = pending.map(c => ({ ...c, id: byPrompt.get(c.prompt.trim().toLowerCase()) }));
+    render();
+  });
+
+  // ── Save ──
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    errorEl.hidden = true;
+    const kept = cards.filter(c => c.prompt.trim() || c.answer.trim());
+    const problems = checkCards(kept);
+    problemsEl.replaceChildren(...problems.slice(0, 30).map(p => {
+      const li = document.createElement('li');
+      li.textContent = `Card ${p.line}: ${p.message}`;
+      return li;
+    }));
+    if (problems.length) return;
+    const fd = new FormData(form);
+    const res = await fetch(data.api, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: data.id,
+        slug: data.slug,
+        title: fd.get('title'),
+        settings: {
+          typos: fd.get('typos') === 'on',
+          accents: fd.get('accents') === 'on' ? 'close' : 'ignore',
+          caseSensitive: fd.get('caseSensitive') === 'on',
+          blurb: fd.get('blurb') ?? '',
+        },
+        cards: kept,
+      }),
+    }).catch(() => null);
+    const body = res ? await res.json().catch(() => ({})) : { error: 'No connection. Try again.' };
+    if (!res || !res.ok) {
+      errorEl.textContent = body.error ?? 'That did not save.';
+      errorEl.hidden = false;
+      return;
+    }
+    location.href = `${data.base}/cards/${body.slug}`;
+  });
+
+  render();
+</script>

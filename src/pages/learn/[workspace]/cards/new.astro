@@ -1,0 +1,17 @@
+---
+import CpLayout from '../../../../layouts/CpLayout.astro';
+import CpDeckEditor from '../../../../components/cp/CpDeckEditor.astro';
+import { requireWrite } from '../../../../lib/workspace';
+import { DEFAULT_DECK_SETTINGS } from '../../../../lib/commonplace/server';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const gate = await requireWrite(supabase, 'commonplace', Astro.params.workspace!, user?.id ?? null, Astro.url.pathname);
+if (!gate.ok) return gate.response;
+const { workspace } = gate;
+---
+
+<CpLayout title={`New deck · ${workspace.name}`} workspace={workspace}>
+  <CpDeckEditor workspace={workspace.slug} deck={null} cards={[]} settings={DEFAULT_DECK_SETTINGS} />
+</CpLayout>

@@ -1,0 +1,60 @@
+---
+import CpLayout from '../../../../../layouts/CpLayout.astro';
+import CpPlay from '../../../../../components/cp/CpPlay.astro';
+import { resolveWorkspace } from '../../../../../lib/workspace';
+import { MODES, modesFor, parseSettings, pbKey, settingsQuery, type ModeId } from '../../../../../lib/commonplace/modes';
+import { buildCardItems, emptyReason, type PlayData } from '../../../../../lib/commonplace/play';
+import { customDeckRef, loadDeck, loadPrefs, loadStates, newRemaining } from '../../../../../lib/commonplace/server';
+
+export const prerender = false;
+
+/** One run at a flashcard deck. The same play screen as the maps, without a map. */
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'commonplace', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname + Astro.url.search)}`);
+
+const found = await loadDeck(supabase, workspace.id, Astro.params.deck!);
+if (!found) return new Response('Not found', { status: 404 });
+const { deck, cards, settings: deckSettings } = found;
+
+const q = Astro.url.searchParams;
+const settings = parseSettings(q);
+const asked = q.get('mode') as ModeId;
+const mode: ModeId = modesFor('flashcards').includes(asked) ? asked : 'typed';
+
+const [states, prefs] = await Promise.all([loadStates(supabase), loadPrefs(supabase)]);
+const built = buildCardItems({
+  cards, mode, settings, states,
+  newRemaining: newRemaining(states, prefs),
+  only: q.get('only')?.split(',').filter(Boolean).slice(0, 2000) ?? null,
+});
+
+const base = `/learn/${workspace.slug}`;
+const here = `${base}/cards/${deck.slug}`;
+const deckRef = customDeckRef(deck.slug);
+const data: PlayData = {
+  api: `/api/learn/${workspace.slug}/run`,
+  deckRef,
+  deckTitle: deck.title,
+  deckHref: here,
+  kind: 'cards',
+  mode,
+  modeLabel: MODES[mode].label,
+  settings,
+  pbKey: pbKey(deckRef, mode, settings),
+  daily: null,
+  retention: prefs.retention,
+  marking: { typos: deckSettings.typos, accents: deckSettings.accents, caseSensitive: deckSettings.caseSensitive },
+  againHref: `${here}/play?${settingsQuery(settings, mode)}`,
+  missedHref: `${here}/play?${settingsQuery({ ...settings, scope: 'all' }, mode === 'review' || mode === 'learn' ? 'typed' : mode)}`,
+  nextReview: null,
+  empty: built.items.length ? null : cards.length ? emptyReason(mode, settings) : 'This deck has no cards yet.',
+  ...built,
+};
+---
+
+<CpLayout title={`${data.modeLabel} · ${deck.title} · ${workspace.name}`} workspace={workspace} bare>
+  <CpPlay data={data} />
+</CpLayout>

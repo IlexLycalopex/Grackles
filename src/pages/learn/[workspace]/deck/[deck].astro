@@ -1,0 +1,113 @@
+---
+import CpLayout from '../../../../layouts/CpLayout.astro';
+import CpMap from '../../../../components/cp/CpMap.astro';
+import CpModePicker from '../../../../components/cp/CpModePicker.astro';
+import CpBests from '../../../../components/cp/CpBests.astro';
+import { resolveWorkspace } from '../../../../lib/workspace';
+import { PLACES, deckBySlug, deckPlaceKeys, placeRef } from '../../../../lib/commonplace/decks';
+import { mastery, weakest, MASTERY_LABEL, MASTERY_ORDER, type Mastery } from '../../../../lib/commonplace/schedule';
+import { loadMap, loadStates, toStored } from '../../../../lib/commonplace/server';
+
+export const prerender = false;
+
+/**
+ * A built-in deck: the map coloured by how well each place is known, and the
+ * ways to play it.
+ */
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'commonplace', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+
+const deck = deckBySlug(Astro.params.deck!);
+if (!deck) return new Response('Not found', { status: 404 });
+
+const base = `/learn/${workspace.slug}`;
+const [map, states] = await Promise.all([loadMap(deck.map), loadStates(supabase)]);
+const keys = deckPlaceKeys(deck, { territories: true, disputed: true }).filter(k => map.places[k]);
+const now = new Date();
+
+// A place is as well known as its weaker direction: knowing the name of a
+// shape you cannot find is half knowing it.
+const dirs = deck.topic === 'capitals' ? (['capital', 'country'] as const) : (['name', 'locate'] as const);
+const byKey: Record<string, Mastery> = {};
+const tally: Record<Mastery, number> = { new: 0, learning: 0, due: 0, known: 0, mastered: 0 };
+let due = 0;
+for (const k of keys) {
+  let m: Mastery | null = null;
+  for (const d of dirs) {
+    const row = states.get(placeRef(k, d));
+    const md = mastery(row ? toStored(row) : null, now);
+    if (md === 'due') due++;
+    m = m ? weakest(m, md) : md;
+  }
+  byKey[k] = m!;
+  if (!PLACES[k].tags.includes('territory')) tally[m!]++;
+}
+const hasTerritories = keys.some(k => PLACES[k].tags.includes('territory'));
+const hasDisputed = keys.some(k => PLACES[k].tags.includes('disputed'));
+const playable = deckPlaceKeys(deck);
+---
+
+<CpLayout title={`${deck.title} · ${workspace.name}`} description={deck.blurb} workspace={workspace}>
+  <main class="container cp-deckpage">
+    <header class="page-header">
+      <p class="eyebrow"><a href={base}>Decks</a> · {deck.topic === 'capitals' ? 'Capitals' : 'Places'}</p>
+      <h1 class="page-title">{deck.title}</h1>
+      <p class="page-intro">{deck.blurb} {playable.length} in all.</p>
+    </header>
+
+    <section class="cp-progressmap" aria-label="What you know">
+      {/* As wide as the map's own shape allows at 72% of the window's height, so
+          a tall screen gets the whole map and a short one no letterbox. */}
+      <div class="cp-mapwrap cp-mapwrap--static" style={`width: min(100%, calc(72vh * ${map.viewBox[2]} / ${map.viewBox[3]}))`}>
+        <CpMap map={map} inPlay={keys} mastery={byKey} names={Object.fromEntries(keys.map(k => [k, deck.topic === 'capitals' ? `${PLACES[k].name}: ${PLACES[k].capital?.name ?? ''}` : PLACES[k].name]))} id="cpDeckMap" label={`${deck.title}, coloured by how well you know each place`} />
+        <div class="cp-zoom" role="group" aria-label="Zoom">
+          <button type="button" data-zoom="in" aria-label="Zoom in">+</button>
+          <button type="button" data-zoom="out" aria-label="Zoom out">−</button>
+          <button type="button" data-zoom="fit" aria-label="Whole map">⤢</button>
+        </div>
+      </div>
+      <ul class="cp-legend">
+        {
+          MASTERY_ORDER.map(m => (
+            <li data-mastery={m}><span class="cp-swatch" />{MASTERY_LABEL[m]} <b>{tally[m]}</b></li>
+          ))
+        }
+      </ul>
+      {due > 0 && <p><a class="cp-button" href={`${base}/play/${deck.slug}?mode=review`}>Review {due} due</a></p>}
+    </section>
+
+    <CpModePicker
+      action={`${base}/play/${deck.slug}`}
+      kind="map"
+      topic={deck.topic}
+      regions={deck.regions}
+      hasTerritories={hasTerritories}
+      hasDisputed={hasDisputed}
+    />
+
+    <CpBests deckRef={deck.slug} />
+  </main>
+
+  <script>
+    import { MapView } from '../../../../lib/commonplace/client/map-view';
+    const svg = document.getElementById('cpDeckMap') as unknown as SVGSVGElement | null;
+    if (svg) {
+      const view = new MapView(svg, {
+        onView: k => {
+          for (const dot of svg.querySelectorAll<SVGCircleElement>('circle.dot')) dot.setAttribute('r', String(6 * k));
+        },
+      });
+      for (const b of document.querySelectorAll<HTMLButtonElement>('[data-zoom]')) {
+        b.addEventListener('click', () => {
+          const z = b.dataset.zoom;
+          if (z === 'in') view.zoomBy(0.7);
+          else if (z === 'out') view.zoomBy(1 / 0.7);
+          else view.reset();
+        });
+      }
+    }
+  </script>
+</CpLayout>

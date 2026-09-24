@@ -1,0 +1,20 @@
+---
+import CpLayout from '../../../../../layouts/CpLayout.astro';
+import CpDeckEditor from '../../../../../components/cp/CpDeckEditor.astro';
+import { requireWrite } from '../../../../../lib/workspace';
+import { loadDeck } from '../../../../../lib/commonplace/server';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const gate = await requireWrite(supabase, 'commonplace', Astro.params.workspace!, user?.id ?? null, Astro.url.pathname);
+if (!gate.ok) return gate.response;
+const { workspace } = gate;
+
+const found = await loadDeck(supabase, workspace.id, Astro.params.deck!);
+if (!found) return new Response('Not found', { status: 404 });
+---
+
+<CpLayout title={`Edit ${found.deck.title} · ${workspace.name}`} workspace={workspace}>
+  <CpDeckEditor workspace={workspace.slug} deck={found.deck} cards={found.cards} settings={found.settings} />
+</CpLayout>

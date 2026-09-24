@@ -1,0 +1,37 @@
+/**
+ * Region names as people say them. Its own module so the play script can
+ * name a region in a hint without pulling in every place's data.
+ */
+export const REGION_LABEL: Record<string, string> = {
+  'north-africa': 'North Africa',
+  'west-africa': 'West Africa',
+  'central-africa': 'Central Africa',
+  'east-africa': 'East Africa',
+  'southern-africa': 'Southern Africa',
+  'middle-east': 'Middle East',
+  caucasus: 'Caucasus',
+  'central-asia': 'Central Asia',
+  'south-asia': 'South Asia',
+  'southeast-asia': 'Southeast Asia',
+  'east-asia': 'East Asia',
+  'northern-europe': 'Northern Europe',
+  'western-europe': 'Western Europe',
+  'southern-europe': 'Southern Europe',
+  'eastern-europe': 'Eastern Europe',
+  balkans: 'The Balkans',
+  nordic: 'Nordic countries',
+  baltics: 'The Baltic states',
+  'northern-america': 'Northern America',
+  'central-america': 'Central America',
+  caribbean: 'The Caribbean',
+  'south-america': 'South America',
+  australasia: 'Australasia',
+  melanesia: 'Melanesia',
+  micronesia: 'Micronesia',
+  polynesia: 'Polynesia',
+  'new-england': 'New England',
+  'mid-atlantic': 'Mid-Atlantic',
+  midwest: 'The Midwest',
+  south: 'The South',
+  west: 'The West',
+};
