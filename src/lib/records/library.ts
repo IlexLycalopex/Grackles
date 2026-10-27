@@ -1,4 +1,4 @@
-import { FormValues, invalid, valid, type Parsed } from '../forms';
+import { badLink, FormValues, invalid, valid, type Parsed } from '../forms';
 import { BOOK_FORMATS, type BookFormat } from './book';
 import { OWNERSHIPS, type Ownership } from '../reading-list';
 
@@ -54,6 +54,13 @@ export function readLibraryEntry(form: FormData): Parsed<LibraryValues> {
 
   const choice = f.choice('read_state', READ_CHOICES, 'auto');
 
+  const links = {
+    cover_url: f.str('cover_url'),
+    link_openlibrary: f.str('link_openlibrary'),
+  };
+  const notALink = badLink(links, { cover_url: 'The cover', link_openlibrary: 'The Open Library link' });
+  if (notALink) return invalid(notALink);
+
   return valid({
     title,
     author: f.str('author'),
@@ -71,10 +78,10 @@ export function readLibraryEntry(form: FormData): Parsed<LibraryValues> {
     genre: f.str('genre'),
     tags: f.list('tags'),
     isbn: f.str('isbn'),
-    cover_url: f.str('cover_url'),
+    cover_url: links.cover_url,
     description: f.str('description'),
     notes: f.str('notes'),
-    link_openlibrary: f.str('link_openlibrary'),
+    link_openlibrary: links.link_openlibrary,
   });
 }
 

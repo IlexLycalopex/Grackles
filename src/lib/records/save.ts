@@ -44,6 +44,17 @@ const CONSTRAINTS: Record<string, string> = {
   cl_cigars_rating_check: 'A rating runs from 0 to 5, in halves.',
   cl_cigars_photo_path_shape: 'A photo has to be a link starting http:// or https://.',
 
+  // Links, on every table that renders one as an href
+  lp_selections_link_wikipedia_shape: 'The Wikipedia link has to start http:// or https://.',
+  lp_selections_link_spotify_shape: 'The Spotify link has to start http:// or https://.',
+  lp_selections_link_youtube_shape: 'The YouTube link has to start http:// or https://.',
+  lp_selections_artwork_url_shape: 'The artwork has to be a link starting http:// or https://.',
+  rl_books_cover_url_shape: 'The cover has to be a link starting http:// or https://.',
+  rl_books_link_openlibrary_shape: 'The Open Library link has to start http:// or https://.',
+  rl_books_link_wikipedia_shape: 'The Wikipedia link has to start http:// or https://.',
+  rl_library_cover_url_shape: 'The cover has to be a link starting http:// or https://.',
+  rl_library_link_openlibrary_shape: 'The Open Library link has to start http:// or https://.',
+
   // WBPR
   wbpr_broadcasts_workspace_id_session_key: 'That session number is already in the archive.',
   wbpr_broadcasts_workspace_id_slug_key: 'That session number is already in the archive.',

@@ -136,3 +136,33 @@ export function fieldInGroup(
 ): boolean {
   return submitted ? submitted.getAll(key).includes(value) : stored.includes(value);
 }
+
+/**
+ * The first of these link fields holding something other than a web address,
+ * as a sentence to show — or null when they are all blank or http(s).
+ *
+ * Every stored link is rendered as an `href`, so a value like `javascript:…`
+ * saved by one editor would run in whoever clicked it next, signed in as them.
+ * The database refuses the same values (`*_shape` constraints), because an
+ * editor can write to these tables without going through this form; this is
+ * what turns that refusal into a sentence.
+ */
+export function badLink(values: Record<string, unknown>, labels: Record<string, string>): string | null {
+  for (const [key, label] of Object.entries(labels)) {
+    const value = String(values[key] ?? '');
+    if (value && !/^https?:\/\//i.test(value)) {
+      return `${label} has to be a web address starting http:// or https://.`;
+    }
+  }
+  return null;
+}
+
+/**
+ * A Spotify link as the Android app shares it — `intent://album/<id>#Intent;…`
+ * — turned into the web address it stands for. Anything else is returned as
+ * it came, for badLink() to judge.
+ */
+export function spotifyWebLink(raw: string): string {
+  const m = raw.match(/^intent:\/\/(album|track|artist|playlist)\/([A-Za-z0-9]+)/);
+  return m ? `https://open.spotify.com/${m[1]}/${m[2]}` : raw;
+}
