@@ -1,13 +1,17 @@
 /// <reference types="astro/client" />
 
-import type { SupabaseClient, User } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './lib/database.types';
 
 declare global {
   namespace App {
     interface Locals {
       supabase: SupabaseClient<Database>;
-      user: User | null;
+      /**
+       * Who is signed in, from the verified session token. Only the two
+       * fields the app reads: see the note on getClaims() in middleware.ts.
+       */
+      user: { id: string; email?: string } | null;
     }
   }
 }

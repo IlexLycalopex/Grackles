@@ -1,4 +1,4 @@
-import type { SupabaseClient, User } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppSlug, Database, MemberRole, Visibility } from '../database.types';
 import { APPS, HOSTED_APPS, appBySlug } from '../apps';
 import { describeAdminError, describeGrantError, loadEntitlements } from '../grants';
@@ -43,7 +43,7 @@ export interface Outcome {
  * behaves: a page that refuses differently from a page that does not exist is
  * a page that confirms it exists.
  */
-export async function isAdmin(supabase: Client, user: User | null): Promise<boolean> {
+export async function isAdmin(supabase: Client, user: App.Locals['user']): Promise<boolean> {
   if (!user) return false;
   const { isPlatformAdmin } = await loadEntitlements(supabase, user.id);
   return isPlatformAdmin;
@@ -99,7 +99,7 @@ type Result = { error: { code?: string; message: string } | null };
 
 export async function handleAction(
   supabase: Client,
-  user: User,
+  user: NonNullable<App.Locals['user']>,
   form: FormData,
   origin: string
 ): Promise<Outcome> {
@@ -269,7 +269,7 @@ export async function handleAction(
  */
 async function invite(
   supabase: Client,
-  user: User,
+  user: NonNullable<App.Locals['user']>,
   form: FormData,
   origin: string,
   people: Person[],

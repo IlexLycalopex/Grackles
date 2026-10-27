@@ -75,17 +75,28 @@ function secured(response: Response): Response {
  * Attaches a request-scoped Supabase client and the current user to
  * `Astro.locals`, so pages do not each rebuild them.
  *
- * getUser() rather than getSession(): getSession only decodes the cookie,
- * which the client controls, whereas getUser verifies the token with the auth
- * server. The difference matters anywhere a decision is made about who someone
- * is.
+ * getClaims() rather than getSession(): getSession only decodes the cookie,
+ * which the client controls, whereas getClaims verifies the token's signature.
+ * The difference matters anywhere a decision is made about who someone is.
+ *
+ * getClaims() rather than getUser(), which this used until 27 Oct 2026:
+ * getUser asks the auth server on every request, a round trip on every page a
+ * signed-in person loads. getClaims checks the signature against the
+ * project's published keys, cached, and falls back to the same server call
+ * when the project signs with a shared secret. What it does not see is a
+ * session revoked before its token expires (an hour at most) — and nor does
+ * the database, whose row-level security trusts the same token on the same
+ * terms. So nothing a page could do becomes reachable that RLS would refuse.
  */
 export const onRequest = defineMiddleware(async (context, next) => {
   const supabase = createSupabaseServerClient(context.cookies, context.request);
   context.locals.supabase = supabase;
 
-  const { data, error } = await supabase.auth.getUser();
-  context.locals.user = error ? null : data.user;
+  const { data, error } = await supabase.auth.getClaims();
+  const claims = error ? null : data?.claims;
+  context.locals.user = claims?.sub
+    ? { id: claims.sub, email: typeof claims.email === 'string' ? claims.email : undefined }
+    : null;
 
   return secured(await forwarded(context, next, supabase));
 });
