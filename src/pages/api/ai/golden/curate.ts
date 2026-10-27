@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { json } from '../../../../lib/http';
 
 export const prerender = false;
 
@@ -14,9 +15,6 @@ export const prerender = false;
  * carries a frozen copy of somebody's data and the prompt sent with it, so it
  * is a platform-admin action even though the desk is merely owner-only.
  */
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const { supabase, user } = locals;

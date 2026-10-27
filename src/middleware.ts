@@ -1,4 +1,5 @@
 import { defineMiddleware } from 'astro:middleware';
+import type { APIContext } from 'astro';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createSupabaseServerClient } from './lib/supabase/server';
 import { splitProjectPath } from './lib/apps';
@@ -36,6 +37,41 @@ async function forwardingAddress(
 }
 
 /**
+ * Headers every response carries.
+ *
+ * `frame-ancestors 'none'` (and X-Frame-Options for older browsers) because
+ * nothing here is meant to be embedded, and a page that can be framed is a
+ * page whose buttons — delete a project, change someone's role — can be
+ * clicked through somebody else's site. The referrer policy keeps an
+ * invitation token in /invite/<token> from travelling to any image host the
+ * page loads. No script policy: the pages rely on inline scripts, and a CSP
+ * strict enough to matter would need each one hashed first.
+ */
+const SECURITY_HEADERS: Record<string, string> = {
+  'Content-Security-Policy': "frame-ancestors 'none'",
+  'X-Frame-Options': 'DENY',
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+};
+
+function secured(response: Response): Response {
+  const apply = (r: Response) => {
+    for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+      if (!r.headers.has(name)) r.headers.set(name, value);
+    }
+    return r;
+  };
+  try {
+    return apply(response);
+  } catch {
+    // A Response.redirect() has immutable headers. Rebuilt rather than sent
+    // bare, so a redirect is covered like everything else.
+    return apply(new Response(response.body, response));
+  }
+}
+
+/**
  * Attaches a request-scoped Supabase client and the current user to
  * `Astro.locals`, so pages do not each rebuild them.
  *
@@ -51,6 +87,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const { data, error } = await supabase.auth.getUser();
   context.locals.user = error ? null : data.user;
 
+  return secured(await forwarded(context, next, supabase));
+});
+
+/** The page itself, or its new address if it has moved and this one 404s. */
+async function forwarded(
+  context: APIContext,
+  next: () => Promise<Response>,
+  supabase: SupabaseClient<Database>
+): Promise<Response> {
   const response = await next();
   if (response.status !== 404) return response;
 
@@ -63,4 +108,4 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // saves instead of silently becoming a GET that discards it.
   const moved = await forwardingAddress(supabase, context.url.pathname);
   return moved ? context.redirect(moved + context.url.search, 308) : response;
-});
+}

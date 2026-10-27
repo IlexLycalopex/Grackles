@@ -166,10 +166,10 @@ const others = (scoreboard ?? []).filter(r => r.user_id !== user.id);
       rather than define:vars because define:vars requires an inline script,
       and an inline script cannot import — which would mean a second copy of
       the share grid living in this file. */}
-  <script is:inline type="application/json" id="blGame" set:html={JSON.stringify(game)} />
+  <script is:inline type="application/json" id="blGame" set:html={JSON.stringify(game).replace(/</g, '\\u003c')} />
   <script is:inline type="application/json" id="blConfig" set:html={JSON.stringify({
     endpoint: `/api/blackletter/${workspace.slug}/guess`,
-  })} />
+  }).replace(/</g, '\\u003c')} />
 
   <script>
     import { shareText, MARK_RANK } from '../../../lib/blackletter';

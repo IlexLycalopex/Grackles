@@ -140,8 +140,11 @@ if (Astro.request.method === 'POST') {
       .from('workspace_invites')
       .select('email, role, token, expires_at, grant_apps')
       .eq('id', str('invite_id'))
+      // This project's invitations only. An owner of two projects can read
+      // both lists, and the mail below names this one.
+      .eq('workspace_id', workspace.id)
       .is('accepted_at', null)
-      .single();
+      .maybeSingle();
 
     if (e || !invite) {
       error = 'That invitation is no longer pending.';
@@ -163,32 +166,43 @@ if (Astro.request.method === 'POST') {
   }
 
   if (action === 'revoke') {
-    const { error: e } = await supabase.from('workspace_invites').delete().eq('id', str('invite_id'));
-    error = e?.message ?? null;
-    if (!e) notice = 'Invitation revoked.';
+    const { data: rows, error: e } = await supabase
+      .from('workspace_invites')
+      .delete()
+      .eq('id', str('invite_id'))
+      .eq('workspace_id', workspace.id)
+      .select('id');
+    error = saved(rows, e);
+    if (!error) notice = 'Invitation revoked.';
   }
 
   if (action === 'set-role') {
     const role = str('role') as MemberRole;
-    const { error: e } = await supabase
-      .from('workspace_members')
-      .update({ role })
-      .eq('workspace_id', workspace.id)
-      .eq('user_id', str('user_id'));
-    // guard_last_owner() raises rather than letting a workspace end up with
-    // nobody able to administer it.
-    error = e?.message ?? null;
-    if (!e) notice = 'Role updated.';
+    if (!ROLES.includes(role)) {
+      error = 'That is not one of the roles.';
+    } else {
+      const { data: rows, error: e } = await supabase
+        .from('workspace_members')
+        .update({ role })
+        .eq('workspace_id', workspace.id)
+        .eq('user_id', str('user_id'))
+        .select('user_id');
+      // guard_last_owner() raises rather than letting a workspace end up with
+      // nobody able to administer it.
+      error = saved(rows, e);
+      if (!error) notice = 'Role updated.';
+    }
   }
 
   if (action === 'remove') {
-    const { error: e } = await supabase
+    const { data: rows, error: e } = await supabase
       .from('workspace_members')
       .delete()
       .eq('workspace_id', workspace.id)
-      .eq('user_id', str('user_id'));
-    error = e?.message ?? null;
-    if (!e) notice = 'Member removed.';
+      .eq('user_id', str('user_id'))
+      .select('user_id');
+    error = saved(rows, e);
+    if (!error) notice = 'Member removed.';
   }
 
   if (action === 'set-name') {

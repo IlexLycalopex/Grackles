@@ -61,7 +61,10 @@ export async function lookupBook(
   let response: Response;
   try {
     response = await fetch(`${SEARCH}?${params}`, {
-      signal,
+      // Nobody passes a signal today, and without one a catalogue that stops
+      // answering holds a lookup, or a whole enrichment tick, open until the
+      // host gives up. Eight seconds is longer than it has ever taken.
+      signal: signal ?? AbortSignal.timeout(8000),
       headers: {
         // OpenLibrary asks for a way to be contacted about heavy use, and a
         // batch of four hundred lookups is heavy use.

@@ -1,16 +1,12 @@
 ---
 import AppShell from '../layouts/AppShell.astro';
+import { safeNext } from '../lib/redirect';
 
 export const prerender = false;
 
-// Where to land after the link is clicked. Kept relative and validated so the
-// `next` parameter cannot be used to bounce someone off-site.
-function safeNext(raw: string | null): string {
-  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/dashboard';
-  return raw;
-}
-
-const next = safeNext(Astro.url.searchParams.get('next'));
+// Where to land after the link is clicked. Validated so the `next` parameter
+// cannot be used to bounce someone off-site.
+const next = safeNext(Astro.url.searchParams.get('next'), '/dashboard');
 
 // Already signed in? Nothing to do here.
 if (Astro.locals.user) return Astro.redirect(next);

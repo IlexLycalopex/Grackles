@@ -118,7 +118,7 @@ const resumeState = (unfinished?.state ?? {}) as {
       <form class="wbpr-form" id="say-form" style="margin-top: 1.5rem">
         <label class="wbpr-field">
           <span class="wbpr-field__label">Your turn</span>
-          <textarea class="wbpr-field__input" name="text" rows="3"
+          <textarea class="wbpr-field__input" name="text" rows="3" maxlength="2000"
                     placeholder="Your selections, your on-air intro, what Oso says…"></textarea>
         </label>
         <button class="wbpr-button" type="submit">Send</button>

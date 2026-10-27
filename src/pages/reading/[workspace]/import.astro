@@ -4,6 +4,7 @@ import ImportRow from '../../../components/rl/ImportRow.astro';
 import { requireWrite } from '../../../lib/workspace';
 import { loadYears } from '../../../lib/reading-list';
 import { VERDICTS, type Verdict } from '../../../lib/library-import';
+import { describeWriteError } from '../../../lib/records/save';
 
 export const prerender = false;
 
@@ -54,15 +55,24 @@ if (Astro.request.method === 'POST' && batchId) {
       if (!decision) return;
       byDecision.set(decision, [...(byDecision.get(decision) ?? []), id]);
     });
-    for (const [decision, rowIds] of byDecision) {
-      await supabase.from('rl_import_rows').update({ decision }).in('id', rowIds);
-    }
-    // The read switch travels with the same form so one press settles both.
-    await supabase
-      .from('rl_import_batches')
-      .update({ read_default: form.get('read_default') !== null })
-      .eq('id', batchId);
-    notice = 'Saved. Nothing has been written to the library yet.';
+    const writes = await Promise.all([
+      ...[...byDecision].map(([decision, rowIds]) =>
+        supabase.from('rl_import_rows').update({ decision }).in('id', rowIds).eq('batch_id', batchId)
+      ),
+      // The read switch travels with the same form so one press settles both.
+      supabase
+        .from('rl_import_batches')
+        .update({ read_default: form.get('read_default') !== null })
+        .eq('id', batchId)
+        .select('id'),
+    ]);
+    const failed = writes.find(w => w.error)?.error;
+    // The batch update asks for its row back: a write refused by row-level
+    // security does not raise, it narrows to nothing and reports success.
+    const batchSaved = (writes[writes.length - 1]?.data?.length ?? 0) > 0;
+    if (failed) error = describeWriteError(failed, 'import decisions');
+    else if (!batchSaved) error = 'Nothing was saved — you may no longer be able to change this project.';
+    else notice = 'Saved. Nothing has been written to the library yet.';
   }
 
   if (intent === 'apply') {

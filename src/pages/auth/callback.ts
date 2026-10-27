@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { safeNext } from '../../lib/redirect';
 
 export const prerender = false;
 
@@ -9,9 +10,8 @@ export const prerender = false;
  */
 export const GET: APIRoute = async ({ url, locals, redirect }) => {
   const code = url.searchParams.get('code');
-  const rawNext = url.searchParams.get('next');
-  // Same guard as the login form: only same-origin, absolute paths.
-  const next = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/dashboard';
+  // Same guard as the login form: only somewhere on this site.
+  const next = safeNext(url.searchParams.get('next'), '/dashboard');
 
   if (!code) {
     return redirect('/login?error=missing-code');

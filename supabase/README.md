@@ -721,9 +721,111 @@ SECURITY DEFINER with `search_path = public, pg_temp`, executable by
 `authenticated` and not `anon`, and `admin_person_projects` called as Jamie
 returns what the tables hold.
 
-**Still open:** the eleven `admin_` functions from `20260814101800` are
-executable by `anon` for the same reason. Each raises 42501 for a non-admin, so
-nothing is exposed, but they want the same revoke in a migration of their own.
+**Closed by `20260924160000`:** the eleven `admin_` functions from
+`20260814101800` were executable by `anon` for the same reason.
+
+### Settling AI calls (2026-09-24)
+
+| Migration | What it does |
+| --- | --- |
+| `20260924140000_ai_settlement_guards` | `ai_end_call` and `ai_end_job` check the job is the caller's, as `ai_begin_call` always did; the provider breaker needs failures from two payers (or an admin's) before it opens; `ai_register_prompt` takes only real features, twenty versions a person, and activates only an admin's |
+
+Found by the site review. Both settling functions were SECURITY DEFINER,
+executable by `anon`, and checked nothing, so holding a call or job id was
+enough to settle or close it. The ownership check cannot cover the rest: the
+server settles with the caller's own session, so a person can report their own
+calls however they like. Five reported failures used to open the breaker for
+the whole site. `failing_payers` on `ai_provider_health` now records who the
+streak came from, and one account alone can no longer open it. The cost is
+that a real outage seen by one non-admin person is not stopped by the
+breaker until a second person or Jamie hits it; those calls fail
+individually, and a failed call costs next to nothing.
+
+`ai_end_job` checks only when the request's `role` is `anon` or
+`authenticated`, because `ai_reap` runs as the service role with no
+`auth.uid()` and closing stale jobs is its purpose.
+
+**Applied 2026-09-24** (as `20260924215221_ai_settlement_guards`). Verified
+first against a cluster built from `tests/baseline.sql` and every migration:
+`ai.sh` (122, ten new), `test.sh` (50), `admin.sh` (21), `settings.sh` (39) and
+`people.sh` (13). Production's three function bodies were checked against this
+repository's before applying. Read back afterwards: both settling functions
+carry the ownership check, `ai_register_prompt` is no longer executable by
+`anon`, and a signed-in stranger calling all three against real ids got
+`GRK10` from each, inside a transaction that was rolled back.
+
+### Service-only housekeeping (2026-09-24)
+
+| Migration | What it does |
+| --- | --- |
+| `20260924150000_ai_service_only_grants` | Takes EXECUTE on the eight AI housekeeping functions, and the budget trigger function, away from `anon` and `authenticated`, and restates it for `service_role` |
+
+Found by the advisors on the read-back above. `ai_reap`, `ai_housekeeping`,
+`ai_pending_notices`, `ai_notice_sent`, `ai_sweep_transcripts`,
+`ai_cache_sweep`, `ai_check_budgets` and `ai_enforce_quality_floors` were each
+created with a revoke from PUBLIC and a grant to the service role, and each was
+still executable by anybody: Supabase's default privileges grant to `anon` and
+`authenticated` by name, which a revoke from PUBLIC does not reach. That is the
+third time this repository has found it (`20260917130000`, `20260924130100`).
+A stranger could read the pending budget notices, mark them sent so they never
+went out, or run the sweeps early. Nothing in the app calls these; the admin
+"run it now" button goes through `ai_housekeeping_now()`, which is unaffected.
+
+**Applied 2026-09-24** (as `ai_service_only_grants`). Tested first on a local
+cluster with Supabase's default grants reproduced by hand: all nine went from
+executable by all three roles to the service role only, `ai.sh` gained four
+checks (126), and `test.sh`, `admin.sh`, `settings.sh` and `people.sh` still
+pass. Read back off production: the same nine are executable by `service_role`
+alone, and, inside a rolled-back transaction, the admin console's housekeeping
+ran as Jamie while `ai_pending_notices` refused `anon` with 42501.
+
+**Lesson worth keeping:** a new SECURITY DEFINER function on this project needs
+`revoke ... from public, anon, authenticated`, not `from public`.
+
+### Admin functions off `anon` (2026-09-24)
+
+| Migration | What it does |
+| --- | --- |
+| `20260924160000_admin_functions_not_anon` | Takes EXECUTE away from `anon` on the eleven `admin_` functions from `20260814101800`, the seven AI admin functions, and `my_ai_usage`; restates it for `authenticated` |
+
+Closes the "still open" note under People above. Each already refused anybody
+who was not a platform admin (or not signed in), so nothing was exposed; now the
+grant refuses them before the body runs, and the advisors stop listing them.
+
+**Applied 2026-09-24** (as `admin_functions_not_anon`). Read back off
+production: the only SECURITY DEFINER functions `anon` can still execute are
+`invite_email_for_token()` and the ten AI job lifecycle functions, all by
+design. Inside a rolled-back transaction, `admin_overview()` and
+`my_ai_usage()` still ran for Jamie, `admin_people()` refused `anon` with
+42501, and the invitation lookup still answered a signed-out caller.
+
+### Efficiency pass (2026-09-24)
+
+| Migration | What it does |
+| --- | --- |
+| `20260924170000_efficiency_pass` | Thirteen policies evaluate `auth.uid()` and `app.is_platform_admin()` once per statement rather than once per row; seventeen indexes on the foreign keys that deletes and joins walk; a 10 MB, images-only limit on `cigar-photos` |
+
+From the performance advisors. The policies are production's own expressions,
+unchanged except for the `(select …)` wrapping, applied with ALTER POLICY so
+each keeps its command and roles. The advisors list 45 unindexed foreign keys;
+the seventeen here are the ones removing a project, a library entry or an
+account has to search, plus the owner count the dashboard reads. The others are
+audit columns nothing looks up by. The bucket is unused (a cigar photo is a
+link) and empty, so its limit changes nothing today.
+
+**Applied 2026-09-24** (as `efficiency_pass`). Verified first on a clean cluster
+with every migration and the Blackletter seed: `test.sh` (50), `ai.sh` (126),
+`admin.sh` (21), `settings.sh` (39), `people.sh` (13), `library.sh` (90),
+`import.sh` (20), `blackletter.sh` (20) and `commonplace.sh` (39). Read back off
+production: no policy calls `auth.uid()` bare, all seventeen indexes exist, and
+the bucket carries its limit.
+
+**Left as they are, deliberately:** 21 indexes the advisors call unused (the
+tables are small and young; an index is cheap and "unused" at this size means
+little); the permissive-policy pairs (`*_read` beside `*_write` for ALL), which
+cost a second policy check on tables with a handful of rows; and the three
+`*_pre_library_*` snapshot tables from the library migration, locked down by
+RLS with no policy, which can be dropped once nobody wants them back.
 
 ## Verifying
 

@@ -8,6 +8,7 @@ import {
   buildMessages, closeBroadcast, openBroadcast, rollForCaller, sayAtTable, startBlock,
   SYSTEM, type AgentState,
 } from '../../../../lib/wbpr-agent';
+import { aiFailureStatus, aiRefusalStatus, json } from '../../../../lib/http';
 
 export const prerender = false;
 
@@ -31,12 +32,6 @@ export const prerender = false;
  * a broadcast already on air.
  */
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-
 /**
  * How long a reply may run, per kind of turn.
  *
@@ -53,6 +48,9 @@ const BUDGET: Record<string, number> = {
   say: 700,
   close: 320,
 };
+
+/** The longest thing the DJ may say in one turn. */
+const SAY_LONGEST = 2000;
 
 export const POST: APIRoute = async ({ params, request, locals }) => {
   const { supabase, user } = locals;
@@ -87,7 +85,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     });
 
     if (!opened.ok) {
-      return json({ error: opened.error }, opened.code === 'GRK15' || opened.code === 'GRK16' ? 402 : 403);
+      return json({ error: opened.error }, aiRefusalStatus(opened.code));
     }
 
     const { data: created, error } = await supabase
@@ -176,6 +174,12 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   if (action === 'say') {
     const said = String(body?.text ?? '').trim();
     if (!said) return json({ error: 'Nothing to say.' }, 400);
+    // Everything said is resent with every later turn of the night, so one
+    // pasted wall of text is paid for four blocks running. A long monologue
+    // fits; a document does not.
+    if (said.length > SAY_LONGEST) {
+      return json({ error: `Keep it under ${SAY_LONGEST.toLocaleString('en-GB')} characters.` }, 400);
+    }
     return turn(
       supabase, workspace.id, sitting.id, jobId,
       { prompt: sayAtTable(said, state), table: '', state },
@@ -239,8 +243,7 @@ async function turn(
   if (!result.ok) {
     // A refusal from the gates and a refusal from the provider read
     // differently: one is a limit doing its job, the other is something broken.
-    const gated = result.code?.startsWith('GRK') ?? false;
-    return json({ error: result.error }, gated ? 402 : 502);
+    return json({ error: result.error }, aiFailureStatus(result));
   }
 
   const at = prior.length;

@@ -7,6 +7,7 @@ import {
   ACTION_LABELS, buildChatTurn, chatCacheKey, CHAT_ACTIONS, CHAT_SYSTEM, readChatTurn,
   type ChatHistoryEntry,
 } from '../../../../lib/ai/chat';
+import { aiFailureStatus, aiRefusalStatus, json } from '../../../../lib/http';
 
 export const prerender = false;
 
@@ -23,9 +24,6 @@ export const prerender = false;
  * becomes a change only when somebody presses the button on the page — which
  * posts to the library, through the same bulk path they could have used by hand.
  */
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 const LONGEST = 300;
 
@@ -84,13 +82,13 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   if (!ran.ok) {
     return json(
       { error: describeAiError({ code: ran.code, message: ran.error }) },
-      ran.code === 'GRK15' || ran.code === 'GRK16' || ran.code === 'GRK18' ? 402 : 403
+      aiRefusalStatus(ran.code)
     );
   }
 
   const turn = ran.value;
   if (!turn.ok) {
-    return json({ error: turn.error }, turn.error.includes('not configured') ? 503 : 502);
+    return json({ error: turn.error }, aiFailureStatus(turn));
   }
 
   const read = readChatTurn(turn.content);

@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { resolveWorkspace } from '../../../../lib/workspace';
 import { contentHash, judge, parseUpload, summarise, type ExistingEntry } from '../../../../lib/library-import';
 import type { Json } from '../../../../lib/database.types';
+import { json } from '../../../../lib/http';
 
 export const prerender = false;
 
@@ -13,9 +14,6 @@ export const prerender = false;
  * separation is the whole design: an import that half-lands across several
  * hundred books leaves somebody working out which half.
  */
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 /** Bigger than any plausible shelf list, small enough not to be a way in. */
 const MOST_BYTES = 4_000_000;

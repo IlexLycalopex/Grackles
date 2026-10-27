@@ -8,6 +8,7 @@ import {
   type CachedRow, type CigarReference,
 } from '../../../../lib/cigar-lookup';
 import { checkDimensions } from '../../../../lib/cigar-vitolas';
+import { aiFailureStatus, aiRefusalStatus, json } from '../../../../lib/http';
 
 export const prerender = false;
 
@@ -36,9 +37,6 @@ export const prerender = false;
  * here — this route tells you what happened in a sentence, the policy is what
  * actually holds.
  */
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 /**
  * The three fields the dimension check reads. Everything else on a match is
@@ -187,7 +185,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     // here, not you, not now", matching the desk and the enrichment run.
     return json(
       { error: describeAiError({ code: ran.code, message: ran.error }) },
-      ran.code === 'GRK15' || ran.code === 'GRK16' || ran.code === 'GRK18' ? 402 : 403
+      aiRefusalStatus(ran.code)
     );
   }
 
@@ -196,7 +194,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   if (!result.ok) {
     // The call happened, or tried to. It is already settled and already in the
     // ledger with its reason, so this is only how it reads on the page.
-    return json({ error: result.error }, result.error.includes('not configured') ? 503 : 502);
+    return json({ error: result.error }, aiFailureStatus(result));
   }
 
   const reference = readLookup(result.content);

@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.22.0"
   },
   "scripts": {
     "dev": "astro dev",
@@ -15,14 +15,14 @@
     "test": "node --experimental-strip-types --import ./scripts/register-ts.mjs --test \"src/**/*.test.ts\" \"src/**/*.test.mjs\""
   },
   "dependencies": {
-    "@astrojs/vercel": "^10.0.8",
+    "@astrojs/vercel": "^11.0.16",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.60.0",
-    "astro": "^6.4.8",
+    "astro": "^7.4.1",
     "ts-fsrs": "^5.4.2"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.10",
+    "@astrojs/check": "^0.9.12",
     "@types/d3-geo": "^3.1.1",
     "@types/node": "^26.1.2",
     "@types/topojson-client": "^3.1.5",

@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { resolveWorkspace } from '../../../../lib/workspace';
+import { json } from '../../../../lib/http';
 
 export const prerender = false;
 
@@ -9,9 +10,6 @@ export const prerender = false;
  * One RPC call, because the transaction is the point. Everything this route
  * does beyond calling it is turning an SQLSTATE into a sentence.
  */
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 /** The refusals rl_apply_import raises, as sentences. */
 const MESSAGES: Record<string, string> = {
