@@ -827,6 +827,24 @@ cost a second policy check on tables with a handful of rows; and the three
 `*_pre_library_*` snapshot tables from the library migration, locked down by
 RLS with no policy, which can be dropped once nobody wants them back.
 
+### Links are web addresses (2026-10-27)
+
+| Migration | What it does |
+| --- | --- |
+| `20261027120000_link_shapes` | A `*_shape` check (`'' or ~* '^https?://'`) on the twelve link columns that had none: Listening Party's Wikipedia, Spotify, YouTube and artwork; the reading list's covers, Open Library and Wikipedia links; the book reference cache; `profiles.avatar_url` |
+
+Every one of these is rendered as an `href` or `src`, and an editor writes
+these tables directly, so a `javascript:` value saved by one would have run in
+whoever clicked it next. `photo_path`, `wbpr_tracks.url` and `external_url`
+always carried the same check; these were missed. The one stored value that
+failed it was a Spotify link pasted from the Android app as `intent://`, which
+the migration rewrites to its `open.spotify.com` address, as the form now does.
+
+**Applied 2026-10-27** (as `link_shapes`). Verified first on a clean cluster:
+`library.sh` gains four checks (94) and every other suite passes unchanged.
+Read back off production: twelve constraints, the Spotify link rewritten, and
+a `javascript:` link refused inside a rolled-back transaction.
+
 ## Verifying
 
 `tests/` contains a reconstruction of the pre-migration schema plus Supabase
