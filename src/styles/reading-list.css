@@ -1556,6 +1556,20 @@ textarea.book-form__input { resize: vertical; line-height: 1.55; }
   }
   .site-nav[data-collapsible][data-open] .site-nav__links { display: flex; }
   .site-nav[data-collapsible] .site-nav__inner { flex-wrap: wrap; }
+  /* The bar is a fixed 54px on a wide screen. Opened, the panel wraps below
+     it, so the height has to give way or the links spill out under a
+     translucent bar and sit over the page. Opaque while open for the same
+     reason: the page scrolling behind the blur made the links unreadable. */
+  .site-nav[data-collapsible] .site-nav__inner { height: auto; min-height: 54px; }
+  .site-nav[data-collapsible][data-open] {
+    background: var(--bg);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    max-height: 100vh;
+    max-height: 100dvh;
+    overflow-y: auto;
+  }
+  .site-nav[data-collapsible][data-open] .site-nav__links { padding-bottom: 14px; }
 
   /* The years come back. They were the thing worth having on a phone and the
      only thing the old rule removed. */
