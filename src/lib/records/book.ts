@@ -1,4 +1,4 @@
-import { FormValues, invalid, valid, type Parsed } from '../forms';
+import { badLink, FormValues, invalid, valid, type Parsed } from '../forms';
 
 export const BOOK_FORMATS = ['print', 'audio', 'graphic'] as const;
 export type BookFormat = (typeof BOOK_FORMATS)[number];
@@ -73,6 +73,16 @@ export function readBook(form: FormData): Parsed<BookValues> {
     return invalid('This has a date finished, so it is not still coming up.');
   }
 
+  const links = {
+    cover_url: f.str('cover_url'),
+    link_openlibrary: f.str('link_openlibrary'),
+    link_wikipedia: f.str('link_wikipedia'),
+  };
+  const notALink = badLink(links, {
+    cover_url: 'The cover', link_openlibrary: 'The Open Library link', link_wikipedia: 'The Wikipedia link',
+  });
+  if (notALink) return invalid(notALink);
+
   return valid({
     year_id,
     order_read,
@@ -88,14 +98,14 @@ export function readBook(form: FormData): Parsed<BookValues> {
     // never sends it and an imprint typed here groups the same way as one
     // fetched from Open Library.
     publisher: f.str('publisher'),
-    cover_url: f.str('cover_url'),
+    cover_url: links.cover_url,
     isbn: f.str('isbn'),
     notes: f.str('notes'),
     tags: f.list('tags'),
     reading,
     coming_up,
     abandoned,
-    link_openlibrary: f.str('link_openlibrary'),
-    link_wikipedia: f.str('link_wikipedia'),
+    link_openlibrary: links.link_openlibrary,
+    link_wikipedia: links.link_wikipedia,
   });
 }

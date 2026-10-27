@@ -1,4 +1,4 @@
-import { FormValues, invalid, valid, type Parsed } from '../forms';
+import { badLink, FormValues, invalid, spotifyWebLink, valid, type Parsed } from '../forms';
 
 export const SELECTION_STATUSES = ['upcoming', 'completed'] as const;
 export type SelectionStatus = (typeof SELECTION_STATUSES)[number];
@@ -47,6 +47,20 @@ export function readSelection(form: FormData): Parsed<SelectionValues> {
     return invalid('A completed week needs both an album and an artist.');
   }
 
+  const links = {
+    link_wikipedia: f.str('link_wikipedia'),
+    // Pasted from the Android app, a Spotify link arrives as intent://, which
+    // no desktop browser can open. One did, and sat on the season page.
+    link_spotify: spotifyWebLink(f.str('link_spotify')),
+    link_youtube: f.str('link_youtube'),
+    artwork_url: f.str('artwork_url'),
+  };
+  const notALink = badLink(links, {
+    link_wikipedia: 'The Wikipedia link', link_spotify: 'The Spotify link',
+    link_youtube: 'The YouTube link', artwork_url: 'The artwork',
+  });
+  if (notALink) return invalid(notALink);
+
   return valid({
     season_id,
     contributor_id,
@@ -56,11 +70,11 @@ export function readSelection(form: FormData): Parsed<SelectionValues> {
     artist,
     status,
     notes: f.str('notes'),
-    link_wikipedia: f.str('link_wikipedia'),
-    link_spotify: f.str('link_spotify'),
-    link_youtube: f.str('link_youtube'),
+    link_wikipedia: links.link_wikipedia,
+    link_spotify: links.link_spotify,
+    link_youtube: links.link_youtube,
     // Clearing the artwork URL is how you ask for it to be looked up again,
     // exactly as it was in the YAML.
-    artwork_url: f.str('artwork_url'),
+    artwork_url: links.artwork_url,
   });
 }

@@ -607,6 +607,15 @@ check "a turn is one bounded call" ok \
 check "a viewer cannot open a chat job" GRK13 \
   "select public.ai_begin_job('reading.chat','$WS');" "$as_rob"
 
+echo "── links are web addresses"
+# 27 Oct 2026: the library's links had no check, and an editor writes this
+# table directly, so a javascript: "link" would run in whoever clicked it.
+ins="insert into public.rl_library (workspace_id, title, author, cover_url, link_openlibrary) values ('$WS', 'T', 'A',"
+check "a javascript: link is refused" 23514 "$ins '', 'javascript:alert(1)');" ""
+check "an app link (intent://) is refused" 23514 "$ins 'intent://x', '');" ""
+check "HTTPS in capitals is accepted" ok "$ins 'HTTPS://covers.openlibrary.org/x.jpg', '');" ""
+check "blank is accepted" ok "$ins '', '');" ""
+
 echo ""
 echo "passed: $pass   failed: $fail"
 [ "$fail" -eq 0 ]
