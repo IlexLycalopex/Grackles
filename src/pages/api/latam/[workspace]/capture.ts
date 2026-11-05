@@ -30,7 +30,13 @@ const text = (body: string, status = 200) =>
 export const POST: APIRoute = async ({ request, locals }) => {
   const auth = request.headers.get('authorization') ?? '';
   const token = auth.replace(/^Bearer\s+/i, '').trim();
-  if (!token) return text('No capture token. Add one under LatAm › Setup.', 401);
+  // What arrived, safely: enough to tell an unfilled variable or a mangled
+  // paste from a revoked token, never enough to use.
+  const seen = token ? `${token.slice(0, 5)}… (${token.length} characters)` : 'nothing';
+  if (!token) {
+    console.warn('lx capture 401: no token', { header: auth ? 'present' : 'absent' });
+    return text('No capture token. Add one under LatAm › Setup.', 401);
+  }
 
   let entry: Record<string, unknown>;
   try {
@@ -55,6 +61,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (error) {
     const status = STATUS[error.code] ?? 500;
     if (status === 500) console.error('lx_capture failed', error);
+    if (status === 401) {
+      console.warn('lx capture 401', { reason: error.message, seen });
+      return text(`Not saved: ${error.message}. Received ${seen}; a token starts lx_ and is 51 characters.`, 401);
+    }
     return text(status === 500 ? 'Not saved: something went wrong on the server.' : `Not saved: ${error.message}`, status);
   }
 
