@@ -143,6 +143,78 @@ export type Database = {
           },
         ];
       };
+      // ── LatAm ────────────────────────────────────────────────────────
+      // Phone captures arrive through lx_capture(); a page only corrects
+      // what is already there, so Insert is never and Update names the
+      // columns the grant does.
+      lx_settings: {
+        Row: {
+          workspace_id: string;
+          reading_workspace_id: string | null;
+          jpod_workspace_id: string | null;
+          focus_tag: string;
+          updated_at: string;
+        };
+        Insert: {
+          workspace_id: string;
+          reading_workspace_id?: string | null;
+          jpod_workspace_id?: string | null;
+          focus_tag?: string;
+        };
+        Update: { reading_workspace_id?: string | null; jpod_workspace_id?: string | null; focus_tag?: string };
+        Relationships: [];
+      };
+      lx_capture_tokens: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          user_id: string;
+          label: string;
+          created_at: string;
+          last_used_at: string | null;
+          revoked_at: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      lx_activities: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          occurred_on: string;
+          type: string;
+          title: string;
+          minutes: number;
+          link: string;
+          notes: string;
+          tags: string[];
+          source: 'phone' | 'web' | 'duolingo' | 'strava';
+          source_ref: string;
+          token_id: string | null;
+          library_id: string | null;
+          check_state: 'ok' | 'to_check';
+          check_note: string;
+          candidates: Json;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: {
+          occurred_on?: string;
+          type?: string;
+          title?: string;
+          minutes?: number;
+          notes?: string;
+          tags?: string[];
+          library_id?: string | null;
+          check_state?: 'ok' | 'to_check';
+          check_note?: string;
+          candidates?: Json;
+        };
+        Relationships: [];
+      };
       // ── JPOD ─────────────────────────────────────────────────────────
       // Listening arrives through jp_ingest() as the service role, so no
       // role here can insert a show, an episode or a play. Update is
@@ -1717,6 +1789,18 @@ export type Database = {
       };
     };
     Functions: {
+      lx_capture: {
+        Args: { p_token: string; p_entry: Json };
+        Returns: Json;
+      };
+      lx_token_create: {
+        Args: { p_workspace: string; p_label: string };
+        Returns: string;
+      };
+      lx_token_revoke: {
+        Args: { p_token: string };
+        Returns: boolean;
+      };
       jp_monthly: {
         Args: { p_workspace: string; p_tag?: string | null };
         Returns: { month: string; seconds: number; episodes: number }[];
@@ -2342,6 +2426,7 @@ export type Database = {
         | 'blackletter'
         | 'commonplace'
         | 'podcasts'
+        | 'latam'
         | 'external';
       member_role: 'owner' | 'editor' | 'viewer';
       visibility: 'private' | 'unlisted' | 'public';

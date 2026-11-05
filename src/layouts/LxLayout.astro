@@ -1,0 +1,64 @@
+---
+import '../styles/latam.css';
+import NavToggle from '../components/NavToggle.astro';
+import type { ResolvedWorkspace } from '../lib/workspace';
+
+interface Props {
+  title: string;
+  workspace: ResolvedWorkspace;
+}
+
+const { title, workspace } = Astro.props;
+const base = `/latam/${workspace.slug}`;
+const pathname = Astro.url.pathname;
+const canonical = new URL(pathname, Astro.site ?? Astro.url.origin);
+const { user } = Astro.locals;
+
+// Setup holds the capture tokens, which are an editor's business.
+const links = [
+  { href: base, label: 'Overview' },
+  ...(workspace.canWrite ? [{ href: `${base}/setup`, label: 'Setup' }] : []),
+];
+---
+
+<html lang="en-GB">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={workspace.description} />
+    <link rel="canonical" href={canonical.href} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    {workspace.visibility !== 'public' && <meta name="robots" content="noindex, nofollow" />}
+  </head>
+  <body>
+    <nav class="site-nav lx-nav">
+      <div class="lx-wrap lx-nav__inner">
+        <a href={base} class="lx-nav__mark">LatAm</a>
+        <NavToggle />
+        <div class="site-nav__links lx-nav__links">
+          {
+            links.map(l => (
+              <a href={l.href} class="lx-nav__link" aria-current={pathname === l.href ? 'page' : undefined}>
+                {l.label}
+              </a>
+            ))
+          }
+          {workspace.role && <span class="lx-nav__role">{workspace.role}</span>}
+          <a class="lx-nav__link" href={user ? '/dashboard' : `/login?next=${pathname}`}>
+            {user ? 'Projects' : 'Sign in'}
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="lx-wrap lx-main">
+      <slot />
+    </main>
+  </body>
+</html>

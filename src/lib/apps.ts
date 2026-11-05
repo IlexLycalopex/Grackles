@@ -76,6 +76,13 @@ export const APPS: AppDefinition[] = [
     hosted: true,
     tagline: 'Every episode, and the time it took.',
   },
+  {
+    slug: 'latam',
+    path: 'latam',
+    name: 'LatAm',
+    hosted: true,
+    tagline: 'Argentina first: Spanish, reading and the road south.',
+  },
   // No taglines below: an invented sentence about a site nobody has described
   // yet would read as fact. They get one when they move in.
   { slug: 'atelier-obscura', path: 'atelier', name: 'Atelier Obscura', hosted: false },

@@ -951,6 +951,17 @@ local suite cannot see them: `authenticated` should hold SELECT and
 `UPDATE (tags)` only on `jp_shows` and `jp_episodes`, SELECT only on
 `jp_plays` and `jp_sync_runs`, and nothing on `jp_ingest()`.
 
+### LatAm (2026-11-05)
+
+| Migration | What it does |
+| --- | --- |
+| `20261105150000_latam_app_slug` | `latam` joins the `app_slug` enum |
+| `20261105150100_latam_schema` | `pgcrypto` and `pg_trgm` in `extensions`; `lx_settings`, `lx_capture_tokens`, `lx_activities`; `lx_capture()` (anon, token-checked), `lx_token_create()`, `lx_token_revoke()`; grants and RLS |
+
+Verified locally: `tests/latam.sh` (23 checks). To read back after applying:
+`authenticated` has no SELECT on `lx_capture_tokens.token_hash`, and `anon`
+holds EXECUTE on `lx_capture()` and nothing else new.
+
 ### How someone with no account gets one
 
 `/login` sends magic links with `shouldCreateUser: false`, so an address that
