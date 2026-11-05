@@ -101,3 +101,19 @@ export function minutes(n: number): string {
   if (h === 0) return `${m}m`;
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
+
+export interface DuolingoStatus {
+  snapshot: { course_xp: number; streak: number; taken_at: string } | null;
+  run: { ok: boolean | null; message: string; started_at: string } | null;
+}
+
+/** The latest Duolingo snapshot and sync run, for the line under the totals. */
+export async function loadDuolingo(db: Db, ws: string): Promise<DuolingoStatus> {
+  const [{ data: snap }, { data: run }] = await Promise.all([
+    db.from('lx_duolingo_snapshots').select('course_xp, streak, taken_at').eq('workspace_id', ws)
+      .order('taken_at', { ascending: false }).limit(1).maybeSingle(),
+    db.from('lx_sync_runs').select('ok, message, started_at').eq('workspace_id', ws).eq('source', 'duolingo')
+      .order('started_at', { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  return { snapshot: snap, run };
+}

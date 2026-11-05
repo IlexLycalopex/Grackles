@@ -36,6 +36,23 @@ overview, where each candidate is one press.
 
 Tokens are made on `/latam/:workspace/setup`, shown once, and revocable there.
 
+## Duolingo
+
+Duolingo's daily history needs a signed-in session; its public profile does
+not, and gives each course's lifetime XP and the streak. So
+`supabase/functions/latam-duolingo-sync` reads the profile hourly (pg_cron,
+`7 * * * *`) for every project whose setup names a username, and
+`lx_duolingo_ingest()` keeps a snapshot and rewrites that day's `duolingo`
+entry from the growth in **Spanish** XP, at three XP a minute, tagged
+`spanish`. Other courses are ignored.
+
+- No back history: the first check is a starting line. The overview shows
+  lifetime Spanish XP and the streak instead.
+- XP earned in the last hour before midnight can land on the next day.
+- Each run is a row in `lx_sync_runs`; a failure shows on the overview.
+- It shares JPOD's `JPOD_SYNC_SECRET`; its address is Vault's
+  `latam_duolingo_sync_url`.
+
 ## Applying it
 
 1. `20261105150000_latam_app_slug`, then `20261105150100_latam_schema`.
@@ -52,4 +69,4 @@ entry, which already exists; LatAm reads it.
 
 - The overview does not yet count books or reading time from the Reading List
   beyond what is logged here.
-- Duolingo and Strava syncs (step 3) and the trip panel (step 4).
+- Strava sync (step 3) and the trip panel (step 4).

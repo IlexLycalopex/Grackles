@@ -27,10 +27,17 @@ if (Astro.request.method === 'POST') {
     const reading = String(form.get('reading') ?? '') || null;
     const jpod = String(form.get('jpod') ?? '') || null;
     const parsed = parseTags(String(form.get('focus') ?? ''));
+    const duolingo = String(form.get('duolingo') ?? '').trim().replace(/^@/, '') || null;
     if (!parsed.ok) error = parsed.error;
     else if (parsed.tags.length !== 1) error = 'One focus tag, such as argentina.';
+    else if (duolingo && !/^[A-Za-z0-9_.-]{1,40}$/.test(duolingo)) error = 'That does not look like a Duolingo username.';
     else {
-      const values = { reading_workspace_id: reading, jpod_workspace_id: jpod, focus_tag: parsed.tags[0]! };
+      const values = {
+        reading_workspace_id: reading,
+        jpod_workspace_id: jpod,
+        focus_tag: parsed.tags[0]!,
+        duolingo_username: duolingo,
+      };
       // Update when there is a row, insert when there is not: an upsert would
       // also try to write workspace_id, which nobody is granted.
       const existing = await loadSettings(supabase, workspace.id);
@@ -131,6 +138,10 @@ const when = (iso: string | null) =>
         <label for="focus">Focus tag</label>
         <input id="focus" name="focus" value={settings?.focus_tag ?? 'argentina'} required autocomplete="off" />
       </div>
+      <div class="lx-field" style="flex: 0 1 200px">
+        <label for="duolingo">Duolingo username (public profile)</label>
+        <input id="duolingo" name="duolingo" value={settings?.duolingo_username ?? ''} placeholder="Oso_Sur" autocomplete="off" />
+      </div>
       <button class="lx-button" type="submit">Save</button>
     </form>
   </section>
@@ -176,9 +187,9 @@ const when = (iso: string | null) =>
   </section>
 
   <section class="lx-panel lx-section" aria-labelledby="shortcuts-h">
-    <h2 id="shortcuts-h">HTTP Shortcuts on Android</h2>
+    <h2 id="shortcuts-h">HTTP Request Shortcuts on Android</h2>
     <ol class="lx-steps">
-      <li>Install <strong>HTTP Shortcuts</strong> from Google Play.</li>
+      <li>Install <strong>HTTP Request Shortcuts</strong> (Roland Meyer) from Google Play.</li>
       <li>Under Variables, add a <strong>static</strong> variable <code>latam_token</code> holding your token, marked as a secret.</li>
       <li>
         Add prompting variables: <code>type</code> as a select list ({ACTIVITY_TYPES.join(', ')}); <code>title</code>,

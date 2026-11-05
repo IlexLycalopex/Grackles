@@ -4,6 +4,7 @@ import { resolveWorkspace } from '../../../lib/workspace';
 import { describeDeleteError, describeWriteError, NOTHING_DELETED } from '../../../lib/records/save';
 import {
   candidatesOf,
+  loadDuolingo,
   loadRecent,
   loadSettings,
   loadToCheck,
@@ -72,14 +73,17 @@ const settings = await loadSettings(supabase, workspace.id);
 const focus = settings?.focus_tag ?? 'argentina';
 const { week, year } = periodStarts();
 
-const [toCheck, recent, focusWeek, focusYear, spanishWeek, spanishYear] = await Promise.all([
+const [toCheck, recent, focusWeek, focusYear, spanishWeek, spanishYear, duo] = await Promise.all([
   loadToCheck(supabase, workspace.id),
   loadRecent(supabase, workspace.id),
   totalSince(supabase, workspace.id, settings, focus, week),
   totalSince(supabase, workspace.id, settings, focus, year),
   totalSince(supabase, workspace.id, settings, 'spanish', week),
   totalSince(supabase, workspace.id, settings, 'spanish', year),
+  loadDuolingo(supabase, workspace.id),
 ]);
+const at = (iso: string) =>
+  new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' });
 
 const sum = (t: Total) => t.latam + t.podcasts;
 const split = (t: Total) =>
@@ -130,6 +134,18 @@ const unset = !settings;
       <span class="lx-stat__note">{split(spanishYear)}</span>
     </div>
   </section>
+
+  {
+    settings?.duolingo_username && (
+      <p class="lx-hint" aria-label="Duolingo">
+        Duolingo ({settings.duolingo_username}):{' '}
+        {duo.snapshot
+          ? `Spanish ${duo.snapshot.course_xp.toLocaleString('en-GB')} XP lifetime · streak ${duo.snapshot.streak.toLocaleString('en-GB')} days · checked ${at(duo.snapshot.taken_at)}. Practice counts from the first check; minutes are estimated at three XP a minute.`
+          : 'waiting for the first hourly check.'}
+        {duo.run && duo.run.ok === false && <span class="lx-error"> Last sync failed: {duo.run.message}</span>}
+      </p>
+    )
+  }
 
   {error && <p class="lx-error" role="alert">{error}</p>}
   {notice && <p class="lx-notice" role="status">{notice}</p>}
