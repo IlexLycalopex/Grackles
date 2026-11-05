@@ -12,6 +12,8 @@ import {
   loadMonthly,
   loadShows,
   loadTags,
+  MIN_LISTEN_S,
+  plural,
   secondsSince,
   tagParam,
   weekStart,
@@ -44,7 +46,8 @@ const [run, monthly, shows, tags, recent, week, year] = await Promise.all([
 const months = lastMonths(monthly, 12, now);
 const allTime = shows.reduce((s, x) => s + x.seconds, 0);
 const episodes = shows.reduce((s, x) => s + x.episodes, 0);
-const topShows = shows.filter(s => s.seconds > 0).slice(0, 8);
+const heard = shows.filter(s => s.seconds >= MIN_LISTEN_S);
+const topShows = heard.slice(0, 8);
 ---
 
 <PodLayout title={`${tag ? `${tag} · ` : ''}${workspace.name}`} workspace={workspace}>
@@ -71,11 +74,11 @@ const topShows = shows.filter(s => s.seconds > 0).slice(0, 8);
     <div class="jp-stat">
       <span class="jp-stat__label">All time</span>
       <span class="jp-stat__value jp-num">{formatDuration(allTime)}</span>
-      <span class="jp-stat__note">{episodes.toLocaleString('en-GB')} episodes, undated history included</span>
+      <span class="jp-stat__note">{plural(episodes, 'episode')}, undated history included</span>
     </div>
     <div class="jp-stat">
       <span class="jp-stat__label">Shows</span>
-      <span class="jp-stat__value jp-num">{shows.filter(s => s.seconds > 0).length}</span>
+      <span class="jp-stat__value jp-num">{heard.length}</span>
       <span class="jp-stat__note"><a href={`${base}/shows${tag ? `?tag=${tag}` : ''}`}>Every show</a></span>
     </div>
   </section>
@@ -137,7 +140,7 @@ const topShows = shows.filter(s => s.seconds > 0).slice(0, 8);
               <li class="jp-row">
                 <div>
                   <a class="jp-row__title" href={`${base}/show/${s.show_id}`}>{s.title}</a>
-                  <div class="jp-row__meta">{s.episodes} episodes</div>
+                  <div class="jp-row__meta">{plural(s.episodes, 'episode')}</div>
                 </div>
                 <div class="jp-row__side"><strong>{formatDuration(s.seconds)}</strong></div>
               </li>

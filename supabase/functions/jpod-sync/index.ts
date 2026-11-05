@@ -40,16 +40,36 @@ function sameSecret(a: string, b: string): boolean {
   return diff === 0;
 }
 
+// Three tries, two and five seconds apart. The first real run on 2026-11-05
+// failed on a dropped HTTP/2 connection to the sign-in endpoint and the same
+// call succeeded a minute later: a blip, not a fault, and one that would
+// otherwise show as a failed sync for the whole day. Only a request that never
+// got an answer, or a 5xx, is tried again — a 4xx is Pocket Casts saying no,
+// and asking twice will not change its mind.
+const RETRY_DELAYS_MS = [2000, 5000];
+
 async function post(path: string, body: unknown, token?: string): Promise<Response> {
-  return await fetch(`${API}${path}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(body),
-  });
+  const send = () =>
+    fetch(`${API}${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+
+  for (let attempt = 0; ; attempt++) {
+    const delay = RETRY_DELAYS_MS[attempt];
+    try {
+      const res = await send();
+      if (res.status < 500 || delay === undefined) return res;
+    } catch (e) {
+      if (delay === undefined) throw e;
+    }
+    await new Promise(r => setTimeout(r, delay));
+  }
 }
 
 // The web player signs in through login_pocket_casts and receives an
