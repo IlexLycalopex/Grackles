@@ -1,0 +1,205 @@
+---
+import LxLayout from '../../../layouts/LxLayout.astro';
+import { requireWrite } from '../../../lib/workspace';
+import { describeWriteError } from '../../../lib/records/save';
+import { parseTags } from '../../../lib/pod/podcasts';
+import { ACTIVITY_TYPES, loadSettings, type Token } from '../../../lib/latam/latam';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const gate = await requireWrite(supabase, 'latam', Astro.params.workspace!, user?.id ?? null, Astro.url.pathname);
+if (!gate.ok) return gate.response;
+const workspace = gate.workspace;
+const base = `/latam/${workspace.slug}`;
+
+let error: string | null = null;
+let notice: string | null = null;
+// Shown once, on the response to the request that made it, and never again:
+// only its digest is stored.
+let newToken: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const intent = String(form.get('intent') ?? '');
+
+  if (intent === 'links') {
+    const reading = String(form.get('reading') ?? '') || null;
+    const jpod = String(form.get('jpod') ?? '') || null;
+    const parsed = parseTags(String(form.get('focus') ?? ''));
+    if (!parsed.ok) error = parsed.error;
+    else if (parsed.tags.length !== 1) error = 'One focus tag, such as argentina.';
+    else {
+      const values = { reading_workspace_id: reading, jpod_workspace_id: jpod, focus_tag: parsed.tags[0]! };
+      // Update when there is a row, insert when there is not: an upsert would
+      // also try to write workspace_id, which nobody is granted.
+      const existing = await loadSettings(supabase, workspace.id);
+      const { data, error: e } = existing
+        ? await supabase.from('lx_settings').update(values).eq('workspace_id', workspace.id).select('workspace_id')
+        : await supabase.from('lx_settings').insert({ workspace_id: workspace.id, ...values }).select('workspace_id');
+      if (e) error = describeWriteError(e, 'lx_settings save');
+      else if (!data?.length) error = 'Nothing was saved. Your role may have changed.';
+      else notice = 'Saved.';
+    }
+  } else if (intent === 'token') {
+    const label = String(form.get('label') ?? '').trim() || 'Phone';
+    const { data, error: e } = await supabase.rpc('lx_token_create', { p_workspace: workspace.id, p_label: label });
+    if (e) error = describeWriteError(e, 'lx_token_create');
+    else newToken = data;
+  } else if (intent === 'revoke') {
+    const { error: e } = await supabase.rpc('lx_token_revoke', { p_token: String(form.get('id') ?? '') });
+    if (e) error = describeWriteError(e, 'lx_token_revoke');
+    else notice = 'Token revoked. That phone can no longer log anything.';
+  }
+}
+
+const settings = await loadSettings(supabase, workspace.id);
+const [{ data: projects }, { data: tokenRows }] = await Promise.all([
+  supabase.from('workspaces').select('id, app, slug, name').in('app', ['reading-list', 'podcasts']).order('name'),
+  supabase
+    .from('lx_capture_tokens')
+    .select('id, workspace_id, user_id, label, created_at, last_used_at, revoked_at')
+    .eq('workspace_id', workspace.id)
+    .order('created_at', { ascending: false }),
+]);
+const readingLists = (projects ?? []).filter(p => p.app === 'reading-list');
+const pods = (projects ?? []).filter(p => p.app === 'podcasts');
+const tokens: Token[] = tokenRows ?? [];
+
+const endpoint = new URL(`/api/latam/${workspace.slug}/capture`, Astro.site ?? Astro.url.origin).href;
+const body = `{
+  "id": "{{uuid}}",
+  "type": "{{type}}",
+  "title": "{{title}}",
+  "minutes": "{{minutes}}",
+  "link": "{{link}}",
+  "notes": "{{notes}}"
+}`;
+const when = (iso: string | null) =>
+  iso
+    ? new Date(iso).toLocaleString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Europe/London',
+      })
+    : 'never';
+---
+
+<LxLayout title={`Setup · ${workspace.name}`} workspace={workspace}>
+  <header class="lx-head">
+    <div>
+      <p class="lx-kicker"><a href={base}>{workspace.name}</a></p>
+      <h1>Setup</h1>
+      <p class="lx-lede">What the hub reads, and how your phone logs to it.</p>
+    </div>
+  </header>
+
+  {error && <p class="lx-error" role="alert">{error}</p>}
+  {notice && <p class="lx-notice" role="status">{notice}</p>}
+
+  {
+    newToken && (
+      <section class="lx-check" aria-labelledby="new-token-h">
+        <h2 id="new-token-h">Your new token</h2>
+        <p class="lx-hint">Copy it into HTTP Shortcuts now. It is not shown again; if it is lost, revoke it and make another.</p>
+        <p class="lx-token">{newToken}</p>
+      </section>
+    )
+  }
+
+  <section class="lx-panel lx-section" aria-labelledby="links-h">
+    <h2 id="links-h">Linked projects</h2>
+    <form method="post" class="lx-form">
+      <input type="hidden" name="intent" value="links" />
+      <div class="lx-field">
+        <label for="reading">Reading List (reading entries are matched against it)</label>
+        <select id="reading" name="reading">
+          <option value="">None</option>
+          {readingLists.map(p => <option value={p.id} selected={settings?.reading_workspace_id === p.id}>{p.name} (/reading/{p.slug})</option>)}
+        </select>
+      </div>
+      <div class="lx-field">
+        <label for="jpod">JPOD (podcasts count towards the totals)</label>
+        <select id="jpod" name="jpod">
+          <option value="">None</option>
+          {pods.map(p => <option value={p.id} selected={settings?.jpod_workspace_id === p.id}>{p.name} (/pod/{p.slug})</option>)}
+        </select>
+      </div>
+      <div class="lx-field" style="flex: 0 1 200px">
+        <label for="focus">Focus tag</label>
+        <input id="focus" name="focus" value={settings?.focus_tag ?? 'argentina'} required autocomplete="off" />
+      </div>
+      <button class="lx-button" type="submit">Save</button>
+    </form>
+  </section>
+
+  <section class="lx-panel lx-section" aria-labelledby="tokens-h">
+    <h2 id="tokens-h">Phone tokens</h2>
+    {
+      tokens.length === 0 ? (
+        <p class="lx-empty">None yet.</p>
+      ) : (
+        <ul class="lx-list">
+          {tokens.map(t => (
+            <li class="lx-row">
+              <div>
+                <div class="lx-row__title">{t.label}</div>
+                <div class="lx-row__meta">
+                  Made {when(t.created_at)} · last used {when(t.last_used_at)}
+                  {t.revoked_at && <span class="lx-status">revoked</span>}
+                </div>
+              </div>
+              {!t.revoked_at && (
+                <form method="post" class="lx-row__side">
+                  <input type="hidden" name="intent" value="revoke" />
+                  <input type="hidden" name="id" value={t.id} />
+                  <button class="lx-button lx-button--quiet" type="submit" aria-label={`Revoke ${t.label}`}>
+                    Revoke
+                  </button>
+                </form>
+              )}
+            </li>
+          ))}
+        </ul>
+      )
+    }
+    <form method="post" class="lx-form">
+      <input type="hidden" name="intent" value="token" />
+      <div class="lx-field">
+        <label for="label">Which device</label>
+        <input id="label" name="label" placeholder="Pixel" autocomplete="off" />
+      </div>
+      <button class="lx-button" type="submit">Make a token</button>
+    </form>
+  </section>
+
+  <section class="lx-panel lx-section" aria-labelledby="shortcuts-h">
+    <h2 id="shortcuts-h">HTTP Shortcuts on Android</h2>
+    <ol class="lx-steps">
+      <li>Install <strong>HTTP Shortcuts</strong> from Google Play.</li>
+      <li>Under Variables, add a <strong>static</strong> variable <code>latam_token</code> holding your token, marked as a secret.</li>
+      <li>
+        Add prompting variables: <code>type</code> as a select list ({ACTIVITY_TYPES.join(', ')}); <code>title</code>,
+        <code>link</code> and <code>notes</code> as text; <code>minutes</code> as a number.
+      </li>
+      <li>Make a shortcut, method <strong>POST</strong>, to this address:</li>
+    </ol>
+    <p class="lx-token">{endpoint}</p>
+    <ol class="lx-steps" start="5">
+      <li>Header <code>Authorization</code>, value <code>Bearer {'{{latam_token}}'}</code>.</li>
+      <li>Request body, type JSON:</li>
+    </ol>
+    <pre class="lx-code">{body}</pre>
+    <ol class="lx-steps" start="7">
+      <li>Response handling: show the response as a <strong>toast</strong>. It says what was logged and this week's total.</li>
+      <li>Turn on <strong>Share into</strong> with the shared text going to <code>link</code>, so sharing a page from Chrome logs it.</li>
+      <li>For one-tap entries, copy the shortcut with the variables fixed, such as Mate (<code>type: mate</code>).</li>
+    </ol>
+    <p class="lx-hint">
+      <code>{'{{uuid}}'}</code> is HTTP Shortcuts' built-in random id. It is what stops a retried request being
+      logged twice.
+    </p>
+  </section>
+</LxLayout>

@@ -38,7 +38,8 @@ several people can share a project.
 | ✅ | Project settings — name, address, where it lives and deleting one, with old addresses kept forwarding. **Applied 2026-09-17**, and reading it back added a second migration and a guard the local suite had never had |
 | ✅ | Adding a link at `/admin` — an outside site on the launcher without a migration or a deploy, filed under `external` |
 | ✅ | Commonplace — the learning app. Map quizzes (US states, countries by continent, capitals) in eleven ways to play, flashcards with CSV import, and spaced repetition under both. See below and `docs/commonplace-spec.md` |
-| 🟡 | JPOD — the podcast log. Pocket Casts history imported once from the Android app's database export, kept current by a daily Edge Function, grouped by tags and keyword rules. Code and migrations on the `jpod` branch; see `docs/jpod.md` for the order to apply them in |
+| ✅ | JPOD — the podcast log. Pocket Casts history imported once from the Android app's database export, kept current by a daily Edge Function, grouped by tags and keyword rules. Live 2026-11-05; see `docs/jpod.md` |
+| 🟡 | LatAm — the Argentina project. Phone capture through HTTP Shortcuts with a token, reading matched against the Reading List, a To check list, and totals that include JPOD by tag. See `docs/latam.md` |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.
 Its nav is whatever the visitor is a member of: signed out it offers one thing,
@@ -125,6 +126,9 @@ every value of the enum — so this is the only thing stopping it being offered.
 /pod/:workspace/shows              every show by time spent
 /pod/:workspace/show/:id           one show, its episodes, and its tags (editors set them)
 /pod/:workspace/tags               tags in use, and the keyword rules (editors add and remove)
+/latam/:workspace                  LatAm — this week and year by focus tag, To check, recent entries
+/latam/:workspace/setup            linked projects, phone tokens, HTTP Shortcuts setup (editors)
+/api/latam/:workspace/capture      phone capture: bearer token in, one line of text out
 /learn/:workspace                  Commonplace — what is due, today's challenge, every deck
 /learn/:workspace/deck/:deck       a built-in deck: the map coloured by what you know, and how to play it
 /learn/:workspace/play/:deck       one run (?mode=name, locate, capital, outline, free, …)

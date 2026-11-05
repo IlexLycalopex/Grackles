@@ -1,0 +1,218 @@
+---
+import LxLayout from '../../../layouts/LxLayout.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { describeDeleteError, describeWriteError, NOTHING_DELETED } from '../../../lib/records/save';
+import {
+  candidatesOf,
+  loadRecent,
+  loadSettings,
+  loadToCheck,
+  minutes,
+  periodStarts,
+  totalSince,
+  type Total,
+} from '../../../lib/latam/latam';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'latam', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const base = `/latam/${workspace.slug}`;
+let error: string | null = null;
+let notice: string | null = null;
+
+// Resolving the To check list. Every write asks for its row back: an update or
+// delete that RLS refuses reports success having touched nothing.
+if (Astro.request.method === 'POST') {
+  if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(base)}`);
+  if (!workspace.canWrite) return new Response('Forbidden', { status: 403 });
+
+  const form = await Astro.request.formData();
+  const intent = String(form.get('intent') ?? '');
+  const id = String(form.get('id') ?? '');
+
+  if (intent === 'ok') {
+    const { data, error: e } = await supabase
+      .from('lx_activities')
+      .update({ check_state: 'ok', check_note: '', candidates: [] })
+      .eq('id', id)
+      .eq('workspace_id', workspace.id)
+      .select('id');
+    if (e) error = describeWriteError(e, 'lx_activities check');
+    else if (!data?.length) error = 'Nothing was changed. Your role may have changed.';
+    else notice = 'Marked as checked.';
+  } else if (intent === 'link') {
+    const libraryId = String(form.get('library_id') ?? '');
+    const title = String(form.get('title') ?? '').slice(0, 300);
+    const { data, error: e } = await supabase
+      .from('lx_activities')
+      .update({ library_id: libraryId, title, check_state: 'ok', check_note: '', candidates: [] })
+      .eq('id', id)
+      .eq('workspace_id', workspace.id)
+      .select('id');
+    if (e) error = describeWriteError(e, 'lx_activities link');
+    else if (!data?.length) error = 'Nothing was changed. Your role may have changed.';
+    else notice = `Linked to ${title}.`;
+  } else if (intent === 'delete') {
+    const { data, error: e } = await supabase
+      .from('lx_activities')
+      .delete()
+      .eq('id', id)
+      .eq('workspace_id', workspace.id)
+      .select('id');
+    if (e) error = describeDeleteError(e, 'lx_activities delete');
+    else if (!data?.length) error = NOTHING_DELETED;
+    else notice = 'Removed.';
+  }
+}
+
+const settings = await loadSettings(supabase, workspace.id);
+const focus = settings?.focus_tag ?? 'argentina';
+const { week, year } = periodStarts();
+
+const [toCheck, recent, focusWeek, focusYear, spanishWeek, spanishYear] = await Promise.all([
+  loadToCheck(supabase, workspace.id),
+  loadRecent(supabase, workspace.id),
+  totalSince(supabase, workspace.id, settings, focus, week),
+  totalSince(supabase, workspace.id, settings, focus, year),
+  totalSince(supabase, workspace.id, settings, 'spanish', week),
+  totalSince(supabase, workspace.id, settings, 'spanish', year),
+]);
+
+const sum = (t: Total) => t.latam + t.podcasts;
+const split = (t: Total) =>
+  settings?.jpod_workspace_id ? `${minutes(t.latam)} logged · ${minutes(t.podcasts)} podcasts` : `${minutes(t.latam)} logged`;
+const focusName = focus.replace(/-/g, ' ').replace(/^./, c => c.toUpperCase());
+const unset = !settings;
+---
+
+<LxLayout title={workspace.name} workspace={workspace}>
+  <header class="lx-head">
+    <div>
+      <p class="lx-kicker">{workspace.name}</p>
+      <h1>{focusName}, this week</h1>
+      <p class="lx-lede">
+        Everything tagged {focus}: what you log from your phone, plus podcasts from JPOD. Spanish counts only what was in
+        Spanish.
+      </p>
+    </div>
+  </header>
+
+  {
+    unset && workspace.canWrite && (
+      <p class="lx-panel">
+        Not set up yet. <a href={`${base}/setup`}>Link your Reading List and JPOD, and make a phone token</a>.
+      </p>
+    )
+  }
+
+  <section class="lx-stats" aria-label="Totals">
+    <div class="lx-stat">
+      <span class="lx-stat__label">{focusName} this week</span>
+      <span class="lx-stat__value lx-num">{minutes(sum(focusWeek))}</span>
+      <span class="lx-stat__note">{split(focusWeek)}</span>
+    </div>
+    <div class="lx-stat">
+      <span class="lx-stat__label">Spanish this week</span>
+      <span class="lx-stat__value lx-num">{minutes(sum(spanishWeek))}</span>
+      <span class="lx-stat__note">{split(spanishWeek)}</span>
+    </div>
+    <div class="lx-stat">
+      <span class="lx-stat__label">{focusName} this year</span>
+      <span class="lx-stat__value lx-num">{minutes(sum(focusYear))}</span>
+      <span class="lx-stat__note">{split(focusYear)}</span>
+    </div>
+    <div class="lx-stat">
+      <span class="lx-stat__label">Spanish this year</span>
+      <span class="lx-stat__value lx-num">{minutes(sum(spanishYear))}</span>
+      <span class="lx-stat__note">{split(spanishYear)}</span>
+    </div>
+  </section>
+
+  {error && <p class="lx-error" role="alert">{error}</p>}
+  {notice && <p class="lx-notice" role="status">{notice}</p>}
+
+  {
+    toCheck.length > 0 && (
+      <section class="lx-section" aria-labelledby="check-h">
+        <h2 id="check-h">To check ({toCheck.length})</h2>
+        {toCheck.map(a => (
+          <div class="lx-check">
+            <div>
+              <strong>{a.title || a.type}</strong>
+              <div class="lx-row__meta">
+                <span class="lx-status">{a.type}</span>
+                {minutes(a.minutes)} · {a.occurred_on}
+              </div>
+            </div>
+            <p class="lx-check__note">{a.check_note}</p>
+            {workspace.canWrite && (
+              <div class="lx-actions">
+                {candidatesOf(a).map(c => (
+                  <form method="post">
+                    <input type="hidden" name="intent" value="link" />
+                    <input type="hidden" name="id" value={a.id} />
+                    <input type="hidden" name="library_id" value={c.id} />
+                    <input type="hidden" name="title" value={c.title} />
+                    <button class="lx-button lx-button--quiet" type="submit">
+                      It's {c.title}
+                      {c.author ? `, ${c.author}` : ''}
+                    </button>
+                  </form>
+                ))}
+                <form method="post">
+                  <input type="hidden" name="intent" value="ok" />
+                  <input type="hidden" name="id" value={a.id} />
+                  <button class="lx-button" type="submit">It's right as it is</button>
+                </form>
+                <form method="post">
+                  <input type="hidden" name="intent" value="delete" />
+                  <input type="hidden" name="id" value={a.id} />
+                  <button class="lx-button lx-button--quiet" type="submit">Remove</button>
+                </form>
+              </div>
+            )}
+          </div>
+        ))}
+      </section>
+    )
+  }
+
+  <section class="lx-section" aria-labelledby="recent-h">
+    <h2 id="recent-h">Recently</h2>
+    {
+      recent.length === 0 ? (
+        <p class="lx-empty">Nothing logged yet. Entries from your phone appear here.</p>
+      ) : (
+        <ul class="lx-list">
+          {recent.map(a => (
+            <li class="lx-row">
+              <div>
+                <div class="lx-row__title">{a.link ? <a href={a.link}>{a.title || a.link}</a> : a.title || a.type}</div>
+                <div class="lx-row__meta">
+                  <span class="lx-status">{a.type}</span>
+                  {a.tags.length > 0 && (
+                    <ul class="lx-chips" aria-label="Tags">
+                      {a.tags.map(t => (
+                        <li>
+                          <span class="lx-chip">{t}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {a.check_state === 'to_check' && <span class="lx-status">to check</span>}
+                </div>
+              </div>
+              <div class="lx-row__side">
+                <strong>{minutes(a.minutes)}</strong>
+                {new Date(`${a.occurred_on}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </section>
+</LxLayout>
