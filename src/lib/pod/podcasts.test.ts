@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatDuration, lastMonths, parseTags, weekStart } from './podcasts.ts';
+import { formatDuration, lastMonths, parseTags, plural, weekStart } from './podcasts.ts';
+
+test('one of a thing is singular', () => {
+  assert.equal(plural(1, 'episode'), '1 episode');
+  assert.equal(plural(5, 'episode'), '5 episodes');
+  assert.equal(plural(3647, 'episode'), '3,647 episodes');
+  assert.equal(plural(0, 'show'), '0 shows');
+});
 
 test('durations read the way a person would say them', () => {
   assert.equal(formatDuration(0), '0m');

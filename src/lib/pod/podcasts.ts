@@ -9,6 +9,18 @@ export type TagTotal = Database['public']['Functions']['jp_tag_summary']['Return
 export type SyncRun = Database['public']['Tables']['jp_sync_runs']['Row'];
 export type TagRule = Database['public']['Tables']['jp_tag_rules']['Row'];
 
+/**
+ * Under a minute is a sample, not a listen: an episode opened and skipped, or a
+ * few seconds of a trailer. Kept in the database, left off every list, so a
+ * page never shows "0m" beside something that was not heard.
+ */
+export const MIN_LISTEN_S = 60;
+
+/** "1 episode", "5 episodes". */
+export function plural(n: number, word: string): string {
+  return `${n.toLocaleString('en-GB')} ${word}${n === 1 ? '' : 's'}`;
+}
+
 /** The same rule as app.jp_tags_ok(), so the form answers before the database refuses. */
 export const TAG_PATTERN = /^[a-z0-9][a-z0-9-]{0,39}$/;
 export const MAX_TAGS = 20;
@@ -145,7 +157,7 @@ export async function loadLog(db: Db, ws: string, f: LogFilter = {}): Promise<{ 
     .from('jp_listen_log')
     .select('*')
     .eq('workspace_id', ws)
-    .gt('counted_s', 0)
+    .gte('counted_s', MIN_LISTEN_S)
     .order('last_listened_at', { ascending: false, nullsFirst: false })
     .order('title')
     .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);

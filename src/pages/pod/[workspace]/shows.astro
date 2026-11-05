@@ -1,7 +1,7 @@
 ---
 import PodLayout from '../../../layouts/PodLayout.astro';
 import { resolveWorkspace } from '../../../lib/workspace';
-import { dayLabel, formatDuration, loadShows, tagParam } from '../../../lib/pod/podcasts';
+import { dayLabel, formatDuration, loadShows, MIN_LISTEN_S, plural, tagParam } from '../../../lib/pod/podcasts';
 
 export const prerender = false;
 
@@ -13,14 +13,14 @@ const base = `/pod/${workspace.slug}`;
 const tag = tagParam(Astro.url);
 // Shows subscribed to but never heard are left off: this is a log of
 // listening, not a copy of the library.
-const shows = (await loadShows(supabase, workspace.id, tag)).filter(s => s.seconds > 0);
+const shows = (await loadShows(supabase, workspace.id, tag)).filter(s => s.seconds >= MIN_LISTEN_S);
 ---
 
 <PodLayout title={`Shows · ${workspace.name}`} workspace={workspace}>
   <header class="jp-head">
     <div>
       <p class="jp-kicker">Shows{tag ? ` · tagged ${tag}` : ''}</p>
-      <h1>{shows.length} shows</h1>
+      <h1>{plural(shows.length, 'show')}</h1>
       <p class="jp-lede">
         By time spent, undated history included.
         {tag && <>Given a tag, only that tag's episodes are counted. <a href={`${base}/shows`}>Every show.</a></>}
