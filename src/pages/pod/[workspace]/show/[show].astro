@@ -1,0 +1,127 @@
+---
+import PodLayout from '../../../../layouts/PodLayout.astro';
+import ListenItem from '../../../../components/jp/ListenItem.astro';
+import { resolveWorkspace } from '../../../../lib/workspace';
+import { describeWriteError } from '../../../../lib/records/save';
+import { formatDuration, loadLog, parseTags } from '../../../../lib/pod/podcasts';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'podcasts', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const showId = Astro.params.show!;
+// Not a uuid is not a show. Checked here so a mistyped address is a 404
+// rather than a PostgREST error about the type of a column.
+if (!/^[0-9a-f-]{36}$/.test(showId)) return new Response('Not found', { status: 404 });
+
+const base = `/pod/${workspace.slug}`;
+
+let error: string | null = null;
+let notice: string | null = null;
+let typed: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+  if (!workspace.canWrite) return new Response('Forbidden', { status: 403 });
+
+  const form = await Astro.request.formData();
+  typed = String(form.get('tags') ?? '');
+  const parsed = parseTags(typed);
+
+  if (!parsed.ok) {
+    error = parsed.error;
+  } else {
+    // Ask for the row back: an update RLS refuses does not raise, it updates
+    // nothing and reports success. See the README, "Deleting a record".
+    const { data, error: e } = await supabase
+      .from('jp_shows')
+      .update({ tags: parsed.tags })
+      .eq('id', showId)
+      .eq('workspace_id', workspace.id)
+      .select('id');
+    if (e) error = describeWriteError(e, 'jp_shows tags');
+    else if (!data?.length) error = 'Nothing was saved. Your role in this project may have changed.';
+    else {
+      notice = parsed.tags.length ? 'Tags saved.' : 'Tags cleared.';
+      typed = null;
+    }
+  }
+}
+
+const { data: show } = await supabase
+  .from('jp_shows')
+  .select('id, title, author, tags')
+  .eq('id', showId)
+  .eq('workspace_id', workspace.id)
+  .maybeSingle();
+if (!show) return new Response('Not found', { status: 404 });
+
+const page = Math.max(0, Number.parseInt(Astro.url.searchParams.get('page') ?? '0', 10) || 0);
+const { rows, more } = await loadLog(supabase, workspace.id, { showId, page });
+const shown = rows.reduce((s, r) => s + r.counted_s, 0);
+---
+
+<PodLayout title={`${show.title} · ${workspace.name}`} workspace={workspace}>
+  <header class="jp-head">
+    <div>
+      <p class="jp-kicker"><a href={`${base}/shows`}>Shows</a></p>
+      <h1>{show.title}</h1>
+      {show.author && <p class="jp-lede">{show.author}</p>}
+    </div>
+  </header>
+
+  <section class="jp-panel jp-section" aria-labelledby="tags-h">
+    <h2 id="tags-h">Tags</h2>
+    {
+      show.tags.length > 0 ? (
+        <ul class="jp-chips">
+          {show.tags.map(t => (
+            <li>
+              <a class="jp-chip" href={`${base}?tag=${t}`}>{t}</a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="jp-empty">No tags. A show's tags apply to every episode of it.</p>
+      )
+    }
+    {
+      workspace.canWrite && (
+        <form method="post" class="jp-form">
+          <div class="jp-field">
+            <label for="tags">Tags, separated by commas</label>
+            <input id="tags" name="tags" value={typed ?? show.tags.join(', ')} autocomplete="off" />
+          </div>
+          <button class="jp-button" type="submit">Save tags</button>
+        </form>
+      )
+    }
+    {error && <p class="jp-error" role="alert">{error}</p>}
+    {notice && <p class="jp-notice" role="status">{notice}</p>}
+    <p class="jp-hint">
+      For some episodes of a show but not all, use a keyword rule on the <a href={`${base}/tags`}>Tags</a> page.
+    </p>
+  </section>
+
+  <section class="jp-section" aria-labelledby="eps-h">
+    <div class="jp-section__head">
+      <h2 id="eps-h">Episodes</h2>
+      {rows.length > 0 && <span class="jp-hint">{formatDuration(shown)} on this page</span>}
+    </div>
+    {
+      rows.length === 0 ? (
+        <p class="jp-empty">Nothing heard from this show.</p>
+      ) : (
+        <ul class="jp-list">
+          {rows.map(row => <ListenItem row={row} base={base} showShow={false} />)}
+        </ul>
+      )
+    }
+    <nav class="jp-pager" aria-label="Pages">
+      {page > 0 ? <a href={`?page=${page - 1}`}>Newer</a> : <span />}
+      {more && <a href={`?page=${page + 1}`}>Older</a>}
+    </nav>
+  </section>
+</PodLayout>

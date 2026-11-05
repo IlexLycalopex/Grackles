@@ -1,0 +1,30 @@
+---
+import { formatDuration, monthLabel, type MonthTotal } from '../../lib/pod/podcasts';
+
+interface Props {
+  months: MonthTotal[];
+}
+
+const { months } = Astro.props;
+const max = Math.max(1, ...months.map(m => m.seconds));
+const total = months.reduce((s, m) => s + m.seconds, 0);
+const summary = months.map(m => `${monthLabel(m.month)} ${formatDuration(m.seconds)}`).join(', ');
+---
+
+<figure class="jp-section" style="margin:0">
+  {/* The bars are decoration for a sighted reader; the label carries every
+      figure for anyone else, so nothing is lost by hiding the shapes. */}
+  <div class="jp-bars" role="img" aria-label={`Listening by month: ${summary}`}>
+    {
+      months.map((m, i) => (
+        <div class={`jp-bar${i === months.length - 1 ? ' jp-bar--now' : ''}`} title={`${monthLabel(m.month)}: ${formatDuration(m.seconds)}`}>
+          <div class="jp-bar__fill" style={`height:${(m.seconds / max) * 100}%`} />
+        </div>
+      ))
+    }
+  </div>
+  <div class="jp-bar__labels" aria-hidden="true">
+    {months.map(m => <span>{monthLabel(m.month)}</span>)}
+  </div>
+  <figcaption class="jp-hint">{formatDuration(total)} across these {months.length} months.</figcaption>
+</figure>

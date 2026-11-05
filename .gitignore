@@ -7,3 +7,6 @@ node_modules/
 .DS_Store
 supabase/seed/.cache/
 __pycache__/
+
+# JPOD history imports: personal, generated locally, never committed.
+.jpod/

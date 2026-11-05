@@ -143,6 +143,84 @@ export type Database = {
           },
         ];
       };
+      // ── JPOD ─────────────────────────────────────────────────────────
+      // Listening arrives through jp_ingest() as the service role, so no
+      // role here can insert a show, an episode or a play. Update is
+      // narrowed to `tags` because that is the only column the grant names.
+      jp_shows: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          pc_uuid: string;
+          title: string;
+          author: string;
+          tags: string[];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: { tags?: string[] };
+        Relationships: [];
+      };
+      jp_episodes: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          show_id: string;
+          pc_uuid: string;
+          title: string;
+          published_at: string | null;
+          duration_s: number;
+          status: 'unplayed' | 'in_progress' | 'played';
+          position_s: number;
+          counted_s: number;
+          last_listened_at: string | null;
+          baseline: boolean;
+          tags: string[];
+          auto_tags: string[];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: { tags?: string[] };
+        Relationships: [];
+      };
+      jp_plays: {
+        Row: {
+          id: number;
+          workspace_id: string;
+          episode_id: string;
+          played_on: string | null;
+          seconds: number;
+          source: 'import' | 'sync';
+          created_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      jp_tag_rules: {
+        Row: { id: string; workspace_id: string; tag: string; pattern: string; created_at: string };
+        Insert: { workspace_id: string; tag: string; pattern: string };
+        Update: never;
+        Relationships: [];
+      };
+      jp_sync_runs: {
+        Row: {
+          id: number;
+          workspace_id: string;
+          started_at: string;
+          finished_at: string | null;
+          ok: boolean | null;
+          fetched: number;
+          new_episodes: number;
+          credited_s: number;
+          message: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       // ── Commonplace ──────────────────────────────────────────────────
       // Every write goes through a cp_* function; the only direct write any
       // role holds is deleting a deck. Insert and Update are `never` so a
@@ -1615,8 +1693,54 @@ export type Database = {
         Relationships: [];
       };
     };
-    Views: { [_ in never]: never };
+    Views: {
+      jp_listen_log: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          show_id: string;
+          show_title: string;
+          title: string;
+          published_at: string | null;
+          duration_s: number;
+          status: 'unplayed' | 'in_progress' | 'played';
+          position_s: number;
+          counted_s: number;
+          last_listened_at: string | null;
+          baseline: boolean;
+          tags: string[];
+          auto_tags: string[];
+          show_tags: string[];
+          all_tags: string[];
+        };
+        Relationships: [];
+      };
+    };
     Functions: {
+      jp_monthly: {
+        Args: { p_workspace: string; p_tag?: string | null };
+        Returns: { month: string; seconds: number; episodes: number }[];
+      };
+      jp_show_summary: {
+        Args: { p_workspace: string; p_tag?: string | null };
+        Returns: {
+          show_id: string;
+          title: string;
+          author: string;
+          tags: string[];
+          episodes: number;
+          seconds: number;
+          last_listened_at: string | null;
+        }[];
+      };
+      jp_tag_summary: {
+        Args: { p_workspace: string };
+        Returns: { tag: string; episodes: number; seconds: number }[];
+      };
+      jp_seconds_since: {
+        Args: { p_workspace: string; p_from: string; p_tag?: string | null };
+        Returns: number;
+      };
       /**
        * Applies a staged import in one transaction: added rows become library
        * entries, confirmed rows are marked owned, skipped rows write nothing.
@@ -2217,6 +2341,7 @@ export type Database = {
         | 'wbpr'
         | 'blackletter'
         | 'commonplace'
+        | 'podcasts'
         | 'external';
       member_role: 'owner' | 'editor' | 'viewer';
       visibility: 'private' | 'unlisted' | 'public';

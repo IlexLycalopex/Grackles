@@ -1,0 +1,150 @@
+---
+import PodLayout from '../../../layouts/PodLayout.astro';
+import SyncStatus from '../../../components/jp/SyncStatus.astro';
+import MonthChart from '../../../components/jp/MonthChart.astro';
+import ListenItem from '../../../components/jp/ListenItem.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import {
+  formatDuration,
+  lastMonths,
+  loadLastRun,
+  loadLog,
+  loadMonthly,
+  loadShows,
+  loadTags,
+  secondsSince,
+  tagParam,
+  weekStart,
+} from '../../../lib/pod/podcasts';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'podcasts', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const base = `/pod/${workspace.slug}`;
+// One tag narrows every figure on the page at once. That is the whole of the
+// Argentina view: /pod/jamie?tag=argentina.
+const tag = tagParam(Astro.url);
+
+const now = new Date();
+const londonYear = Number(now.toLocaleString('en-GB', { year: 'numeric', timeZone: 'Europe/London' }));
+
+const [run, monthly, shows, tags, recent, week, year] = await Promise.all([
+  loadLastRun(supabase, workspace.id),
+  loadMonthly(supabase, workspace.id, tag),
+  loadShows(supabase, workspace.id, tag),
+  loadTags(supabase, workspace.id),
+  loadLog(supabase, workspace.id, { tag }),
+  secondsSince(supabase, workspace.id, weekStart(now), tag),
+  secondsSince(supabase, workspace.id, `${londonYear}-01-01`, tag),
+]);
+
+const months = lastMonths(monthly, 12, now);
+const allTime = shows.reduce((s, x) => s + x.seconds, 0);
+const episodes = shows.reduce((s, x) => s + x.episodes, 0);
+const topShows = shows.filter(s => s.seconds > 0).slice(0, 8);
+---
+
+<PodLayout title={`${tag ? `${tag} · ` : ''}${workspace.name}`} workspace={workspace}>
+  <header class="jp-head">
+    <div>
+      <p class="jp-kicker">{workspace.name}{tag ? ` · tagged ${tag}` : ''}</p>
+      <h1>{tag ? `Listening tagged ${tag}` : 'What has been listened to'}</h1>
+      {tag && <p class="jp-lede"><a href={base}>Show everything</a></p>}
+    </div>
+    <SyncStatus run={run} />
+  </header>
+
+  <section class="jp-stats" aria-label="Totals">
+    <div class="jp-stat">
+      <span class="jp-stat__label">This week</span>
+      <span class="jp-stat__value jp-num">{formatDuration(week)}</span>
+      <span class="jp-stat__note">Since Monday</span>
+    </div>
+    <div class="jp-stat">
+      <span class="jp-stat__label">This year</span>
+      <span class="jp-stat__value jp-num">{formatDuration(year)}</span>
+      <span class="jp-stat__note">{londonYear} so far</span>
+    </div>
+    <div class="jp-stat">
+      <span class="jp-stat__label">All time</span>
+      <span class="jp-stat__value jp-num">{formatDuration(allTime)}</span>
+      <span class="jp-stat__note">{episodes.toLocaleString('en-GB')} episodes, undated history included</span>
+    </div>
+    <div class="jp-stat">
+      <span class="jp-stat__label">Shows</span>
+      <span class="jp-stat__value jp-num">{shows.filter(s => s.seconds > 0).length}</span>
+      <span class="jp-stat__note"><a href={`${base}/shows${tag ? `?tag=${tag}` : ''}`}>Every show</a></span>
+    </div>
+  </section>
+
+  <section class="jp-panel jp-section">
+    <div class="jp-section__head">
+      <h2>The last twelve months</h2>
+    </div>
+    <MonthChart months={months} />
+  </section>
+
+  {
+    tags.length > 0 && (
+      <section class="jp-section" aria-labelledby="tags-h">
+        <div class="jp-section__head">
+          <h2 id="tags-h">Tags</h2>
+          <a href={`${base}/tags`}>Manage</a>
+        </div>
+        <ul class="jp-chips">
+          {tags.map(t => (
+            <li>
+              <a class={`jp-chip${t.tag === tag ? ' jp-chip--on' : ''}`} href={t.tag === tag ? base : `${base}?tag=${t.tag}`}>
+                {t.tag} <span class="jp-chip__n">{formatDuration(t.seconds)}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
+  <div class="jp-stats" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); align-items: start">
+    <section class="jp-section" aria-labelledby="recent-h">
+      <div class="jp-section__head">
+        <h2 id="recent-h">Recently</h2>
+        <a href={`${base}/history${tag ? `?tag=${tag}` : ''}`}>Full history</a>
+      </div>
+      {
+        recent.rows.length === 0 ? (
+          <p class="jp-empty">Nothing yet.</p>
+        ) : (
+          <ul class="jp-list">
+            {recent.rows.slice(0, 12).map(row => <ListenItem row={row} base={base} />)}
+          </ul>
+        )
+      }
+    </section>
+
+    <section class="jp-section" aria-labelledby="shows-h">
+      <div class="jp-section__head">
+        <h2 id="shows-h">Most listened</h2>
+      </div>
+      {
+        topShows.length === 0 ? (
+          <p class="jp-empty">Nothing yet.</p>
+        ) : (
+          <ul class="jp-list">
+            {topShows.map(s => (
+              <li class="jp-row">
+                <div>
+                  <a class="jp-row__title" href={`${base}/show/${s.show_id}`}>{s.title}</a>
+                  <div class="jp-row__meta">{s.episodes} episodes</div>
+                </div>
+                <div class="jp-row__side"><strong>{formatDuration(s.seconds)}</strong></div>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </section>
+  </div>
+</PodLayout>

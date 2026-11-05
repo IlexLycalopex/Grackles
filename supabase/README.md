@@ -931,6 +931,26 @@ These migrations ship with the code that uses them:
 - `src/pages/settings/[app]/[workspace].astro` — the `grant_apps` control,
   rendered only for platform admins because that is what the RLS policy allows.
 
+### JPOD, the podcast log (2026-11-05)
+
+| Migration | What it does |
+| --- | --- |
+| `20261105120000_podcasts_app_slug` | `podcasts` joins the `app_slug` enum, on its own for the usual reason |
+| `20261105120100_podcasts_schema` | `jp_shows`, `jp_episodes`, `jp_plays`, `jp_tag_rules`, `jp_sync_runs`; `jp_ingest()` (service role only), the rule triggers, `jp_listen_log` and the four read functions; grants and RLS |
+| `20261105120200_podcasts_sync_schedule` | `pg_cron` and `pg_net`, and the daily job that calls the `jpod-sync` Edge Function with URL and secret read from Vault |
+
+**Not yet applied.** The first two are additive and verified locally against
+`tests/baseline.sql` plus every migration in order: `tests/jpod.sh` (30 checks,
+all new), with `test.sh` (50), `settings.sh` (39) and `admin.sh` (21) unchanged.
+The third cannot run locally — the baseline has neither extension — and is
+applied last, after the function and the Vault secrets exist. `docs/jpod.md`
+has the full order.
+
+Revoke-shaped facts to read back off production after applying, since the
+local suite cannot see them: `authenticated` should hold SELECT and
+`UPDATE (tags)` only on `jp_shows` and `jp_episodes`, SELECT only on
+`jp_plays` and `jp_sync_runs`, and nothing on `jp_ingest()`.
+
 ### How someone with no account gets one
 
 `/login` sends magic links with `shouldCreateUser: false`, so an address that

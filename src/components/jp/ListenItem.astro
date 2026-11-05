@@ -1,0 +1,51 @@
+---
+import { dayLabel, formatDuration, type ListenRow } from '../../lib/pod/podcasts';
+
+interface Props {
+  row: ListenRow;
+  base: string;
+  /** Leave the show name off when the page is already about that show. */
+  showShow?: boolean;
+}
+
+const { row, base, showShow = true } = Astro.props;
+const manual = new Set([...row.tags, ...row.show_tags]);
+
+const statusText =
+  row.status === 'played'
+    ? 'Finished'
+    : row.status === 'in_progress'
+      ? `${formatDuration(row.position_s)} of ${formatDuration(row.duration_s)}`
+      : '';
+---
+
+<li class="jp-row">
+  <div>
+    <div class="jp-row__title">{row.title}</div>
+    <div class="jp-row__meta">
+      {showShow && <a href={`${base}/show/${row.show_id}`}>{row.show_title}</a>}
+      {statusText && <span class="jp-status">{statusText}</span>}
+      {
+        row.all_tags.length > 0 && (
+          <ul class="jp-chips" aria-label="Tags">
+            {row.all_tags.map(t => (
+              <li>
+                <a
+                  class={`jp-chip${manual.has(t) ? '' : ' jp-chip--auto'}`}
+                  href={`${base}/history?tag=${t}`}
+                  title={manual.has(t) ? undefined : 'From a keyword rule'}
+                >
+                  {t}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </div>
+  </div>
+  <div class="jp-row__side">
+    <strong>{formatDuration(row.counted_s)}</strong>
+    {dayLabel(row.last_listened_at)}
+  </div>
+</li>

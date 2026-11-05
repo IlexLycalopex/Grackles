@@ -38,6 +38,7 @@ several people can share a project.
 | ✅ | Project settings — name, address, where it lives and deleting one, with old addresses kept forwarding. **Applied 2026-09-17**, and reading it back added a second migration and a guard the local suite had never had |
 | ✅ | Adding a link at `/admin` — an outside site on the launcher without a migration or a deploy, filed under `external` |
 | ✅ | Commonplace — the learning app. Map quizzes (US states, countries by continent, capitals) in eleven ways to play, flashcards with CSV import, and spaced repetition under both. See below and `docs/commonplace-spec.md` |
+| 🟡 | JPOD — the podcast log. Pocket Casts history imported once from the Android app's database export, kept current by a daily Edge Function, grouped by tags and keyword rules. Code and migrations on the `jpod` branch; see `docs/jpod.md` for the order to apply them in |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.
 Its nav is whatever the visitor is a member of: signed out it offers one thing,
@@ -119,6 +120,11 @@ every value of the enum — so this is the only thing stopping it being offered.
 /blackletter/:workspace            Blackletter — today's puzzle (?n=5, 6 or 7)
 /api/blackletter/:workspace/guess  one guess, marked
 
+/pod/:workspace                    JPOD — totals, the last twelve months, recent episodes (?tag= narrows all of it)
+/pod/:workspace/history            every episode heard, newest first, undated history last
+/pod/:workspace/shows              every show by time spent
+/pod/:workspace/show/:id           one show, its episodes, and its tags (editors set them)
+/pod/:workspace/tags               tags in use, and the keyword rules (editors add and remove)
 /learn/:workspace                  Commonplace — what is due, today's challenge, every deck
 /learn/:workspace/deck/:deck       a built-in deck: the map coloured by what you know, and how to play it
 /learn/:workspace/play/:deck       one run (?mode=name, locate, capital, outline, free, …)

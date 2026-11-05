@@ -1,0 +1,158 @@
+/*
+ * JPOD — the podcast log.
+ *
+ * Loaded by PodLayout alone, like every app's stylesheet here, so nothing in it
+ * can reach another app and nothing of theirs can reach it. The look is a
+ * station logbook: warm paper, ink, one signal-orange accent for the thing
+ * being measured, and numbers set in mono so columns of times line up.
+ */
+
+:root {
+  --ground: #f5f2ec;
+  --panel: #fffdf9;
+  --ink: #1d1a16;
+  --muted: #5d564d;
+  --rule: #ddd5c8;
+  --accent: #b4471a;
+  --accent-soft: #f3dccf;
+  --ok: #2f6b3a;
+  --bad: #9b2c1f;
+  --display: 'Space Grotesk', system-ui, sans-serif;
+  --body: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #15130f;
+    --panel: #1e1b16;
+    --ink: #efe9df;
+    --muted: #b1a797;
+    --rule: #3a342b;
+    --accent: #ec8a5b;
+    --accent-soft: #3f2619;
+    --ok: #8fca98;
+    --bad: #f19282;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 16px/1.55 var(--body);
+}
+a { color: var(--accent); }
+a:hover { color: var(--ink); }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.15; margin: 0; }
+h1 { font-size: clamp(30px, 5vw, 44px); }
+h2 { font-size: 22px; }
+
+.jp-wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+.jp-main { padding-top: 32px; padding-bottom: 72px; display: flex; flex-direction: column; gap: 32px; }
+
+/* ── Nav ─────────────────────────────────────────────────────────── */
+.jp-nav { border-bottom: 1px solid var(--rule); background: var(--panel); }
+.jp-nav__inner { display: flex; align-items: center; gap: 16px; padding-top: 12px; padding-bottom: 12px; }
+.jp-nav__mark {
+  font-family: var(--display); font-weight: 600; font-size: 20px; letter-spacing: 0.06em;
+  color: var(--ink); text-decoration: none; margin-right: auto;
+}
+.jp-nav__links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; }
+.jp-nav__link { color: var(--muted); text-decoration: none; padding: 10px 0; }
+.jp-nav__link:hover, .jp-nav__link[aria-current='page'] { color: var(--ink); }
+.jp-nav__link[aria-current='page'] { box-shadow: inset 0 -2px 0 var(--accent); }
+.jp-nav__role { font-family: var(--mono); font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+.site-nav__toggle {
+  display: none; margin-left: auto; min-width: 44px; min-height: 44px;
+  align-items: center; justify-content: center;
+  background: none; border: 1px solid var(--rule); border-radius: 8px; color: var(--ink);
+}
+@media (max-width: 640px) {
+  .site-nav[data-collapsible] .site-nav__toggle { display: inline-flex; }
+  .site-nav[data-collapsible] .jp-nav__inner { flex-wrap: wrap; }
+  .site-nav[data-collapsible] .site-nav__links { display: none; width: 100%; flex-direction: column; align-items: flex-start; }
+  .site-nav[data-collapsible][data-open] .site-nav__links { display: flex; }
+}
+
+/* ── Page furniture ──────────────────────────────────────────────── */
+.jp-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px 24px; }
+.jp-kicker { margin: 0 0 6px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.jp-lede { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
+.jp-panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 20px; }
+.jp-section { display: flex; flex-direction: column; gap: 14px; }
+.jp-section__head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.jp-empty { color: var(--muted); margin: 0; }
+.jp-num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ── Sync status ─────────────────────────────────────────────────── */
+.jp-sync { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.jp-sync__dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+.jp-sync--ok .jp-sync__dot { background: var(--ok); }
+.jp-sync--bad { color: var(--bad); }
+.jp-sync--bad .jp-sync__dot { background: var(--bad); }
+
+/* ── Figures ─────────────────────────────────────────────────────── */
+.jp-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.jp-stat { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 2px; }
+.jp-stat__label { font-size: 13px; color: var(--muted); }
+.jp-stat__value { font-family: var(--display); font-size: 30px; font-weight: 600; }
+.jp-stat__note { font-size: 13px; color: var(--muted); }
+
+/* ── Monthly chart ───────────────────────────────────────────────── */
+.jp-bars { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: end; gap: 6px; height: 180px; border-bottom: 1px solid var(--rule); }
+.jp-bar { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+.jp-bar__fill { background: var(--accent); border-radius: 3px 3px 0 0; min-height: 1px; }
+.jp-bar--now .jp-bar__fill { background: var(--ink); }
+.jp-bar__labels { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; }
+@media (max-width: 640px) { .jp-bar__labels span:nth-child(even) { visibility: hidden; } }
+
+/* ── Tag chips ───────────────────────────────────────────────────── */
+.jp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.jp-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--ink); font-size: 13px; text-decoration: none;
+}
+.jp-chip:hover { color: var(--ink); outline: 1px solid var(--accent); }
+.jp-chip--auto { background: transparent; border: 1px dashed var(--rule); color: var(--muted); }
+.jp-chip--on { background: var(--accent); color: var(--panel); }
+.jp-chip--on:hover { color: var(--panel); }
+.jp-chip__n { font-family: var(--mono); font-size: 12px; opacity: 0.8; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.jp-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+.jp-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; padding: 12px 0; border-bottom: 1px solid var(--rule); }
+.jp-row__title { font-weight: 500; }
+.jp-row__meta { font-size: 14px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+.jp-row__side { text-align: right; font-size: 14px; color: var(--muted); white-space: nowrap; }
+.jp-row__side strong { display: block; color: var(--ink); font-family: var(--mono); font-weight: 500; }
+.jp-status { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+
+.jp-table-wrap { overflow-x: auto; }
+.jp-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.jp-table th { text-align: left; font-weight: 500; font-size: 13px; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+.jp-table td { padding: 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.jp-table td.jp-num, .jp-table th.jp-num { text-align: right; }
+
+.jp-pager { display: flex; justify-content: space-between; gap: 12px; }
+
+/* ── Forms ───────────────────────────────────────────────────────── */
+.jp-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.jp-field { display: flex; flex-direction: column; gap: 4px; flex: 1 1 220px; }
+.jp-field label { font-size: 13px; color: var(--muted); }
+.jp-field input {
+  font: inherit; color: var(--ink); background: var(--ground);
+  border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; min-height: 44px;
+}
+.jp-field input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.jp-button {
+  font: 500 15px var(--body); min-height: 44px; padding: 0 18px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--ink); background: var(--ink); color: var(--panel);
+}
+.jp-button--quiet { background: transparent; color: var(--ink); border-color: var(--rule); }
+.jp-error { color: var(--bad); margin: 0; }
+.jp-notice { color: var(--ok); margin: 0; }
+.jp-hint { font-size: 13px; color: var(--muted); margin: 0; }

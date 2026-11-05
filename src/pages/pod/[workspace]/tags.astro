@@ -1,0 +1,170 @@
+---
+import PodLayout from '../../../layouts/PodLayout.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { describeDeleteError, describeWriteError, NOTHING_DELETED } from '../../../lib/records/save';
+import { formatDuration, loadTags, parseTags, type TagRule } from '../../../lib/pod/podcasts';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'podcasts', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const base = `/pod/${workspace.slug}`;
+
+let error: string | null = null;
+let notice: string | null = null;
+let typedTag = '';
+let typedPattern = '';
+
+if (Astro.request.method === 'POST') {
+  if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+  if (!workspace.canWrite) return new Response('Forbidden', { status: 403 });
+
+  const form = await Astro.request.formData();
+  const intent = String(form.get('intent') ?? '');
+
+  if (intent === 'add') {
+    typedTag = String(form.get('tag') ?? '');
+    typedPattern = String(form.get('pattern') ?? '').trim();
+    const parsed = parseTags(typedTag);
+
+    if (!parsed.ok) error = parsed.error;
+    else if (parsed.tags.length !== 1) error = 'One tag per rule.';
+    else if (!typedPattern) error = 'A rule needs something to look for.';
+    else if (typedPattern.length > 200) error = 'Two hundred characters at most.';
+    else {
+      // Checked here so the answer is a sentence; app.jp_regex_ok() checks it
+      // again because that is what actually guarantees it.
+      try {
+        new RegExp(typedPattern, 'i');
+      } catch {
+        error = 'That is not a pattern that can be matched. Plain words separated by | are safest.';
+      }
+    }
+
+    if (!error && parsed.ok) {
+      const { error: e } = await supabase
+        .from('jp_tag_rules')
+        .insert({ workspace_id: workspace.id, tag: parsed.tags[0]!, pattern: typedPattern });
+      if (e) error = e.code === '23505' ? 'That rule already exists.' : describeWriteError(e, 'jp_tag_rules insert');
+      else {
+        notice = `Rule added. Every episode it matches is now tagged ${parsed.tags[0]}.`;
+        typedTag = typedPattern = '';
+      }
+    }
+  } else if (intent === 'delete') {
+    const id = String(form.get('id') ?? '');
+    const { data, error: e } = await supabase
+      .from('jp_tag_rules')
+      .delete()
+      .eq('id', id)
+      .eq('workspace_id', workspace.id)
+      .select('tag');
+    if (e) error = describeDeleteError(e, 'jp_tag_rules delete');
+    else if (!data?.length) error = NOTHING_DELETED;
+    else notice = `Rule removed. Its ${data[0]!.tag} tag has come off what it matched.`;
+  }
+}
+
+const [{ data: rulesData }, tags] = await Promise.all([
+  supabase.from('jp_tag_rules').select('*').eq('workspace_id', workspace.id).order('tag').order('pattern'),
+  loadTags(supabase, workspace.id),
+]);
+const rules: TagRule[] = rulesData ?? [];
+---
+
+<PodLayout title={`Tags · ${workspace.name}`} workspace={workspace}>
+  <header class="jp-head">
+    <div>
+      <p class="jp-kicker">Tags</p>
+      <h1>How listening is grouped</h1>
+      <p class="jp-lede">
+        A tag comes from a show (every episode of it), or from a keyword rule (any episode whose title or show
+        matches). Tagging is how a project like Argentina gets its own totals.
+      </p>
+    </div>
+  </header>
+
+  <section class="jp-section" aria-labelledby="in-use-h">
+    <h2 id="in-use-h">In use</h2>
+    {
+      tags.length === 0 ? (
+        <p class="jp-empty">No tags yet. Tag a show from its page, or add a rule below.</p>
+      ) : (
+        <div class="jp-table-wrap">
+          <table class="jp-table">
+            <thead>
+              <tr>
+                <th scope="col">Tag</th>
+                <th scope="col" class="jp-num">Episodes</th>
+                <th scope="col" class="jp-num">Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tags.map(t => (
+                <tr>
+                  <td>
+                    <a class="jp-chip" href={`${base}?tag=${t.tag}`}>{t.tag}</a>
+                  </td>
+                  <td class="jp-num">{t.episodes}</td>
+                  <td class="jp-num">{formatDuration(t.seconds)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+    }
+  </section>
+
+  <section class="jp-panel jp-section" aria-labelledby="rules-h">
+    <h2 id="rules-h">Keyword rules</h2>
+    <p class="jp-hint">
+      Matched without regard to case against the episode title and its show's title. Use | for "or":
+      <code>argentin|patagoni|buenos aires</code>. A change applies to all history at once.
+    </p>
+    {
+      rules.length === 0 ? (
+        <p class="jp-empty">No rules yet.</p>
+      ) : (
+        <ul class="jp-list">
+          {rules.map(r => (
+            <li class="jp-row">
+              <div>
+                <span class="jp-chip">{r.tag}</span> <code>{r.pattern}</code>
+              </div>
+              {workspace.canWrite && (
+                <form method="post" class="jp-row__side">
+                  <input type="hidden" name="intent" value="delete" />
+                  <input type="hidden" name="id" value={r.id} />
+                  <button class="jp-button jp-button--quiet" type="submit" aria-label={`Remove the ${r.tag} rule for ${r.pattern}`}>
+                    Remove
+                  </button>
+                </form>
+              )}
+            </li>
+          ))}
+        </ul>
+      )
+    }
+    {
+      workspace.canWrite && (
+        <form method="post" class="jp-form">
+          <input type="hidden" name="intent" value="add" />
+          <div class="jp-field" style="flex: 0 1 180px">
+            <label for="tag">Tag</label>
+            <input id="tag" name="tag" value={typedTag} required autocomplete="off" />
+          </div>
+          <div class="jp-field">
+            <label for="pattern">Matches</label>
+            <input id="pattern" name="pattern" value={typedPattern} required autocomplete="off" />
+          </div>
+          <button class="jp-button" type="submit">Add rule</button>
+        </form>
+      )
+    }
+    {error && <p class="jp-error" role="alert">{error}</p>}
+    {notice && <p class="jp-notice" role="status">{notice}</p>}
+  </section>
+</PodLayout>

@@ -1,0 +1,69 @@
+---
+import PodLayout from '../../../layouts/PodLayout.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { dayLabel, formatDuration, loadShows, tagParam } from '../../../lib/pod/podcasts';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'podcasts', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+const base = `/pod/${workspace.slug}`;
+const tag = tagParam(Astro.url);
+// Shows subscribed to but never heard are left off: this is a log of
+// listening, not a copy of the library.
+const shows = (await loadShows(supabase, workspace.id, tag)).filter(s => s.seconds > 0);
+---
+
+<PodLayout title={`Shows · ${workspace.name}`} workspace={workspace}>
+  <header class="jp-head">
+    <div>
+      <p class="jp-kicker">Shows{tag ? ` · tagged ${tag}` : ''}</p>
+      <h1>{shows.length} shows</h1>
+      <p class="jp-lede">
+        By time spent, undated history included.
+        {tag && <>Given a tag, only that tag's episodes are counted. <a href={`${base}/shows`}>Every show.</a></>}
+      </p>
+    </div>
+  </header>
+
+  <div class="jp-table-wrap">
+    <table class="jp-table">
+      <thead>
+        <tr>
+          <th scope="col">Show</th>
+          <th scope="col">Tags</th>
+          <th scope="col" class="jp-num">Episodes</th>
+          <th scope="col" class="jp-num">Time</th>
+          <th scope="col">Last heard</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          shows.map(s => (
+            <tr>
+              <td>
+                <a href={`${base}/show/${s.show_id}`}>{s.title}</a>
+              </td>
+              <td>
+                {s.tags.length > 0 && (
+                  <ul class="jp-chips">
+                    {s.tags.map(t => (
+                      <li>
+                        <a class="jp-chip" href={`${base}/shows?tag=${t}`}>{t}</a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </td>
+              <td class="jp-num">{s.episodes}</td>
+              <td class="jp-num">{formatDuration(s.seconds)}</td>
+              <td>{dayLabel(s.last_listened_at)}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+</PodLayout>
