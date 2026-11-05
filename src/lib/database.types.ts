@@ -153,6 +153,7 @@ export type Database = {
           reading_workspace_id: string | null;
           jpod_workspace_id: string | null;
           focus_tag: string;
+          duolingo_username: string | null;
           updated_at: string;
         };
         Insert: {
@@ -160,8 +161,14 @@ export type Database = {
           reading_workspace_id?: string | null;
           jpod_workspace_id?: string | null;
           focus_tag?: string;
+          duolingo_username?: string | null;
         };
-        Update: { reading_workspace_id?: string | null; jpod_workspace_id?: string | null; focus_tag?: string };
+        Update: {
+          reading_workspace_id?: string | null;
+          jpod_workspace_id?: string | null;
+          focus_tag?: string;
+          duolingo_username?: string | null;
+        };
         Relationships: [];
       };
       lx_capture_tokens: {
@@ -173,6 +180,35 @@ export type Database = {
           created_at: string;
           last_used_at: string | null;
           revoked_at: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      lx_duolingo_snapshots: {
+        Row: {
+          id: number;
+          workspace_id: string;
+          taken_at: string;
+          day: string;
+          username: string;
+          course_xp: number;
+          total_xp: number;
+          streak: number;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      lx_sync_runs: {
+        Row: {
+          id: number;
+          workspace_id: string;
+          source: string;
+          started_at: string;
+          finished_at: string | null;
+          ok: boolean | null;
+          message: string;
         };
         Insert: never;
         Update: never;

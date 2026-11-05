@@ -122,6 +122,35 @@ check "a viewer cannot" ok "
 check "nobody rewrites where an entry came from" "42501" \
   "update public.lx_activities set source_ref = 'x' where source_ref = 'd1';" "$as_jamie"
 
+echo "── Duolingo ──"
+# Each check runs in its own rolled-back transaction, so each replays the
+# snapshots it needs.
+ing() { echo "select public.lx_duolingo_ingest('$LX', 'Oso_Sur', $1, $(( $1 + 9000 )), 1071);"; }
+duo() { echo "(select $1 from public.lx_activities where source = 'duolingo')"; }
+check "the first snapshot is a starting line, not practice" ok "
+  $(ing 80000)
+  do \$\$ begin assert (select count(*) from public.lx_activities where source = 'duolingo') = 0; end \$\$;"
+check "growth becomes the day's entry, three XP a minute, tagged spanish" ok "
+  $(ing 80000) $(ing 80030)
+  do \$\$ begin assert $(duo minutes) = 10; assert $(duo tags) = '{spanish}'; end \$\$;"
+check "a later run the same day rewrites the one entry" ok "
+  $(ing 80000) $(ing 80030) $(ing 80045)
+  do \$\$ begin
+    assert (select count(*) from public.lx_activities where source = 'duolingo') = 1;
+    assert $(duo title) = 'Spanish · 45 XP';
+  end \$\$;"
+check "a fall in XP takes nothing away" ok "
+  $(ing 80000) $(ing 80045) $(ing 80010)
+  do \$\$ begin assert $(duo minutes) = 15; end \$\$;"
+check "XP from another account is not compared" ok "
+  $(ing 80000) select public.lx_duolingo_ingest('$LX', 'someone_else', 500, 500, 1);
+  do \$\$ begin assert (select count(*) from public.lx_activities where source = 'duolingo') = 0; end \$\$;"
+check "nobody but the sync ingests" "42501" "$(ing 90000)" "$as_jamie"
+check "a username is a username" "23514" "update public.lx_settings set duolingo_username = 'a b' where workspace_id = '$LX';"
+check "an editor sets the username" ok "
+  update public.lx_settings set duolingo_username = 'Oso_Sur' where workspace_id = '$LX';
+  do \$\$ begin assert (select duolingo_username from public.lx_settings where workspace_id = '$LX') = 'Oso_Sur'; end \$\$;" "$as_rob"
+
 echo
 echo "latam: $pass passed, $fail failed"
 [ $fail -eq 0 ]
