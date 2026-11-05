@@ -1,0 +1,42 @@
+---
+import { dayLabel, formatDuration, type SyncRun } from '../../lib/pod/podcasts';
+
+interface Props {
+  run: SyncRun | null;
+}
+
+const { run } = Astro.props;
+
+// "Last synced" means the last run that finished well. A failed run is said
+// as a failure with its reason, because a quiet stale date is how a broken
+// sync goes unnoticed for a month.
+const when = run?.finished_at ?? run?.started_at ?? null;
+const time = when
+  ? new Date(when).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })
+  : '';
+---
+
+{
+  !run ? (
+    <p class="jp-sync">
+      <span class="jp-sync__dot" aria-hidden="true" />
+      Not synced yet. History is from the import.
+    </p>
+  ) : run.ok === false ? (
+    <p class="jp-sync jp-sync--bad">
+      <span class="jp-sync__dot" aria-hidden="true" />
+      Sync failed {dayLabel(when)} {time}: {run.message || 'no reason given'}
+    </p>
+  ) : run.ok === null ? (
+    <p class="jp-sync">
+      <span class="jp-sync__dot" aria-hidden="true" />
+      Sync started {dayLabel(when)} {time} and has not reported back.
+    </p>
+  ) : (
+    <p class="jp-sync jp-sync--ok">
+      <span class="jp-sync__dot" aria-hidden="true" />
+      Synced {dayLabel(when)} {time}
+      {run.credited_s > 0 ? ` · ${formatDuration(run.credited_s)} added` : ' · nothing new'}
+    </p>
+  )
+}

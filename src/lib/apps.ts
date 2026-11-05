@@ -67,6 +67,15 @@ export const APPS: AppDefinition[] = [
     hosted: true,
     tagline: 'Maps and flashcards, and remembering them.',
   },
+  {
+    // Stored as 'podcasts'; JPOD is the working name, and `name` is the one
+    // place to change it.
+    slug: 'podcasts',
+    path: 'pod',
+    name: 'JPOD',
+    hosted: true,
+    tagline: 'Every episode, and the time it took.',
+  },
   // No taglines below: an invented sentence about a site nobody has described
   // yet would read as fact. They get one when they move in.
   { slug: 'atelier-obscura', path: 'atelier', name: 'Atelier Obscura', hosted: false },

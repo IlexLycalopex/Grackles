@@ -1,0 +1,68 @@
+---
+import '../styles/jpod.css';
+import NavToggle from '../components/NavToggle.astro';
+import type { ResolvedWorkspace } from '../lib/workspace';
+
+interface Props {
+  title: string;
+  description?: string;
+  workspace: ResolvedWorkspace;
+}
+
+const { title, description = '', workspace } = Astro.props;
+const base = `/pod/${workspace.slug}`;
+const pathname = Astro.url.pathname;
+const canonical = new URL(pathname, Astro.site ?? Astro.url.origin);
+const { user } = Astro.locals;
+
+const links = [
+  { href: base, label: 'Overview' },
+  { href: `${base}/history`, label: 'History' },
+  { href: `${base}/shows`, label: 'Shows' },
+  { href: `${base}/tags`, label: 'Tags' },
+];
+---
+
+<html lang="en-GB">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description || workspace.description} />
+    <link rel="canonical" href={canonical.href} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    {workspace.visibility !== 'public' && <meta name="robots" content="noindex, nofollow" />}
+  </head>
+  <body>
+    {/* `site-nav` and `site-nav__links` are NavToggle's contract; the jp-
+        classes beside them are what this stylesheet paints. */}
+    <nav class="site-nav jp-nav">
+      <div class="jp-wrap jp-nav__inner">
+        <a href={base} class="jp-nav__mark">JPOD</a>
+        <NavToggle />
+        <div class="site-nav__links jp-nav__links">
+          {
+            links.map(l => (
+              <a href={l.href} class="jp-nav__link" aria-current={pathname === l.href ? 'page' : undefined}>
+                {l.label}
+              </a>
+            ))
+          }
+          {workspace.role && <span class="jp-nav__role">{workspace.role}</span>}
+          <a class="jp-nav__link" href={user ? '/dashboard' : `/login?next=${pathname}`}>
+            {user ? 'Projects' : 'Sign in'}
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="jp-wrap jp-main">
+      <slot />
+    </main>
+  </body>
+</html>

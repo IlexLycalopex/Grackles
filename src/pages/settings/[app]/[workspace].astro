@@ -463,6 +463,13 @@ async function holdings(w: string, of: AppSlug): Promise<{ n: number; noun: stri
       const { count } = await supabase.from('cp_decks').select('id', opts).eq('workspace_id', w);
       return { n: count ?? 0, noun: 'flashcard decks' };
     }
+    case 'podcasts': {
+      // Episodes rather than shows: the listening is what goes, and most of
+      // it came from a one-off import that the daily sync, which sees only
+      // Pocket Casts' latest hundred, could never rebuild.
+      const { count } = await supabase.from('jp_episodes').select('id', opts).eq('workspace_id', w);
+      return { n: count ?? 0, noun: 'episodes' };
+    }
     default:
       return null;
   }
