@@ -25,6 +25,7 @@ export const FEATURE_KEYS = [
   'platform.search',
   'platform.golden',
   'latam.research',
+  'latam.glossary',
 ] as const;
 
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
@@ -94,6 +95,12 @@ export const FEATURES: FeatureNote[] = [
     app: 'latam',
     class: 'single',
     what: 'A deep dive on one place: a briefing written by the model, and books, films and articles it proposes, kept only when OpenLibrary or Wikipedia can vouch for them. Only the place name is sent.',
+  },
+  {
+    key: 'latam.glossary',
+    app: 'latam',
+    class: 'single',
+    what: 'Ten words and a two-line summary for one public Lecturas article. A word is kept only if it appears in the article.',
   },
 ];
 

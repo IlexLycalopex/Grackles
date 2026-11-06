@@ -298,6 +298,50 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      lx_reader_articles: {
+        Row: {
+          id: string;
+          url: string;
+          source: string;
+          topic: string;
+          title: string;
+          published_at: string | null;
+          fetched_at: string;
+          words: number;
+          inflesz: number | null;
+          cov1k: number | null;
+          cov2k: number | null;
+          cov5k: number | null;
+          level: string | null;
+          summary_en: string;
+          glossary: Json;
+          enriched_at: string | null;
+          ai_call_id: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      lx_reader_marks: {
+        Row: {
+          workspace_id: string;
+          article_id: string;
+          rating: string | null;
+          sent_at: string | null;
+          created_by: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          workspace_id: string;
+          article_id: string;
+          rating?: string | null;
+          sent_at?: string | null;
+          created_by?: string | null;
+          updated_at?: string;
+        };
+        Update: { rating?: string | null; sent_at?: string | null; updated_at?: string };
+        Relationships: [];
+      };
       lx_duolingo_snapshots: {
         Row: {
           id: number;
@@ -1941,6 +1985,10 @@ export type Database = {
       lx_capture: {
         Args: { p_token: string; p_entry: Json };
         Returns: Json;
+      };
+      lx_reader_enrich: {
+        Args: { p_article: string; p_summary: string; p_glossary: Json; p_call: string };
+        Returns: undefined;
       };
       lx_seed_argentina: {
         Args: { p_workspace: string };
