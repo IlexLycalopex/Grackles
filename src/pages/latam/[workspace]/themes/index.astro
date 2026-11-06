@@ -1,0 +1,62 @@
+---
+import LxLayout from '../../../../layouts/LxLayout.astro';
+import { resolveWorkspace } from '../../../../lib/workspace';
+import { loadSettings, minutes } from '../../../../lib/latam/latam';
+import { loadThemes, minutesForTag } from '../../../../lib/latam/places';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'latam', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+const base = `/latam/${workspace.slug}`;
+
+const [settings, themes, { data: items }] = await Promise.all([
+  loadSettings(supabase, workspace.id),
+  loadThemes(supabase, workspace.id),
+  supabase.from('lx_items').select('theme_id, done').eq('workspace_id', workspace.id).not('theme_id', 'is', null),
+]);
+const times = await Promise.all(
+  themes.map(t => minutesForTag(supabase, workspace.id, settings?.jpod_workspace_id ?? null, t.slug))
+);
+const rows = themes.map((t, i) => {
+  const mine = (items ?? []).filter(it => it.theme_id === t.id);
+  return { t, total: mine.length, done: mine.filter(it => it.done).length, time: times[i]! };
+});
+---
+
+<LxLayout title={`Themes · ${workspace.name}`} workspace={workspace}>
+  <header class="lx-head">
+    <div>
+      <p class="lx-kicker"><a href={base}>{workspace.name}</a></p>
+      <h1>Themes</h1>
+      <p class="lx-lede">What to read, watch and listen to on each subject. Time counts anything tagged with the theme.</p>
+    </div>
+  </header>
+
+  {
+    rows.length === 0 ? (
+      <p class="lx-panel">No themes yet. <a href={`${base}/places`}>Load the starter set on Places</a>.</p>
+    ) : (
+      <ul class="lx-list">
+        {rows.map(r => (
+          <li class="lx-row">
+            <div>
+              <div class="lx-row__title"><a href={`${base}/themes/${r.t.slug}`}>{r.t.name}</a></div>
+              <div class="lx-row__meta"><span>{r.t.summary}</span></div>
+              {r.total > 0 && (
+                <div class="lx-progress" aria-label={`${r.done} of ${r.total} done`}>
+                  <span style={`width: ${Math.round((r.done / r.total) * 100)}%`} />
+                </div>
+              )}
+            </div>
+            <div class="lx-row__side">
+              <strong>{minutes(r.time.latam + r.time.podcasts)}</strong>
+              {r.done} of {r.total} done
+            </div>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+</LxLayout>

@@ -24,6 +24,7 @@ export const FEATURE_KEYS = [
   'cigars.lookup',
   'platform.search',
   'platform.golden',
+  'latam.research',
 ] as const;
 
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
@@ -87,6 +88,12 @@ export const FEATURES: FeatureNote[] = [
     app: 'reading-list',
     class: 'single',
     what: 'One bounded call asking which book somebody means, when the free catalogues have missed. It answers with a better query, never with facts.',
+  },
+  {
+    key: 'latam.research',
+    app: 'latam',
+    class: 'single',
+    what: 'A deep dive on one place: a briefing written by the model, and books, films and articles it proposes, kept only when OpenLibrary or Wikipedia can vouch for them. Only the place name is sent.',
   },
 ];
 

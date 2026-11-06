@@ -151,6 +151,41 @@ check "an editor sets the username" ok "
   update public.lx_settings set duolingo_username = 'Oso_Sur' where workspace_id = '$LX';
   do \$\$ begin assert (select duolingo_username from public.lx_settings where workspace_id = '$LX') = 'Oso_Sur'; end \$\$;" "$as_rob"
 
+echo "── Places and themes ──"
+seed="select public.lx_seed_argentina('$LX');"
+check "an editor loads the starter set" ok "
+  $seed
+  do \$\$ begin
+    assert (select count(*) from public.lx_places where workspace_id = '$LX') > 50;
+    assert (select count(*) from public.lx_themes where workspace_id = '$LX') = 10;
+    assert (select count(*) from public.lx_items where workspace_id = '$LX') > 30;
+  end \$\$;" "$as_rob"
+check "loading it twice adds nothing" ok "
+  $seed $seed
+  do \$\$ begin assert (select count(*) from public.lx_places where workspace_id = '$LX' and slug = 'bariloche') = 1; end \$\$;" "$as_rob"
+check "a viewer cannot load it" "GRK50" "$seed" \
+  "update public.workspace_members set role = 'viewer' where workspace_id = '$LX' and user_id = '$ROB'; $as_rob"
+check "a place is a tag-shaped slug" "23514" \
+  "insert into public.lx_places (workspace_id, slug, name, kind) values ('$LX', 'Not A Tag', 'X', 'town');" "$as_jamie"
+check "an item cannot hang off another project's place" "42501" "
+  insert into public.workspaces (id,app,slug,name,owner_id,visibility)
+    values ('e1000000-0000-4000-8000-0000000000ff','latam','lx-other','Other','$ROB','private');
+  insert into public.lx_places (id, workspace_id, slug, name, kind)
+    values ('e1000000-0000-4000-8000-0000000000fe','e1000000-0000-4000-8000-0000000000ff','x','X','town');
+  set local role authenticated; set local request.jwt.claims = '{\"sub\":\"$JAMIE\"}';
+  insert into public.lx_items (workspace_id, place_id, kind, title)
+    values ('$LX', 'e1000000-0000-4000-8000-0000000000fe', 'book', 'Smuggled');"
+check "research is saved as the person who ran it, not someone else" "42501" "
+  $seed
+  insert into public.lx_research (workspace_id, place_id, created_by, brief, suggestions, dropped)
+    select '$LX', id, '$JAMIE', '{}', '[]', 0 from public.lx_places where workspace_id = '$LX' and slug = 'gaiman';" "$as_rob"
+check "the same book twice on a place is one item" "23505" "
+  $seed
+  insert into public.lx_items (workspace_id, place_id, kind, title)
+    select '$LX', id, 'book', 'In Patagonia' from public.lx_places where workspace_id = '$LX' and slug = 'gaiman';
+  insert into public.lx_items (workspace_id, place_id, kind, title)
+    select '$LX', id, 'book', 'in patagonia' from public.lx_places where workspace_id = '$LX' and slug = 'gaiman';" "$as_rob"
+
 echo
 echo "latam: $pass passed, $fail failed"
 [ $fail -eq 0 ]

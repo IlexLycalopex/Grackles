@@ -1,0 +1,478 @@
+---
+import LxLayout from '../../../../layouts/LxLayout.astro';
+import { resolveWorkspace } from '../../../../lib/workspace';
+import { describeDeleteError, describeWriteError, NOTHING_DELETED } from '../../../../lib/records/save';
+import { loadSettings, minutes } from '../../../../lib/latam/latam';
+import {
+  asResearch,
+  KIND_LABELS,
+  minutesForTag,
+  PLACE_STATUSES,
+  runResearch,
+  statusLabel,
+  type Item,
+} from '../../../../lib/latam/places';
+import { workKey } from '../../../../lib/library';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'latam', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+const base = `/latam/${workspace.slug}`;
+
+const { data: place } = await supabase
+  .from('lx_places')
+  .select('*')
+  .eq('workspace_id', workspace.id)
+  .eq('slug', Astro.params.place!)
+  .maybeSingle();
+if (!place) return new Response('Not found', { status: 404 });
+
+const here = `${base}/places/${place.slug}`;
+const settings = await loadSettings(supabase, workspace.id);
+const { data: regionRow } = place.region
+  ? await supabase.from('lx_places').select('slug, name').eq('workspace_id', workspace.id).eq('slug', place.region).maybeSingle()
+  : { data: null };
+
+let error: string | null = null;
+let notice: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(here)}`);
+  if (!workspace.canWrite) return new Response('Forbidden', { status: 403 });
+  const form = await Astro.request.formData();
+  const intent = String(form.get('intent') ?? '');
+  const field = (k: string) => String(form.get(k) ?? '').trim();
+
+  if (intent === 'status') {
+    const { data, error: e } = await supabase
+      .from('lx_places')
+      .update({ status: field('status'), notes: field('notes').slice(0, 4000) })
+      .eq('id', place.id)
+      .select('status, notes');
+    if (e) error = describeWriteError(e, 'lx_places save');
+    else if (!data?.length) error = 'Nothing was saved. Your role may have changed.';
+    else {
+      Object.assign(place, data[0]);
+      notice = 'Saved.';
+    }
+  } else if (intent === 'research') {
+    const r = await runResearch(supabase, user.id, place, regionRow?.name ?? '');
+    if (!r.ok) error = r.error;
+    else
+      notice = `Research done: ${r.kept} things to read, watch or look up${
+        r.dropped ? `; ${r.dropped} more were suggested but could not be found in a catalogue, so were left out` : ''
+      }.`;
+  } else if (intent === 'keep' || intent === 'to-reading') {
+    const { data: row } = await supabase.from('lx_research').select('*').eq('id', field('research')).eq('place_id', place.id).maybeSingle();
+    const s = row ? asResearch(row).suggestions[Number(field('index'))] : undefined;
+    if (!s) error = 'That suggestion is no longer there.';
+    else if (intent === 'keep') {
+      const { error: e } = await supabase.from('lx_items').insert({
+        workspace_id: workspace.id,
+        place_id: place.id,
+        kind: s.kind,
+        title: s.title,
+        creator: s.creator,
+        url: s.url,
+        why: s.why,
+        source: 'research',
+      });
+      if (e?.code === '23505') notice = `${s.title} is already on the list.`;
+      else if (e) error = describeWriteError(e, 'lx_items keep');
+      else notice = `Kept ${s.title}.`;
+    } else if (!settings?.reading_workspace_id) {
+      error = 'No Reading List is linked. Link one on Setup.';
+    } else {
+      const tags = [place.slug, settings.focus_tag].filter((t, i, a) => t && a.indexOf(t) === i);
+      const { error: e } = await supabase.from('rl_library').insert({
+        workspace_id: settings.reading_workspace_id,
+        work_key: workKey(s.title, s.creator),
+        title: s.title,
+        author: s.creator,
+        ownership: 'wanted',
+        tags,
+        link_openlibrary: s.url,
+      } as never);
+      if (e?.code === '23505') notice = `${s.title} is already in your Reading List.`;
+      else if (e) error = describeWriteError(e, 'rl_library add');
+      else notice = `Added ${s.title} to your Reading List as wanted, tagged ${tags.join(' and ')}.`;
+    }
+  } else if (intent === 'item-add') {
+    const kind = field('kind');
+    const url = field('url');
+    const { error: e } = await supabase.from('lx_items').insert({
+      workspace_id: workspace.id,
+      place_id: place.id,
+      kind,
+      title: field('title').slice(0, 300),
+      creator: field('creator').slice(0, 200),
+      url: /^https?:\/\//.test(url) ? url : '',
+    });
+    if (e?.code === '23505') notice = 'That is already on the list.';
+    else if (e) error = describeWriteError(e, 'lx_items add');
+    else notice = 'Added.';
+  } else if (intent === 'item-done') {
+    const { data, error: e } = await supabase
+      .from('lx_items')
+      .update({ done: field('done') === 'true' })
+      .eq('id', field('id'))
+      .eq('place_id', place.id)
+      .select('id');
+    if (e) error = describeWriteError(e, 'lx_items done');
+    else if (!data?.length) error = 'Nothing was changed. Your role may have changed.';
+  } else if (intent === 'item-delete') {
+    const { data, error: e } = await supabase.from('lx_items').delete().eq('id', field('id')).eq('place_id', place.id).select('id');
+    if (e) error = describeDeleteError(e, 'lx_items delete');
+    else if (!data?.length) error = NOTHING_DELETED;
+  }
+}
+
+const [{ data: researchRows }, { data: itemRows }, { data: activity }, { data: children }, books, time] = await Promise.all([
+  supabase.from('lx_research').select('*').eq('place_id', place.id).order('created_at', { ascending: false }).limit(10),
+  supabase.from('lx_items').select('*').eq('place_id', place.id).order('done').order('created_at'),
+  supabase
+    .from('lx_activities')
+    .select('id, occurred_on, type, title, minutes, link')
+    .eq('workspace_id', workspace.id)
+    .contains('tags', [place.slug])
+    .order('occurred_on', { ascending: false })
+    .limit(20),
+  place.kind === 'region'
+    ? supabase.from('lx_places').select('slug, name, kind, status').eq('workspace_id', workspace.id).eq('region', place.slug).order('name')
+    : Promise.resolve({ data: [] as { slug: string; name: string; kind: string; status: string }[] }),
+  settings?.reading_workspace_id
+    ? supabase
+        .from('rl_library')
+        .select('id, title, author, read, reading, ownership')
+        .eq('workspace_id', settings.reading_workspace_id)
+        .contains('tags', [place.slug])
+        .order('title')
+        .then(r => r.data ?? [])
+    : Promise.resolve([] as { id: string; title: string; author: string; read: boolean; reading: boolean; ownership: string }[]),
+  minutesForTag(supabase, workspace.id, settings?.jpod_workspace_id ?? null, place.slug),
+]);
+
+const all = (researchRows ?? []).map(asResearch);
+const pick = Astro.url.searchParams.get('research');
+const research = all.find(r => r.id === pick) ?? all[0] ?? null;
+const items: Item[] = itemRows ?? [];
+const paras = (s: string) => s.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+const day = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London' });
+const KINDS = ['book', 'film', 'podcast', 'article', 'other'];
+---
+
+<LxLayout title={`${place.name} · ${workspace.name}`} workspace={workspace}>
+  <header class="lx-head">
+    <div>
+      <p class="lx-kicker">
+        <a href={`${base}/places`}>Places</a>
+        {regionRow && <> · <a href={`${base}/places/${regionRow.slug}`}>{regionRow.name}</a></>}
+      </p>
+      <h1>{place.name}</h1>
+      <p class="lx-lede">{place.summary}</p>
+      <p class="lx-hint">
+        {KIND_LABELS[place.kind] ?? place.kind}{place.province && ` · ${place.province}`} · tag <code>{place.slug}</code>
+        {place.status && <> · <span class={`lx-place__status lx-place__status--${place.status}`}>{statusLabel(place.status)}</span></>}
+      </p>
+    </div>
+  </header>
+
+  {error && <p class="lx-error" role="alert">{error}</p>}
+  {notice && <p class="lx-notice" role="status">{notice}</p>}
+
+  <section class="lx-stats" aria-label="Time on this place">
+    <div class="lx-stat">
+      <span class="lx-stat__label">Time on {place.name}</span>
+      <span class="lx-stat__value lx-num">{minutes(time.latam + time.podcasts)}</span>
+      <span class="lx-stat__note">{minutes(time.latam)} logged · {minutes(time.podcasts)} podcasts</span>
+    </div>
+    <div class="lx-stat">
+      <span class="lx-stat__label">To read, watch or look up</span>
+      <span class="lx-stat__value lx-num">{items.filter(i => !i.done).length}</span>
+      <span class="lx-stat__note">{items.filter(i => i.done).length} done</span>
+    </div>
+    <div class="lx-stat">
+      <span class="lx-stat__label">Books tagged {place.slug}</span>
+      <span class="lx-stat__value lx-num">{books.length}</span>
+      <span class="lx-stat__note">{books.filter(b => b.read).length} read</span>
+    </div>
+  </section>
+
+  {
+    (children ?? []).length > 0 && (
+      <section class="lx-section">
+        <h2>Places in {place.name}</h2>
+        <ul class="lx-chips">
+          {(children ?? []).map(c => (
+            <li><a class="lx-chip" href={`${base}/places/${c.slug}`}>{c.name}</a></li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
+  <section class="lx-section" aria-labelledby="dive-h">
+    <div class="lx-section__head">
+      <h2 id="dive-h">Deep dive</h2>
+      {
+        workspace.canWrite && (
+          <form method="post" data-busy>
+            <input type="hidden" name="intent" value="research" />
+            <button class="lx-button" type="submit">{research ? 'Research again' : 'Research this place'}</button>
+          </form>
+        )
+      }
+    </div>
+    {
+      !research ? (
+        <p class="lx-empty">
+          No research yet. A deep dive writes a briefing on {place.name} and suggests books, films and articles. It
+          keeps only the ones OpenLibrary or Wikipedia can find. It takes about a minute and uses your AI allowance.
+        </p>
+      ) : (
+        <div class="lx-ai">
+          <p class="lx-ai__label">
+            Written by MiniMax on {day(research.created_at)}. The briefing is the model's own and may contain errors; the
+            suggestions below were each found in OpenLibrary or Wikipedia
+            {research.dropped > 0 && `, and ${research.dropped} that could not be were left out`}.
+          </p>
+          <div class="lx-prose">
+            {paras(research.brief.overview).map(p => <p>{p}</p>)}
+          </div>
+          {research.brief.history && (
+            <div class="lx-prose">
+              <h3>History</h3>
+              {paras(research.brief.history).map(p => <p>{p}</p>)}
+            </div>
+          )}
+          {research.brief.culture && (
+            <div class="lx-prose">
+              <h3>Culture</h3>
+              {paras(research.brief.culture).map(p => <p>{p}</p>)}
+            </div>
+          )}
+          {research.brief.notice.length > 0 && (
+            <div class="lx-prose">
+              <h3>When you are there</h3>
+              <ul>{research.brief.notice.map(n => <li>{n}</li>)}</ul>
+            </div>
+          )}
+          {research.brief.words.length > 0 && (
+            <div class="lx-prose">
+              <h3>Words you will hear</h3>
+              <dl class="lx-words">
+                {research.brief.words.map(w => (
+                  <>
+                    <dt lang="es">{w.es}</dt>
+                    <dd>{w.en}</dd>
+                  </>
+                ))}
+              </dl>
+            </div>
+          )}
+          {research.brief.fishing && (
+            <div class="lx-prose">
+              <h3>Fishing</h3>
+              {paras(research.brief.fishing).map(p => <p>{p}</p>)}
+            </div>
+          )}
+          {research.suggestions.length > 0 && (
+            <div class="lx-section">
+              <h3>Suggested</h3>
+              <ul class="lx-list">
+                {research.suggestions.map((s, i) => (
+                  <li class="lx-row">
+                    <div>
+                      <div class="lx-row__title">
+                        <a href={s.url} rel="noopener">{s.title}</a>
+                        {s.creator && `, ${s.creator}`}
+                      </div>
+                      <div class="lx-row__meta">
+                        <span class="lx-status">{s.kind}</span>
+                        <span>{s.why}</span>
+                      </div>
+                    </div>
+                    {workspace.canWrite && (
+                      <div class="lx-actions">
+                        <form method="post">
+                          <input type="hidden" name="intent" value="keep" />
+                          <input type="hidden" name="research" value={research.id} />
+                          <input type="hidden" name="index" value={i} />
+                          <button class="lx-button lx-button--quiet" type="submit">Keep</button>
+                        </form>
+                        {s.kind === 'book' && settings?.reading_workspace_id && (
+                          <form method="post">
+                            <input type="hidden" name="intent" value="to-reading" />
+                            <input type="hidden" name="research" value={research.id} />
+                            <input type="hidden" name="index" value={i} />
+                            <button class="lx-button lx-button--quiet" type="submit">Add to Reading List</button>
+                          </form>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {all.length > 1 && (
+            <p class="lx-hint">
+              Earlier dives:{' '}
+              {all
+                .filter(r => r.id !== research.id)
+                .map((r, i) => (
+                  <>
+                    {i > 0 && ', '}
+                    <a href={`${here}?research=${r.id}`}>{day(r.created_at)}</a>
+                  </>
+                ))}
+            </p>
+          )}
+        </div>
+      )
+    }
+  </section>
+
+  <section class="lx-section" aria-labelledby="items-h">
+    <h2 id="items-h">Your list for {place.name}</h2>
+    {
+      items.length === 0 ? (
+        <p class="lx-empty">Nothing yet. Keep suggestions from a deep dive, or add your own.</p>
+      ) : (
+        <ul class="lx-list">
+          {items.map(it => (
+            <li class="lx-row">
+              <div>
+                <div class={`lx-row__title${it.done ? ' lx-done' : ''}`}>
+                  {it.url ? <a href={it.url} rel="noopener">{it.title}</a> : it.title}
+                  {it.creator && `, ${it.creator}`}
+                </div>
+                <div class="lx-row__meta">
+                  <span class="lx-status">{it.kind}</span>
+                  {it.why && <span>{it.why}</span>}
+                </div>
+              </div>
+              {workspace.canWrite && (
+                <div class="lx-actions">
+                  <form method="post">
+                    <input type="hidden" name="intent" value="item-done" />
+                    <input type="hidden" name="id" value={it.id} />
+                    <input type="hidden" name="done" value={String(!it.done)} />
+                    <button class="lx-button lx-button--quiet" type="submit">{it.done ? 'Not done' : 'Done'}</button>
+                  </form>
+                  <form method="post">
+                    <input type="hidden" name="intent" value="item-delete" />
+                    <input type="hidden" name="id" value={it.id} />
+                    <button class="lx-button lx-button--quiet" type="submit" aria-label={`Remove ${it.title}`}>Remove</button>
+                  </form>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )
+    }
+    {
+      workspace.canWrite && (
+        <form method="post" class="lx-form">
+          <input type="hidden" name="intent" value="item-add" />
+          <div class="lx-field" style="flex: 0 1 140px">
+            <label for="kind">Kind</label>
+            <select id="kind" name="kind">{KINDS.map(k => <option value={k}>{k}</option>)}</select>
+          </div>
+          <div class="lx-field">
+            <label for="title">Title</label>
+            <input id="title" name="title" required maxlength="300" />
+          </div>
+          <div class="lx-field">
+            <label for="creator">By</label>
+            <input id="creator" name="creator" maxlength="200" />
+          </div>
+          <div class="lx-field">
+            <label for="url">Link</label>
+            <input id="url" name="url" type="url" />
+          </div>
+          <button class="lx-button" type="submit">Add</button>
+        </form>
+      )
+    }
+  </section>
+
+  {
+    (books.length > 0 || (activity ?? []).length > 0) && (
+      <section class="lx-section">
+        <h2>Already in your projects</h2>
+        {books.length > 0 && (
+          <ul class="lx-list">
+            {books.map(b => (
+              <li class="lx-row">
+                <div>
+                  <div class="lx-row__title">{b.title}{b.author && `, ${b.author}`}</div>
+                  <div class="lx-row__meta">
+                    <span class="lx-status">book</span>
+                    <span>{b.read ? 'read' : b.reading ? 'reading' : b.ownership}</span>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        {(activity ?? []).length > 0 && (
+          <ul class="lx-list">
+            {(activity ?? []).map(a => (
+              <li class="lx-row">
+                <div>
+                  <div class="lx-row__title">{a.link ? <a href={a.link}>{a.title || a.link}</a> : a.title || a.type}</div>
+                  <div class="lx-row__meta"><span class="lx-status">{a.type}</span>{a.occurred_on}</div>
+                </div>
+                <div class="lx-row__side"><strong>{minutes(a.minutes)}</strong></div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    )
+  }
+
+  {
+    workspace.canWrite && (
+      <section class="lx-panel lx-section" aria-labelledby="status-h">
+        <h2 id="status-h">Your notes</h2>
+        <form method="post" class="lx-form">
+          <input type="hidden" name="intent" value="status" />
+          <div class="lx-field" style="flex: 0 1 200px">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+              {PLACE_STATUSES.map(s => <option value={s.value} selected={place.status === s.value}>{s.label}</option>)}
+            </select>
+          </div>
+          <div class="lx-field" style="flex: 1 1 100%">
+            <label for="notes">Notes</label>
+            <textarea id="notes" name="notes" maxlength="4000">{place.notes}</textarea>
+          </div>
+          <button class="lx-button" type="submit">Save</button>
+        </form>
+        <p class="lx-hint">
+          To link something to {place.name}, tag it <code>{place.slug}</code>: a book in the Reading List, an episode or
+          show rule in JPOD, or an entry from your phone.
+        </p>
+      </section>
+    )
+  }
+
+  <script>
+    // The deep dive takes a minute; say so rather than look stuck.
+    document.querySelectorAll<HTMLFormElement>('form[data-busy]').forEach(f =>
+      f.addEventListener('submit', () => {
+        const b = f.querySelector('button');
+        if (b) {
+          b.disabled = true;
+          b.textContent = 'Researching, about a minute…';
+        }
+      })
+    );
+  </script>
+</LxLayout>
