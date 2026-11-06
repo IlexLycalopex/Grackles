@@ -18,6 +18,7 @@ import {
   FREQUENCY_SOURCE,
   grade,
   isSafeTitle,
+  pageImage,
   parseFeed,
   parseFrequencyList,
   rankFrom,
@@ -64,15 +65,40 @@ Deno.serve(async req => {
 
   // Every candidate from every feed, filtered on its title, before anything is
   // fetched: the title is enough to know a piece is off-topic or grim.
-  const feeds = await Promise.all(FEEDS.map(async f => ({ f, xml: await get(f.url, 'application/rss+xml, application/xml, text/xml') })));
+  // The built-in list, then every feed an editor has added (one fetch per
+  // address, however many projects added it).
+  const { data: custom } = await db.from('lx_reader_feeds').select('id, url, name, topic');
+  const all = [
+    ...FEEDS.map(f => ({ ...f, id: null as string | null })),
+    ...(custom ?? [])
+      .filter((c, i, a) => a.findIndex(x => x.url === c.url) === i && !FEEDS.some(f => f.url === c.url))
+      .map(c => ({ url: c.url, source: c.name, topic: c.topic as (typeof FEEDS)[number]['topic'], id: c.id as string | null })),
+  ];
+  const feeds = await Promise.all(all.map(async f => ({ f, xml: await get(f.url, 'application/rss+xml, application/atom+xml, application/xml, text/xml') })));
   const candidates = feeds.flatMap(({ f, xml }) =>
     xml
       ? parseFeed(xml)
-          .filter(i => isSafeTitle(i.title) && (!f.titleFilter || f.titleFilter.test(i.title)))
-          .map(i => ({ ...i, source: f.source, topic: topicFor(f.topic, i.title), feed: f.url }))
+          .filter(i => isSafeTitle(i.title) && (!('titleFilter' in f) || !f.titleFilter || f.titleFilter.test(i.title)))
+          .map(i => ({ ...i, source: f.source, topic: topicFor(f.topic, i.title), feed: f.url, feedId: f.id }))
       : []
   );
   const deadFeeds = feeds.filter(x => !x.xml).map(x => x.f.url);
+
+  // How each added feed went, so the Lecturas page can say when one breaks.
+  if (!dry) {
+    for (const { f, xml } of feeds) {
+      if (!f.id) continue;
+      const items = xml ? parseFeed(xml).length : 0;
+      await db
+        .from('lx_reader_feeds')
+        .update({
+          last_run_at: new Date().toISOString(),
+          last_ok: Boolean(xml && items),
+          last_message: !xml ? 'The feed could not be fetched.' : items ? `${items} items in the feed` : 'The address answered, but not with a feed.',
+        })
+        .eq('url', f.url);
+    }
+  }
 
   const urls = [...new Set(candidates.map(c => c.url))];
   const known = new Set<string>();
@@ -103,6 +129,8 @@ Deno.serve(async req => {
         const g = html ? grade(articleText(html), rank) : null;
         return {
           url: c.url,
+          image_url: c.image ?? (html ? pageImage(html) : null),
+          feed_id: c.feedId,
           source: c.source,
           topic: c.topic,
           title: c.title,
@@ -126,6 +154,25 @@ Deno.serve(async req => {
     const { error } = await db.from('lx_reader_articles').upsert(rows, { onConflict: 'url', ignoreDuplicates: true });
     if (error) return Response.json({ ok: false, message: error.message }, { status: 500 });
   }
+  // Pictures for articles fetched before pictures were kept, or whose page
+  // was slow the first time: a few each run, for two days, then let go.
+  const { data: bare } = await db
+    .from('lx_reader_articles')
+    .select('id, url')
+    .is('image_url', null)
+    .not('level', 'is', null)
+    .gt('fetched_at', new Date(Date.now() - 2 * 86400000).toISOString())
+    .limit(30);
+  for (let i = 0; i < (bare ?? []).length; i += 6) {
+    await Promise.all(
+      bare!.slice(i, i + 6).map(async a => {
+        const html = await get(a.url, 'text/html');
+        const image = html ? pageImage(html) : null;
+        if (image) await db.from('lx_reader_articles').update({ image_url: image }).eq('id', a.id);
+      })
+    );
+  }
+
   // Two months is long enough to choose from; older ones nobody marked go.
   const cutoff = new Date(Date.now() - 60 * 86400000).toISOString();
   const { data: marked } = await db.from('lx_reader_marks').select('article_id');

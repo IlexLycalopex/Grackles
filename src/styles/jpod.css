@@ -2,40 +2,30 @@
  * JPOD — the podcast log.
  *
  * Loaded by PodLayout alone, like every app's stylesheet here, so nothing in it
- * can reach another app and nothing of theirs can reach it. The look is a
- * station logbook: warm paper, ink, one signal-orange accent for the thing
- * being measured, and numbers set in mono so columns of times line up.
+ * can reach another app and nothing of theirs can reach it. The look is
+ * Diario, shared with LatAm: ivory paper, Fraunces headlines, Source Sans
+ * text, ink rules and one rust accent; figures use tabular numerals so
+ * columns of times line up. Light only.
  */
 
 :root {
-  --ground: #f5f2ec;
+  --ground: #f7f4ee;
   --panel: #fffdf9;
-  --ink: #1d1a16;
-  --muted: #5d564d;
-  --rule: #ddd5c8;
-  --accent: #b4471a;
-  --accent-soft: #f3dccf;
+  --ink: #1d1b17;
+  --muted: #5f574b;
+  --rule: #d6cfc2;
+  --accent: #9a3412;
+  --accent-soft: #f3e3d6;
+  --warn: #8a4b0f;
+  --warn-soft: #f6ead8;
   --ok: #2f6b3a;
   --bad: #9b2c1f;
-  --display: 'Space Grotesk', system-ui, sans-serif;
-  --body: 'IBM Plex Sans', system-ui, sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, monospace;
-  color-scheme: light dark;
+  --display: 'Fraunces', Georgia, serif;
+  --body: 'Source Sans 3', system-ui, sans-serif;
+  --mono: 'Source Sans 3', system-ui, sans-serif;
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ground: #15130f;
-    --panel: #1e1b16;
-    --ink: #efe9df;
-    --muted: #b1a797;
-    --rule: #3a342b;
-    --accent: #ec8a5b;
-    --accent-soft: #3f2619;
-    --ok: #8fca98;
-    --bad: #f19282;
-  }
-}
 
 * { box-sizing: border-box; }
 body {
@@ -156,3 +146,67 @@ h2 { font-size: 22px; }
 .jp-error { color: var(--bad); margin: 0; }
 .jp-notice { color: var(--ok); margin: 0; }
 .jp-hint { font-size: 13px; color: var(--muted); margin: 0; }
+
+/* ── Diario ──────────────────────────────────────────────────────────
+ * The house style LatAm and JPOD share since November 2026: a Sunday
+ * paper. Fraunces headlines on newsprint ivory, Source Sans for reading,
+ * one rust accent, and rules in place of cards. Light only, by choice.
+ * These rules come last and restate the components above in that style.
+ */
+body { font-size: 17px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; letter-spacing: -0.01em; }
+h1 { font-size: clamp(40px, 7vw, 72px); font-weight: 700; line-height: 0.98; letter-spacing: -0.02em; }
+h2 { font-size: 26px; }
+h3 { font-size: 21px; }
+a { color: var(--ink); text-decoration-color: var(--rule); text-underline-offset: 3px; }
+a:hover { color: var(--accent); text-decoration-color: var(--accent); }
+
+.jp-nav { background: var(--ground); border-bottom: 1px solid var(--ink); }
+.jp-nav__mark { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: 0; }
+.jp-nav__link { color: var(--ink); font-size: 15px; }
+.jp-nav__link:hover { color: var(--accent); }
+.jp-nav__link[aria-current='page'] { font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); }
+.jp-nav__role { font-family: var(--body); font-size: 12px; letter-spacing: 0.12em; }
+
+.jp-head { border-bottom: 4px double var(--ink); padding-bottom: 18px; }
+.jp-kicker { font-family: var(--body); font-size: 13px; letter-spacing: 0.12em; color: var(--muted); }
+.jp-kicker a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.jp-lede { font-size: 17px; line-height: 1.5; color: #4a4339; }
+.jp-section > h2, .jp-section__head > h2 { border-bottom: 1px solid var(--ink); padding-bottom: 8px; }
+.jp-section__head { border-bottom: 1px solid var(--ink); padding-bottom: 8px; }
+.jp-section__head > h2 { border-bottom: 0; padding-bottom: 0; }
+
+.jp-panel { background: transparent; border: 0; border-top: 1px solid var(--ink); border-radius: 0; padding: 18px 0 0; }
+
+.jp-stats { gap: 0; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--rule); }
+.jp-stat { background: transparent; border: 0; border-radius: 0; border-right: 1px solid var(--rule); padding: 16px 20px 16px 0; }
+.jp-stat + .jp-stat { padding-left: 20px; }
+.jp-stat:last-child { border-right: 0; }
+.jp-stat__label { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; }
+.jp-stat__value { font-family: var(--display); font-size: 38px; font-weight: 600; font-variant-numeric: lining-nums tabular-nums; }
+
+.jp-num, .jp-status, .jp-chip__n, .jp-bar__labels, .jp-row__side strong { font-variant-numeric: tabular-nums; }
+.jp-status { font-size: 12px; letter-spacing: 0.1em; color: var(--accent); font-weight: 600; }
+
+.jp-bar__fill { background: var(--ink); border-radius: 0; }
+.jp-bar--now .jp-bar__fill { background: var(--accent); }
+
+.jp-chip { background: transparent; border: 1px solid var(--rule); color: var(--ink); padding: 5px 12px; font-size: 14px; min-height: 36px; }
+.jp-chip:hover { outline: 0; border-color: var(--ink); }
+.jp-chip--on, .jp-chip--on:hover { background: var(--ink); border-color: var(--ink); color: var(--ground); }
+
+.jp-list { border-top: 1px solid var(--ink); }
+.jp-row { padding: 16px 0; }
+.jp-row__title { font-family: var(--display); font-weight: 600; font-size: 19px; line-height: 1.25; }
+.jp-row__title a { text-decoration: none; }
+.jp-row__side strong { font-family: var(--display); font-size: 18px; font-weight: 600; }
+
+.jp-table th { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; border-bottom-color: var(--ink); }
+
+.jp-button { border-radius: 2px; background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.jp-button:hover { background: #7c2a0e; border-color: #7c2a0e; }
+.jp-button--quiet { background: transparent; color: var(--ink); border-color: var(--ink); font-weight: 500; }
+.jp-button--quiet:hover { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+.jp-field input, .jp-field select, .jp-field textarea { background: var(--panel); border-radius: 2px; }
+
+.jp-sync__dot { border-radius: 0; width: 8px; height: 8px; }
