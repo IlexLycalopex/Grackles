@@ -100,6 +100,15 @@ const suggested = (cov: number | null) => comfort !== null && cov !== null && Ma
 
 const list = (articles ?? []).sort((a, b) => Number(suggested(b.cov5k)) - Number(suggested(a.cov5k)));
 const canInstapaper = workspace.isOwner && instapaperConfigured();
+// Bing finds them; the publisher wrote them. Name the publisher.
+const publisher = (a: { source: string; url: string }) => {
+  if (a.source !== 'Bing News') return a.source;
+  try {
+    return new URL(a.url).hostname.replace(/^www\./, '');
+  } catch {
+    return a.source;
+  }
+};
 const pct = (n: number | null) => (n === null ? '' : `${Math.round(Number(n) * 100)}%`);
 const link = (t: Topic | null, ls: string[]) => {
   const q = new URLSearchParams();
@@ -164,7 +173,7 @@ const toggle = (l: string) => (shownLevels.includes(l) ? shownLevels.filter(x =>
                   <span class="lx-status">{a.level}</span>
                   {suggested(a.cov5k) && <span class="lx-place__status lx-place__status--learning">Suggested</span>}
                   <span>{TOPIC_LABELS[a.topic as Topic] ?? a.topic}</span>
-                  <span>{a.source}</span>
+                  <span>{publisher(a)}</span>
                   <span>about {readingMinutes(a.words)} min</span>
                   <span>{pct(a.cov5k)} common words</span>
                   {m?.rating && <span>you said: {RATINGS.find(r => r.value === m.rating)?.label.toLowerCase()}</span>}
@@ -227,7 +236,9 @@ const toggle = (l: string) => (shownLevels.includes(l) ? shownLevels.filter(x =>
   }
 
   <p class="lx-hint">
-    Sources: Clarín, La Nación, Infobae and Río Negro, and Bing News searches for fishing, climbing and drink. Headlines
+    Sources: Clarín, La Nación, Infobae and Río Negro, and other Argentine sites found through Bing News searches for
+    fishing, climbing and drink. Glossaries are written by MiniMax: each word is checked to be in the article, but a
+    meaning can be wrong. Headlines
     about crime, politics, disasters and the like are left out. Word frequencies from FrequencyWords (CC BY-SA 4.0).
   </p>
 
