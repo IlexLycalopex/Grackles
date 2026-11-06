@@ -84,7 +84,29 @@ rejected. Proposals no catalogue found are listed on the page.
 
 With `INSTAPAPER_USERNAME` and `INSTAPAPER_PASSWORD` set on the Vercel
 project, an article kept from a deep dive is also saved to Instapaper (Simple
-API), and listed articles get an Instapaper button. Owner only.
+API), and listed articles get an Instapaper button. Owner only. With
+`INSTAPAPER_CONSUMER_KEY` and `INSTAPAPER_CONSUMER_SECRET` also on Vercel, the
+full API is used instead and the article is tagged with the focus
+("Argentina"); if that call fails the Simple API still saves it, untagged.
+
+### Reading it back
+
+`supabase/functions/latam-instapaper-sync`, nightly at 05:23 UTC, reads the
+account through Instapaper's full API (OAuth 1.0a with xAuth; signing in
+`_shared/instapaper.ts`, checked against the published OAuth example). An
+article read to nine tenths (archiving alone does not count) becomes an
+`article` entry with source `instapaper` when it is in Spanish (tag
+`spanish`) or names Argentina or one of the project's places (focus tag and
+the place's slug). Minutes are estimated from length, 200 words a minute or
+120 for Spanish. A matching `lx_items` link is marked done. Every bookmark
+decided on is kept in `lx_instapaper_seen`, so its text is fetched once; a
+first run catches up 40 articles a night.
+
+Needs four function secrets: `INSTAPAPER_CONSUMER_KEY` and
+`INSTAPAPER_CONSUMER_SECRET` (requested from Instapaper), and
+`INSTAPAPER_USERNAME` and `INSTAPAPER_PASSWORD`. Until then each run records
+"Waiting for the Instapaper API key", shown on the setup page. A project
+opts in with `lx_settings.instapaper_sync`.
 
 ## Applying it
 

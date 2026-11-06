@@ -19,7 +19,7 @@ test('a link is sent with the account login and the reason as the selection', as
   process.env.INSTAPAPER_PASSWORD = 'pw';
   const seen: { auth?: string; body?: string }[] = [];
   const r = await sendToInstapaper('https://en.wikipedia.org/wiki/Y_Wladfa', 'Y Wladfa', 'The Welsh colony', answering(201, seen));
-  assert.deepEqual(r, { ok: true });
+  assert.deepEqual(r, { ok: true, tagged: false });
   assert.equal(seen[0]!.auth, `Basic ${btoa('jamie:pw')}`);
   assert.match(seen[0]!.body!, /selection=The\+Welsh\+colony/);
 });
@@ -31,4 +31,24 @@ test('a refused login says so', async () => {
   assert.equal(!r.ok && r.reason, 'refused');
   delete process.env.INSTAPAPER_USERNAME;
   delete process.env.INSTAPAPER_PASSWORD;
+});
+
+test('with a consumer key, an article goes in through the full API, tagged', async () => {
+  process.env.INSTAPAPER_USERNAME = 'jamie';
+  process.env.INSTAPAPER_PASSWORD = 'pw';
+  process.env.INSTAPAPER_CONSUMER_KEY = 'ck';
+  process.env.INSTAPAPER_CONSUMER_SECRET = 'cs';
+  const paths: string[] = [];
+  const bodies: string[] = [];
+  const fetcher = (async (url: string | URL | Request, init?: RequestInit) => {
+    paths.push(new URL(String(url)).pathname);
+    bodies.push(String(init?.body));
+    if (String(url).endsWith('/oauth/access_token')) return new Response('oauth_token=t&oauth_token_secret=s');
+    return Response.json([{ type: 'bookmark', bookmark_id: 1 }]);
+  }) as typeof fetch;
+  const r = await sendToInstapaper('https://e.test', 'Y Wladfa', '', fetcher, ['Argentina']);
+  assert.deepEqual(r, { ok: true, tagged: true });
+  assert.deepEqual(paths, ['/api/1/oauth/access_token', '/api/1/bookmarks/add']);
+  assert.equal(new URLSearchParams(bodies[1]).get('tags'), '[{"name":"Argentina"}]');
+  for (const k of ['INSTAPAPER_USERNAME', 'INSTAPAPER_PASSWORD', 'INSTAPAPER_CONSUMER_KEY', 'INSTAPAPER_CONSUMER_SECRET']) delete process.env[k];
 });

@@ -186,6 +186,21 @@ check "the same book twice on a place is one item" "23505" "
   insert into public.lx_items (workspace_id, place_id, kind, title)
     select '$LX', id, 'book', 'in patagonia' from public.lx_places where workspace_id = '$LX' and slug = 'gaiman';" "$as_rob"
 
+echo "── Instapaper ──"
+check "an editor turns Instapaper counting on" ok "
+  update public.lx_settings set instapaper_sync = true where workspace_id = '$LX';
+  do \$\$ begin assert (select instapaper_sync from public.lx_settings where workspace_id = '$LX'); end \$\$;" "$as_rob"
+check "an Instapaper entry is a source of its own" ok "
+  insert into public.lx_activities (workspace_id, occurred_on, type, title, minutes, source, source_ref)
+    values ('$LX', current_date, 'article', 'Read', 8, 'instapaper', '123');"
+check "nobody but the sync records what it has seen" "42501" "
+  insert into public.lx_instapaper_seen (workspace_id, bookmark_id, counted) values ('$LX', 1, true);" "$as_jamie"
+check "a viewer does not see what was read there" ok "
+  insert into public.lx_instapaper_seen (workspace_id, bookmark_id, counted) values ('$LX', 1, true);
+  update public.workspace_members set role = 'viewer' where workspace_id = '$LX' and user_id = '$ROB';
+  set local role authenticated; set local request.jwt.claims = '{\"sub\":\"$ROB\"}';
+  do \$\$ begin assert (select count(*) from public.lx_instapaper_seen) = 0; end \$\$;"
+
 echo
 echo "latam: $pass passed, $fail failed"
 [ $fail -eq 0 ]

@@ -32,6 +32,8 @@ if (!place) return new Response('Not found', { status: 404 });
 
 const here = `${base}/places/${place.slug}`;
 const settings = await loadSettings(supabase, workspace.id);
+// The project's focus as an Instapaper tag: "argentina" goes in as "Argentina".
+const instapaperTag = (settings?.focus_tag ?? 'argentina').replace(/-/g, ' ').replace(/^./, c => c.toUpperCase());
 const { data: regionRow } = place.region
   ? await supabase.from('lx_places').select('slug, name').eq('workspace_id', workspace.id).eq('slug', place.region).maybeSingle()
   : { data: null };
@@ -87,8 +89,10 @@ if (Astro.request.method === 'POST') {
         // An article kept is an article to read: it goes to Instapaper too,
         // when the owner has connected it.
         if (s.kind === 'article' && workspace.isOwner && instapaperConfigured()) {
-          const sent = await sendToInstapaper(s.url, s.title, s.why);
-          notice = sent.ok ? `Kept ${s.title} and sent it to Instapaper.` : `Kept ${s.title}. ${sent.message}`;
+          const sent = await sendToInstapaper(s.url, s.title, s.why, fetch, [instapaperTag]);
+          notice = sent.ok
+            ? `Kept ${s.title} and sent it to Instapaper${sent.tagged ? `, tagged ${instapaperTag}` : ''}.`
+            : `Kept ${s.title}. ${sent.message}`;
         }
       }
     } else if (!settings?.reading_workspace_id) {
@@ -136,8 +140,8 @@ if (Astro.request.method === 'POST') {
     if (!workspace.isOwner) error = 'Only the project owner can send to their Instapaper.';
     else if (!it) error = 'That item is no longer there.';
     else {
-      const sent = await sendToInstapaper(it.url, it.title, it.why);
-      if (sent.ok) notice = `Sent ${it.title} to Instapaper.`;
+      const sent = await sendToInstapaper(it.url, it.title, it.why, fetch, [instapaperTag]);
+      if (sent.ok) notice = `Sent ${it.title} to Instapaper${sent.tagged ? `, tagged ${instapaperTag}` : ''}.`;
       else error = sent.message;
     }
   } else if (intent === 'item-delete') {

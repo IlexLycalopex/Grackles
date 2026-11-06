@@ -22,6 +22,9 @@ const { data: theme } = await supabase
 if (!theme) return new Response('Not found', { status: 404 });
 const here = `${base}/themes/${theme.slug}`;
 
+const focusTag = (await loadSettings(supabase, workspace.id))?.focus_tag ?? 'argentina';
+const instapaperTag = focusTag.replace(/-/g, ' ').replace(/^./, c => c.toUpperCase());
+
 let error: string | null = null;
 let notice: string | null = null;
 
@@ -59,8 +62,8 @@ if (Astro.request.method === 'POST') {
     if (!workspace.isOwner) error = 'Only the project owner can send to their Instapaper.';
     else if (!it) error = 'That item is no longer there.';
     else {
-      const sent = await sendToInstapaper(it.url, it.title, it.why);
-      if (sent.ok) notice = `Sent ${it.title} to Instapaper.`;
+      const sent = await sendToInstapaper(it.url, it.title, it.why, fetch, [instapaperTag]);
+      if (sent.ok) notice = `Sent ${it.title} to Instapaper${sent.tagged ? `, tagged ${instapaperTag}` : ''}.`;
       else error = sent.message;
     }
   } else if (intent === 'item-delete') {
