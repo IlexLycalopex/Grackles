@@ -278,9 +278,15 @@ const WIKI_API = 'https://en.wikipedia.org/w/api.php';
 
 /**
  * The place's English Wikipedia article as plain text, for the model to work
- * from. Found by search rather than by title, because "Gaiman" the title is
- * Neil Gaiman. The page must mention Argentina, which is what stops a search
- * for Trevelin landing on a Cornish surname.
+ * from.
+ *
+ * The article titled after the place comes first: "Gaiman, Chubut", then
+ * "Buenos Aires". Only then a search, because a search for "Buenos Aires
+ * Ciudad de Buenos Aires Argentina" ranks the Obelisco above the city, and
+ * the first live dives on Buenos Aires were all about the monument. A bare
+ * title counts only when it lands on a page named for the place ("Gaiman"
+ * redirects to Neil Gaiman), and every page must mention Argentina and not
+ * be a disambiguation list.
  */
 export async function placeSource(
   name: string,
@@ -296,10 +302,37 @@ export async function placeSource(
     if (!res.ok) throw new Error(`Wikipedia answered ${res.status}`);
     return res.json();
   };
+  const wanted = normalise(name);
+  // Wikipedia returns a whole article's text for only one page per request,
+  // so each candidate is fetched alone.
+  const article = async (title: string, strict: boolean) => {
+    const page = (await get({
+      action: 'query',
+      prop: 'extracts|info',
+      inprop: 'url',
+      explaintext: '1',
+      redirects: '1',
+      titles: title,
+    })) as { query?: { pages?: { title: string; extract?: string; fullurl?: string; missing?: boolean }[] } };
+    const p = page.query?.pages?.[0];
+    if (!p?.extract || p.missing || !/argentin/i.test(p.extract)) return null;
+    if (/\bmay (also )?refer to\b/i.test(p.extract.slice(0, 400))) return null;
+    if (strict && !normalise(p.title).startsWith(wanted)) return null;
+    const body = p.extract
+      .split(/\n==+\s*(See also|References|External links|Notes|Further reading|Bibliography)\s*==+/)[0]!
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    return { title: p.title, url: p.fullurl ?? '', text: body.slice(0, maxChars) };
+  };
   try {
-    // Search first, then fetch one article: Wikipedia returns a whole
-    // article's text for only one page per request, so asking for three at
-    // once gave text for whichever it chose, not the best match.
+    const tried = new Set<string>();
+    const direct = [province && normalise(province) !== wanted ? `${name}, ${province}` : '', name].filter(Boolean);
+    for (const title of direct) {
+      tried.add(normalise(title));
+      const hit = await article(title, true);
+      if (hit) return hit;
+    }
+
     const found = (await get({
       action: 'query',
       list: 'search',
@@ -307,25 +340,23 @@ export async function placeSource(
       srlimit: '5',
       srprop: '',
     })) as { query?: { search?: { title: string }[] } };
-    const first = normalise(name).split(' ')[0] ?? '';
-    const titles = (found.query?.search ?? []).map(r => r.title).filter(t => normalise(t).includes(first));
-
+    // Titles that are the place before titles that only mention it: the
+    // city before its obelisk.
+    const plain = name.toLowerCase();
+    const rank = (t: string) => {
+      const raw = t.toLowerCase();
+      if (normalise(t) === wanted) return 0;
+      if (raw.startsWith(`${plain},`) || raw.startsWith(`${plain} (`)) return 1;
+      return normalise(t).startsWith(wanted) ? 2 : 3;
+    };
+    const first = wanted.split(' ')[0] ?? '';
+    const titles = (found.query?.search ?? [])
+      .map(r => r.title)
+      .filter(t => normalise(t).includes(first) && !tried.has(normalise(t)))
+      .sort((a, b) => rank(a) - rank(b));
     for (const title of titles.slice(0, 2)) {
-      const page = (await get({
-        action: 'query',
-        prop: 'extracts|info',
-        inprop: 'url',
-        explaintext: '1',
-        redirects: '1',
-        titles: title,
-      })) as { query?: { pages?: { title: string; extract?: string; fullurl?: string }[] } };
-      const p = page.query?.pages?.[0];
-      if (!p?.extract || !/argentin/i.test(p.extract)) continue;
-      const body = p.extract
-        .split(/\n==+\s*(See also|References|External links|Notes|Further reading|Bibliography)\s*==+/)[0]!
-        .replace(/\n{3,}/g, '\n\n')
-        .trim();
-      return { title: p.title, url: p.fullurl ?? '', text: body.slice(0, maxChars) };
+      const hit = await article(title, false);
+      if (hit) return hit;
     }
     console.warn('lx research: no Wikipedia article', { name, province, titles });
     return null;

@@ -131,25 +131,58 @@ test('a word with foreign script, a fragment, or a disowned one is dropped whole
   assert.deepEqual(r?.brief.words, [{ es: 'torta galesa', en: 'Welsh black cake' }]);
 });
 
-test('the source is the one article that mentions Argentina, fetched alone', async () => {
+// A tiny Wikipedia: titles resolve to pages (or are missing), and a search
+// answers in the order given.
+const wikipedia = (pages: Record<string, { title: string; extract: string }>, search: string[]) => {
   const asked: string[] = [];
   const fetcher = (async (url: string | URL | Request) => {
     const u = new URL(String(url));
-    asked.push(u.searchParams.get('list') ?? u.searchParams.get('titles') ?? '');
     if (u.searchParams.get('list') === 'search') {
-      return Response.json({ query: { search: [{ title: 'Neil Gaiman' }, { title: 'Gaiman, Chubut' }] } });
+      asked.push('search');
+      return Response.json({ query: { search: search.map(title => ({ title })) } });
     }
+    const t = u.searchParams.get('titles')!;
+    asked.push(t);
+    const p = pages[t];
     return Response.json({
-      query: { pages: [{ title: 'Gaiman, Chubut', fullurl: 'https://en.wikipedia.org/wiki/Gaiman,_Chubut',
-        extract: 'Gaiman is a town in Chubut, Argentina, founded by Welsh settlers.\n\n== References ==\nx' }] },
+      query: { pages: [p ? { ...p, fullurl: `https://en.wikipedia.org/wiki/${p.title.replace(/ /g, '_')}` } : { title: t, missing: true }] },
     });
   }) as typeof fetch;
+  return { fetcher, asked };
+};
+
+test('the article titled after the place comes first, before any search', async () => {
+  const city = { title: 'Buenos Aires', extract: 'Buenos Aires is the capital of Argentina.\n\n== References ==\nx' };
+  const obelisk = { title: 'Obelisco de Buenos Aires', extract: 'The Obelisco is a monument in Buenos Aires, Argentina.' };
+  const { fetcher, asked } = wikipedia({ 'Buenos Aires': city, 'Obelisco de Buenos Aires': obelisk }, ['Obelisco de Buenos Aires', 'Buenos Aires']);
   const { placeSource } = await import('./research.ts');
-  const src = await placeSource('Gaiman', 'Chubut', fetcher);
-  assert.equal(src?.title, 'Gaiman, Chubut');
-  assert.equal(src?.text, 'Gaiman is a town in Chubut, Argentina, founded by Welsh settlers.');
-  assert.equal(asked[0], 'search');
-  assert.ok(asked.length <= 3, 'at most two articles are fetched');
+  const src = await placeSource('Buenos Aires', 'Ciudad de Buenos Aires', fetcher);
+  assert.equal(src?.title, 'Buenos Aires');
+  assert.equal(src?.text, 'Buenos Aires is the capital of Argentina.');
+  assert.ok(!asked.includes('search'), 'no search was needed');
+});
+
+test('"Name, Province" is tried first; a bare title that redirects elsewhere is refused', async () => {
+  const town = { title: 'Gaiman, Chubut', extract: 'Gaiman is a town in Chubut, Argentina, founded by Welsh settlers.' };
+  const author = { title: 'Neil Gaiman', extract: 'Neil Gaiman is an English author. Argentina once.' };
+  const { placeSource } = await import('./research.ts');
+  const a = wikipedia({ 'Gaiman, Chubut': town, Gaiman: author }, []);
+  assert.equal((await placeSource('Gaiman', 'Chubut', a.fetcher))?.title, 'Gaiman, Chubut');
+  assert.deepEqual(a.asked, ['Gaiman, Chubut']);
+  const b = wikipedia({ Gaiman: author }, ['Neil Gaiman']);
+  assert.equal(await placeSource('Gaiman', 'Chubut', b.fetcher), null);
+});
+
+test('search results are ranked, the place before things in it, and lists are skipped', async () => {
+  const list = { title: 'Trevelin (disambiguation)', extract: 'Trevelin may refer to: a town in Argentina; a surname.' };
+  const town = { title: 'Trevelin', extract: 'Trevelin is a town in Chubut, Argentina.' };
+  const museum = { title: 'Trevelin Museum', extract: 'A museum in Trevelin, Argentina.' };
+  const { placeSource } = await import('./research.ts');
+  const { fetcher } = wikipedia(
+    { Trevelin: list, 'Trevelin Museum': museum, 'Trevelin (town)': town },
+    ['Trevelin Museum', 'Trevelin (town)']
+  );
+  assert.equal((await placeSource('Trevelin', 'Chubut', fetcher))?.title, 'Trevelin');
 });
 
 test('a redirect to a page about Argentina is kept; one to another subject is not', async () => {
