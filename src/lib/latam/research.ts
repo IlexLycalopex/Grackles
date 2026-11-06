@@ -189,6 +189,8 @@ interface WikiPage {
   title: string;
   description: string;
   url: string;
+  /** The page's summary mentions Argentina or Patagonia. */
+  aboutHere: boolean;
 }
 
 const WIKI = 'https://en.wikipedia.org/api/rest_v1/page/summary/';
@@ -216,7 +218,7 @@ async function wikiPage(title: string, fetcher: typeof fetch): Promise<WikiPage 
     const sameTitle = looselyEqual(bare(page.title ?? ''), bare(title));
     const aboutHere = /argentin|patagoni/i.test(`${page.description ?? ''} ${page.extract ?? ''}`);
     if (!sameTitle && !aboutHere) return null;
-    return { title: page.title ?? title, description: page.description ?? '', url: page.content_urls.desktop.page };
+    return { title: page.title ?? title, description: page.description ?? '', url: page.content_urls.desktop.page, aboutHere };
   } catch {
     return null;
   }
@@ -251,7 +253,10 @@ export async function verify(
       }
       const page = await wikiPage(p.wiki || p.title, fetcher);
       if (!page) return null;
-      if (p.kind === 'film' && !/\bfilm\b/i.test(page.description)) return null;
+      // A real film is not enough: the second Gaiman dive offered Waiting for
+      // the Sea, a real film about the Aral Sea, with an invented reason. A
+      // film must be one whose page connects it to Argentina.
+      if (p.kind === 'film' && (!/\bfilm\b/i.test(page.description) || !page.aboutHere)) return null;
       return { kind: p.kind, title: p.kind === 'film' ? p.title : page.title, creator: '', url: page.url, why: p.why };
     })
   );
@@ -351,7 +356,7 @@ export async function catalogueBooks(
   const params = new URLSearchParams({
     q: [name, context].filter(Boolean).join(' '),
     limit: '12',
-    fields: 'key,title,author_name,first_publish_year,subject',
+    fields: 'key,title,author_name,first_publish_year,subject,edition_count',
   });
   try {
     const res = await fetcher(`${OL_SEARCH}?${params}`, {
@@ -359,7 +364,11 @@ export async function catalogueBooks(
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return [];
-    const docs = ((await res.json()) as { docs?: Record<string, unknown>[] }).docs ?? [];
+    // More than one edition: a book somebody went on publishing, which a 1954
+    // report on a kaolin deposit (the first live result for Gaiman) is not.
+    const docs = (((await res.json()) as { docs?: Record<string, unknown>[] }).docs ?? []).filter(
+      d => Number(d.edition_count ?? 0) >= 2
+    );
     return docs
       .map(readDoc)
       .filter(e => e.title && e.author && !hasForeign(e.title))
