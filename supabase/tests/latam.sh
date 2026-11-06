@@ -201,6 +201,29 @@ check "a viewer does not see what was read there" ok "
   set local role authenticated; set local request.jwt.claims = '{\"sub\":\"$ROB\"}';
   do \$\$ begin assert (select count(*) from public.lx_instapaper_seen) = 0; end \$\$;"
 
+echo "── Lecturas ──"
+art="insert into public.lx_reader_articles (id, url, source, topic, title, words, cov5k, level)
+  values ('e1000000-0000-4000-8000-0000000000a1', 'https://e.test/a', 'Test', 'fishing', 'Truchas', 500, 0.84, 'B1')
+  on conflict do nothing;"
+$PSQL >/dev/null -c "$art"
+check "a signed-in reader sees the shared articles" ok "
+  do \$\$ begin assert (select count(*) from public.lx_reader_articles) >= 1; end \$\$;" "$as_rob"
+check "a stranger does not" "42501" "select count(*) from public.lx_reader_articles;" "$as_anon"
+check "nobody but the fetch writes articles" "42501" \
+  "insert into public.lx_reader_articles (url, source, topic, title) values ('https://e.test/b', 'X', 'travel', 'Y');" "$as_jamie"
+check "an editor marks an article about right" ok "
+  insert into public.lx_reader_marks (workspace_id, article_id, rating, created_by)
+    values ('$LX', 'e1000000-0000-4000-8000-0000000000a1', 'right', '$ROB')
+    on conflict (workspace_id, article_id) do update set rating = excluded.rating, updated_at = now();
+  do \$\$ begin assert (select rating from public.lx_reader_marks where article_id = 'e1000000-0000-4000-8000-0000000000a1') = 'right'; end \$\$;" "$as_rob"
+check "a LatAm editor adds a glossary" ok "
+  select public.lx_reader_enrich('e1000000-0000-4000-8000-0000000000a1', 'Trout.', '[{\"es\":\"trucha\",\"en\":\"trout\"}]', null);
+  do \$\$ begin assert (select jsonb_array_length(glossary) from public.lx_reader_articles where id = 'e1000000-0000-4000-8000-0000000000a1') = 1; end \$\$;" "$as_rob"
+check "someone with no LatAm project cannot" "GRK50" "
+  delete from public.workspace_members where user_id = '$ROB';
+  set local role authenticated; set local request.jwt.claims = '{\"sub\":\"$ROB\"}';
+  select public.lx_reader_enrich('e1000000-0000-4000-8000-0000000000a1', 'x', '[]', null);"
+
 echo
 echo "latam: $pass passed, $fail failed"
 [ $fail -eq 0 ]

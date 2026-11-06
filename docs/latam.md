@@ -108,6 +108,36 @@ Needs four function secrets: `INSTAPAPER_CONSUMER_KEY` and
 "Waiting for the Instapaper API key", shown on the setup page. A project
 opts in with `lx_settings.instapaper_sync`.
 
+## Lecturas
+
+`/latam/:workspace/lecturas`: Spanish articles from Argentine sources on the
+reader's subjects (travel, mountains, fly fishing, books, film and music,
+drink, food), graded for a learner.
+
+- **Sources** (`_shared/reader.ts`, each checked live on 6 Nov 2026): Clarín
+  (viajes, cultura, gourmet), La Nación (turismo, cultura), Infobae
+  (turismo, cultura), Río Negro (filtered to outdoor and culture headlines),
+  and Bing News searches for fly fishing, climbing and trekking, wine, beer,
+  whisky and books, whose links are unwrapped to the publisher's.
+- **Safe**: headlines about crime, death, disaster, politics, conflict,
+  economics, health and sport are dropped before anything is fetched.
+- **Grading** is measured, not asked of a model: share of words among the
+  1,000 / 2,000 / 5,000 commonest Spanish forms (FrequencyWords, CC BY-SA
+  4.0; names excluded) and INFLESZ readability. Bands are set against native
+  press (first run: 5k coverage 0.67 to 0.86): B1 at 0.82 and INFLESZ 50,
+  B2 at 0.76, C1 below; A2 needs 0.88 and INFLESZ 65.
+- **Fetch**: `latam-reader-fetch`, nightly 05:41 UTC, three new pieces per
+  feed taken round-robin up to 60. Only measurements, title and link are
+  kept, never the text. Unmarked articles older than 60 days are pruned.
+- **Glossary** (`latam.glossary`, one MiniMax call, on request): two lines
+  of English and up to ten words, each kept only if it appears in the
+  article.
+- **Calibration**: "About right" marks; after three, the median coverage of
+  those articles becomes the reader's comfort zone and articles within two
+  points of it are Suggested.
+- **Instapaper**: sent with the summary and glossary as the description and,
+  with the full API key, tagged Argentina, Spanish B1 (etc.) and the topic.
+
 ## Applying it
 
 1. `20261105150000_latam_app_slug`, then `20261105150100_latam_schema`.

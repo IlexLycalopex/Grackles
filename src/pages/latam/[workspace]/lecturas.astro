@@ -1,0 +1,245 @@
+---
+import LxLayout from '../../../layouts/LxLayout.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+import { describeWriteError } from '../../../lib/records/save';
+import { loadSettings } from '../../../lib/latam/latam';
+import { makeGlossary, type Gloss } from '../../../lib/latam/glossary';
+import { instapaperConfigured, sendToInstapaper } from '../../../lib/latam/instapaper';
+import { readingMinutes, TOPIC_LABELS, TOPICS, type Topic } from '../../../../supabase/functions/_shared/reader.ts';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'latam', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+const base = `/latam/${workspace.slug}`;
+const here = `${base}/lecturas${Astro.url.search}`;
+
+const LEVELS = ['A2', 'B1', 'B2', 'C1'] as const;
+const RATINGS = [
+  { value: 'easy', label: 'Too easy' },
+  { value: 'right', label: 'About right' },
+  { value: 'hard', label: 'Too hard' },
+] as const;
+
+const settings = await loadSettings(supabase, workspace.id);
+const focusTag = (settings?.focus_tag ?? 'argentina').replace(/-/g, ' ').replace(/^./, c => c.toUpperCase());
+
+let error: string | null = null;
+let notice: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  if (!workspace.canWrite) return new Response('Forbidden', { status: 403 });
+  const form = await Astro.request.formData();
+  const intent = String(form.get('intent') ?? '');
+  const id = String(form.get('id') ?? '');
+  const { data: article } = await supabase.from('lx_reader_articles').select('*').eq('id', id).maybeSingle();
+
+  if (!article) error = 'That article is no longer here.';
+  else if (intent === 'glossary') {
+    const r = await makeGlossary(supabase, workspace.id, article);
+    if (r.ok) notice = `Glossary ready for "${article.title}": ${r.words} words.`;
+    else error = r.error;
+  } else if (intent === 'rate') {
+    const rating = String(form.get('rating') ?? '');
+    const { error: e } = await supabase.from('lx_reader_marks').upsert(
+      { workspace_id: workspace.id, article_id: article.id, rating, created_by: user.id, updated_at: new Date().toISOString() },
+      { onConflict: 'workspace_id,article_id' }
+    );
+    if (e) error = describeWriteError(e, 'lx_reader_marks rate');
+  } else if (intent === 'instapaper') {
+    if (!workspace.isOwner) error = 'Only the project owner can send to their Instapaper.';
+    else {
+      const glossary = (Array.isArray(article.glossary) ? article.glossary : []) as unknown as Gloss[];
+      const note = [article.summary_en, glossary.map(g => `${g.es}: ${g.en}`).join('; ')].filter(Boolean).join(' · ');
+      const tags = [focusTag, `Spanish ${article.level}`, TOPIC_LABELS[article.topic as Topic] ?? article.topic];
+      const sent = await sendToInstapaper(article.url, article.title, note, fetch, tags);
+      if (!sent.ok) error = sent.message;
+      else {
+        await supabase.from('lx_reader_marks').upsert(
+          { workspace_id: workspace.id, article_id: article.id, sent_at: new Date().toISOString(), created_by: user.id, updated_at: new Date().toISOString() },
+          { onConflict: 'workspace_id,article_id' }
+        );
+        notice = `Sent to Instapaper${sent.tagged ? `, tagged ${tags.join(', ')}` : ''}.`;
+      }
+    }
+  }
+}
+
+const params = Astro.url.searchParams;
+const topic = TOPICS.includes(params.get('topic') as Topic) ? (params.get('topic') as Topic) : null;
+const levels = params.getAll('level').filter(l => (LEVELS as readonly string[]).includes(l));
+const shownLevels = levels.length ? levels : ['B1', 'B2'];
+
+let query = supabase
+  .from('lx_reader_articles')
+  .select('id, url, source, topic, title, published_at, fetched_at, words, cov5k, inflesz, level, summary_en, glossary')
+  .not('level', 'is', null)
+  .in('level', shownLevels)
+  .order('fetched_at', { ascending: false })
+  .limit(80);
+if (topic) query = query.eq('topic', topic);
+
+const [{ data: articles }, { data: marks }] = await Promise.all([
+  query,
+  supabase.from('lx_reader_marks').select('article_id, rating, sent_at').eq('workspace_id', workspace.id),
+]);
+const markOf = new Map((marks ?? []).map(m => [m.article_id, m]));
+
+// Where "about right" sits for this reader: the median five-thousand-word
+// coverage of the articles they said were about right. Three marks before it
+// means anything; until then the levels are the only guide.
+const { data: rightOnes } = await supabase
+  .from('lx_reader_articles')
+  .select('cov5k')
+  .in('id', (marks ?? []).filter(m => m.rating === 'right').map(m => m.article_id));
+const rights = (rightOnes ?? []).map(r => Number(r.cov5k)).filter(Number.isFinite).sort((a, b) => a - b);
+const comfort = rights.length >= 3 ? rights[Math.floor(rights.length / 2)]! : null;
+const suggested = (cov: number | null) => comfort !== null && cov !== null && Math.abs(Number(cov) - comfort) <= 0.02;
+
+const list = (articles ?? []).sort((a, b) => Number(suggested(b.cov5k)) - Number(suggested(a.cov5k)));
+const canInstapaper = workspace.isOwner && instapaperConfigured();
+const pct = (n: number | null) => (n === null ? '' : `${Math.round(Number(n) * 100)}%`);
+const link = (t: Topic | null, ls: string[]) => {
+  const q = new URLSearchParams();
+  if (t) q.set('topic', t);
+  for (const l of ls) q.append('level', l);
+  const s = q.toString();
+  return `${base}/lecturas${s ? `?${s}` : ''}`;
+};
+const toggle = (l: string) => (shownLevels.includes(l) ? shownLevels.filter(x => x !== l) : [...shownLevels, l]);
+---
+
+<LxLayout title={`Lecturas · ${workspace.name}`} workspace={workspace}>
+  <header class="lx-head">
+    <div>
+      <p class="lx-kicker"><a href={base}>{workspace.name}</a></p>
+      <h1>Lecturas</h1>
+      <p class="lx-lede">
+        Articles from Argentine papers on your subjects, graded by how much of their vocabulary is common Spanish. Levels
+        are relative to native journalism, not to a textbook.
+      </p>
+      {
+        comfort !== null ? (
+          <p class="lx-hint">
+            Your comfort zone: articles where about {pct(comfort)} of the words are among the 5,000 commonest. Those are
+            marked Suggested.
+          </p>
+        ) : (
+          <p class="lx-hint">Mark three articles "About right" and the list will start suggesting ones at your level.</p>
+        )
+      }
+    </div>
+  </header>
+
+  {error && <p class="lx-error" role="alert">{error}</p>}
+  {notice && <p class="lx-notice" role="status">{notice}</p>}
+
+  <nav class="lx-filters" aria-label="Topic">
+    <a class={`lx-chip${!topic ? ' lx-chip--on' : ''}`} href={link(null, levels)}>All topics</a>
+    {TOPICS.map(t => <a class={`lx-chip${topic === t ? ' lx-chip--on' : ''}`} href={link(t, levels)}>{TOPIC_LABELS[t]}</a>)}
+  </nav>
+  <nav class="lx-filters" aria-label="Level">
+    {LEVELS.map(l => (
+      <a class={`lx-chip${shownLevels.includes(l) ? ' lx-chip--on' : ''}`} href={link(topic, toggle(l))}>{l}</a>
+    ))}
+  </nav>
+
+  {
+    list.length === 0 ? (
+      <p class="lx-empty">Nothing here at these levels yet. New articles arrive each morning.</p>
+    ) : (
+      <ul class="lx-list">
+        {list.map(a => {
+          const m = markOf.get(a.id);
+          const glossary = (Array.isArray(a.glossary) ? a.glossary : []) as unknown as Gloss[];
+          return (
+            <li class="lx-row">
+              <div>
+                <div class="lx-row__title">
+                  <a href={a.url} target="_blank" rel="noopener" lang="es">{a.title}</a>
+                </div>
+                <div class="lx-row__meta">
+                  <span class="lx-status">{a.level}</span>
+                  {suggested(a.cov5k) && <span class="lx-place__status lx-place__status--learning">Suggested</span>}
+                  <span>{TOPIC_LABELS[a.topic as Topic] ?? a.topic}</span>
+                  <span>{a.source}</span>
+                  <span>about {readingMinutes(a.words)} min</span>
+                  <span>{pct(a.cov5k)} common words</span>
+                  {m?.rating && <span>you said: {RATINGS.find(r => r.value === m.rating)?.label.toLowerCase()}</span>}
+                  {m?.sent_at && <span>in Instapaper</span>}
+                </div>
+                {(a.summary_en || glossary.length > 0) && (
+                  <details>
+                    <summary>Summary and glossary</summary>
+                    {a.summary_en && <p class="lx-hint">{a.summary_en}</p>}
+                    {glossary.length > 0 && (
+                      <dl class="lx-words">
+                        {glossary.map(g => (
+                          <>
+                            <dt lang="es">{g.es}</dt>
+                            <dd>{g.en}</dd>
+                          </>
+                        ))}
+                      </dl>
+                    )}
+                  </details>
+                )}
+              </div>
+              {workspace.canWrite && (
+                <div class="lx-actions">
+                  {!a.summary_en && glossary.length === 0 && (
+                    <form method="post" action={here} data-busy>
+                      <input type="hidden" name="intent" value="glossary" />
+                      <input type="hidden" name="id" value={a.id} />
+                      <button class="lx-button lx-button--quiet" type="submit">Glossary</button>
+                    </form>
+                  )}
+                  {canInstapaper && !m?.sent_at && (
+                    <form method="post" action={here}>
+                      <input type="hidden" name="intent" value="instapaper" />
+                      <input type="hidden" name="id" value={a.id} />
+                      <button class="lx-button lx-button--quiet" type="submit">Instapaper</button>
+                    </form>
+                  )}
+                  {RATINGS.map(r => (
+                    <form method="post" action={here}>
+                      <input type="hidden" name="intent" value="rate" />
+                      <input type="hidden" name="id" value={a.id} />
+                      <input type="hidden" name="rating" value={r.value} />
+                      <button
+                        class={`lx-button lx-button--quiet${m?.rating === r.value ? ' lx-chip--on' : ''}`}
+                        type="submit"
+                        aria-pressed={m?.rating === r.value}
+                      >
+                        {r.label}
+                      </button>
+                    </form>
+                  ))}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    )
+  }
+
+  <p class="lx-hint">
+    Sources: Clarín, La Nación, Infobae and Río Negro, and Bing News searches for fishing, climbing and drink. Headlines
+    about crime, politics, disasters and the like are left out. Word frequencies from FrequencyWords (CC BY-SA 4.0).
+  </p>
+
+  <script>
+    document.querySelectorAll<HTMLFormElement>('form[data-busy]').forEach(f =>
+      f.addEventListener('submit', () => {
+        const b = f.querySelector('button');
+        if (b) {
+          b.disabled = true;
+          b.textContent = 'Reading the article…';
+        }
+      })
+    );
+  </script>
+</LxLayout>
