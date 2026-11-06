@@ -154,6 +154,7 @@ export type Database = {
           jpod_workspace_id: string | null;
           focus_tag: string;
           duolingo_username: string | null;
+          instapaper_sync: boolean;
           updated_at: string;
         };
         Insert: {
@@ -162,12 +163,14 @@ export type Database = {
           jpod_workspace_id?: string | null;
           focus_tag?: string;
           duolingo_username?: string | null;
+          instapaper_sync?: boolean;
         };
         Update: {
           reading_workspace_id?: string | null;
           jpod_workspace_id?: string | null;
           focus_tag?: string;
           duolingo_username?: string | null;
+          instapaper_sync?: boolean;
         };
         Relationships: [];
       };
