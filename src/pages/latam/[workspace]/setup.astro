@@ -169,7 +169,10 @@ const when = (iso: string | null) =>
     <h2 id="instapaper-h">Instapaper</h2>
     {
       instapaperConfigured() ? (
-        <p class="lx-notice">Connected. Articles you keep from a deep dive go to Instapaper, and listed articles have an Instapaper button.</p>
+        <p class="lx-notice">
+          Connected. Articles you keep from a deep dive go to Instapaper, and listed articles have an Instapaper button.
+          With the full API key (below) they go in tagged with the project's focus, such as Argentina.
+        </p>
       ) : (
         <p class="lx-hint">
           Not connected. Add <code>INSTAPAPER_USERNAME</code> and <code>INSTAPAPER_PASSWORD</code> to the site's
@@ -182,7 +185,7 @@ const when = (iso: string | null) =>
       Each night, articles you have read to nine tenths in Instapaper are counted here if they are in Spanish or about
       Argentina; everything else is ignored. Minutes are estimated from length: 200 words a minute, 120 for Spanish.
       This needs Instapaper's full API: its consumer key and secret, and the account login, as the Supabase function
-      secrets <code>INSTAPAPER_CONSUMER_KEY</code>, <code>INSTAPAPER_CONSUMER_SECRET</code>,
+      secrets (add the key and secret to Vercel too, so sent articles are tagged) <code>INSTAPAPER_CONSUMER_KEY</code>, <code>INSTAPAPER_CONSUMER_SECRET</code>,
       <code>INSTAPAPER_USERNAME</code> and <code>INSTAPAPER_PASSWORD</code>.
     </p>
     <form method="post" class="lx-form">

@@ -84,7 +84,10 @@ rejected. Proposals no catalogue found are listed on the page.
 
 With `INSTAPAPER_USERNAME` and `INSTAPAPER_PASSWORD` set on the Vercel
 project, an article kept from a deep dive is also saved to Instapaper (Simple
-API), and listed articles get an Instapaper button. Owner only.
+API), and listed articles get an Instapaper button. Owner only. With
+`INSTAPAPER_CONSUMER_KEY` and `INSTAPAPER_CONSUMER_SECRET` also on Vercel, the
+full API is used instead and the article is tagged with the focus
+("Argentina"); if that call fails the Simple API still saves it, untagged.
 
 ### Reading it back
 
