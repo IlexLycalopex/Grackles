@@ -5,10 +5,13 @@ import { describeAiError } from '../ai/features';
 import {
   buildResearchTurn,
   forbiddenFields,
+  hasForeign,
+  placeSource,
   readResearch,
   RESEARCH_SYSTEM,
   verify,
   type Brief,
+  type Rejected,
   type Suggestion,
 } from './research';
 
@@ -67,7 +70,9 @@ export interface ResearchView {
   created_at: string;
   brief: Brief;
   suggestions: Suggestion[];
+  rejected: Rejected[];
   dropped: number;
+  source_url: string;
 }
 
 export const asResearch = (r: ResearchRow): ResearchView => ({
@@ -75,7 +80,9 @@ export const asResearch = (r: ResearchRow): ResearchView => ({
   created_at: r.created_at,
   brief: r.brief as unknown as Brief,
   suggestions: (Array.isArray(r.suggestions) ? r.suggestions : []) as unknown as Suggestion[],
+  rejected: (Array.isArray(r.rejected) ? r.rejected : []) as unknown as Rejected[],
   dropped: r.dropped,
+  source_url: r.source_url,
 });
 
 /**
@@ -88,6 +95,11 @@ export async function runResearch(
   place: Place,
   regionName: string
 ): Promise<{ ok: true; id: string; kept: number; dropped: number } | { ok: false; error: string }> {
+  // The facts come from Wikipedia, fetched by the app; the model is asked to
+  // write from them rather than from memory. Without a source it still runs,
+  // and the page says the briefing had none.
+  const source = await placeSource(place.name, place.province);
+
   const outcome = await withJob(
     {
       supabase: db,
@@ -103,17 +115,22 @@ export async function runResearch(
           { role: 'system', content: RESEARCH_SYSTEM },
           {
             role: 'user',
-            content: buildResearchTurn({ name: place.name, kind: place.kind, province: place.province, regionName }),
+            content: buildResearchTurn(
+              { name: place.name, kind: place.kind, province: place.province, regionName },
+              source?.text ?? ''
+            ),
           },
         ],
         systemPrompt: RESEARCH_SYSTEM,
-        temperature: 0.4,
+        // Recall from a source, not invention.
+        temperature: 0.2,
         validate: content => {
           if (!readResearch(content)) return { status: 'fail', findings: [{ rule: 'unreadable' }] };
-          const smuggled = forbiddenFields(content);
-          return smuggled.length
-            ? { status: 'warn', findings: smuggled.map(f => ({ rule: 'forbidden-field', detail: f })) }
-            : { status: 'pass' };
+          const findings = [
+            ...forbiddenFields(content).map(f => ({ rule: 'forbidden-field', detail: f })),
+            ...(hasForeign(content) ? [{ rule: 'foreign-script', detail: 'non-Latin characters removed' }] : []),
+          ];
+          return findings.length ? { status: 'warn', findings } : { status: 'pass' };
         },
       });
       if (!turn.ok) return { ok: false as const, error: turn.error };
@@ -127,7 +144,7 @@ export async function runResearch(
   if (!outcome.value.ok) return { ok: false, error: outcome.value.error };
 
   const { read, callId } = outcome.value;
-  const { kept, dropped } = await verify(read.proposals);
+  const { kept, dropped, rejected } = await verify(read.proposals);
 
   const { data, error } = await db
     .from('lx_research')
@@ -137,6 +154,8 @@ export async function runResearch(
       created_by: userId,
       brief: read.brief as never,
       suggestions: kept as never,
+      rejected: rejected as never,
+      source_url: source?.url ?? '',
       dropped,
       ai_call_id: callId,
     })

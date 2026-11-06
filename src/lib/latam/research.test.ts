@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildResearchTurn, forbiddenFields, readResearch, verify, type Proposal } from './research.ts';
+import { buildResearchTurn, clean, forbiddenFields, hasForeign, readResearch, verify, type Proposal } from './research.ts';
 import type { Edition } from '../ai/openlibrary.ts';
 
 const answer = (o: Record<string, unknown>) => JSON.stringify(o);
@@ -70,6 +70,7 @@ test('only what a catalogue vouches for is kept', async () => {
     wiki({
       'Zama (film)': { description: '2017 film by Lucrecia Martel' },
       Gaiman: { description: 'Town in Chubut' },
+      'Neil Gaiman': { description: 'English author' },
       'Y Wladfa': { description: 'Welsh settlement in Argentina' },
       Mercury: { type: 'disambiguation' },
     }),
@@ -78,4 +79,54 @@ test('only what a catalogue vouches for is kept', async () => {
   assert.deepEqual(kept.map(k => `${k.kind}:${k.title}`), ['book:In Patagonia', 'film:Zama', 'article:Y Wladfa']);
   assert.equal(kept[0]!.url, 'https://openlibrary.org/works/X');
   assert.equal(dropped, 3);
+});
+
+test('a page Wikipedia redirected to another subject is not the one asked for', async () => {
+  const redirecting = (async () =>
+    Response.json({
+      type: 'standard', title: 'Neil Gaiman', description: 'English author',
+      content_urls: { desktop: { page: 'https://en.wikipedia.org/wiki/Neil_Gaiman' } },
+    })) as unknown as typeof fetch;
+  const { kept, rejected } = await verify(
+    [{ kind: 'article', title: 'Gaiman', wiki: 'Gaiman', creator: '', why: 'the town' }],
+    redirecting
+  );
+  assert.equal(kept.length, 0);
+  assert.deepEqual(rejected, [{ kind: 'article', title: 'Gaiman', creator: '' }]);
+});
+
+test('a book filed under a shorter name is still found by its surname', async () => {
+  const calls: string[] = [];
+  const findBook = async (title: string, author: string) => {
+    calls.push(author);
+    return author
+      ? { ok: true as const, candidates: [] }
+      : { ok: true as const, candidates: [edition('Uttermost Part of the Earth', 'Lucas Bridges')] };
+  };
+  const { kept } = await verify(
+    [{ kind: 'book', title: 'Uttermost Part of the Earth', creator: 'E. Lucas Bridges', wiki: '', why: '' }],
+    fetch,
+    findBook
+  );
+  assert.equal(kept.length, 1);
+  assert.deepEqual(calls, ['E. Lucas Bridges', '']);
+});
+
+test('another script is noticed and removed', () => {
+  assert.ok(hasForeign('el背后的 Welsh heritage'));
+  assert.ok(hasForeign('ČhepecČke'));
+  assert.ok(!hasForeign('Ñandú, café, pingüino — 1865'));
+  assert.equal(clean('the背后的 town , here'), 'the town, here');
+});
+
+test('a word with foreign script, a fragment, or a disowned one is dropped whole', () => {
+  const r = readResearch(answer({
+    overview: 'x',
+    words: [
+      { es: 'el背后的 Welsh heritage', en: 'not a natural Spanish phrase' },
+      { es: 'la torta de', en: 'Welsh cake' },
+      { es: 'torta galesa', en: 'Welsh black cake' },
+    ],
+  }));
+  assert.deepEqual(r?.brief.words, [{ es: 'torta galesa', en: 'Welsh black cake' }]);
 });
