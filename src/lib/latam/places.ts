@@ -5,6 +5,7 @@ import { describeAiError } from '../ai/features';
 import {
   buildResearchTurn,
   forbiddenFields,
+  catalogueBooks,
   hasForeign,
   placeSource,
   readResearch,
@@ -144,7 +145,15 @@ export async function runResearch(
   if (!outcome.value.ok) return { ok: false, error: outcome.value.error };
 
   const { read, callId } = outcome.value;
-  const { kept, dropped, rejected } = await verify(read.proposals);
+  const [{ kept: checked, dropped, rejected }, catalogue] = await Promise.all([
+    verify(read.proposals),
+    catalogueBooks(place.name, place.province || regionName || 'Argentina'),
+  ]);
+  // The catalogue's own finds after the model's checked ones, without repeats.
+  const kept = [
+    ...checked,
+    ...catalogue.filter(c => !checked.some(k => k.kind === 'book' && k.title.toLowerCase() === c.title.toLowerCase())),
+  ];
 
   const { data, error } = await db
     .from('lx_research')

@@ -15,7 +15,7 @@
  */
 
 import { parseJsonObject } from '../json.ts';
-import { lookupBook, type Edition } from '../ai/openlibrary.ts';
+import { lookupBook, readDoc, type Edition } from '../ai/openlibrary.ts';
 import { looselyEqual, normalise } from '../title-match.ts';
 
 export interface PlaceForResearch {
@@ -205,12 +205,17 @@ async function wikiPage(title: string, fetcher: typeof fetch): Promise<WikiPage 
       type?: string;
       title?: string;
       description?: string;
+      extract?: string;
       content_urls?: { desktop?: { page?: string } };
     };
     if (page.type !== 'standard' || !page.content_urls?.desktop?.page) return null;
-    // Wikipedia follows redirects, and "Gaiman" redirects to Neil Gaiman. A page
-    // whose title is not the one asked for is a different subject.
-    if (!looselyEqual(bare(page.title ?? ''), bare(title))) return null;
+    // Wikipedia follows redirects. "Welsh immigration to Argentina" landing on
+    // "Welsh settlement in Argentina" is the same subject; "Gaiman" landing on
+    // Neil Gaiman is not. A page reached under another title is kept only if
+    // it is plainly about Argentina.
+    const sameTitle = looselyEqual(bare(page.title ?? ''), bare(title));
+    const aboutHere = /argentin|patagoni/i.test(`${page.description ?? ''} ${page.extract ?? ''}`);
+    if (!sameTitle && !aboutHere) return null;
     return { title: page.title ?? title, description: page.description ?? '', url: page.content_urls.desktop.page };
   } catch {
     return null;
@@ -278,40 +283,96 @@ export async function placeSource(
   fetcher: typeof fetch = fetch,
   maxChars = 7000
 ): Promise<{ title: string; url: string; text: string } | null> {
-  const params = new URLSearchParams({
-    action: 'query',
-    format: 'json',
-    formatversion: '2',
-    generator: 'search',
-    gsrsearch: [name, province, 'Argentina'].filter(Boolean).join(' '),
-    gsrlimit: '3',
-    prop: 'extracts|info',
-    inprop: 'url',
-    explaintext: '1',
-    exlimit: '3',
-    redirects: '1',
-  });
-  try {
-    const res = await fetcher(`${WIKI_API}?${params}`, {
+  const get = async (params: Record<string, string>) => {
+    const res = await fetcher(`${WIKI_API}?${new URLSearchParams({ format: 'json', formatversion: '2', ...params })}`, {
       headers: { Accept: 'application/json', 'User-Agent': 'Grackles/1.0 (https://grackles.co.uk)' },
       signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) return null;
-    const json = (await res.json()) as {
-      query?: { pages?: { title: string; index?: number; extract?: string; fullurl?: string }[] };
-    };
-    const pages = (json.query?.pages ?? []).sort((a, b) => (a.index ?? 99) - (b.index ?? 99));
+    if (!res.ok) throw new Error(`Wikipedia answered ${res.status}`);
+    return res.json();
+  };
+  try {
+    // Search first, then fetch one article: Wikipedia returns a whole
+    // article's text for only one page per request, so asking for three at
+    // once gave text for whichever it chose, not the best match.
+    const found = (await get({
+      action: 'query',
+      list: 'search',
+      srsearch: [name, province, 'Argentina'].filter(Boolean).join(' '),
+      srlimit: '5',
+      srprop: '',
+    })) as { query?: { search?: { title: string }[] } };
     const first = normalise(name).split(' ')[0] ?? '';
-    const page = pages.find(
-      p => p.extract && /argentin/i.test(p.extract) && normalise(p.title).includes(first) && !hasForeign(p.title)
-    );
-    if (!page?.extract) return null;
-    const body = page.extract
-      .split(/\n==+\s*(See also|References|External links|Notes|Further reading|Bibliography)\s*==+/)[0]!
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-    return { title: page.title, url: page.fullurl ?? '', text: body.slice(0, maxChars) };
-  } catch {
+    const titles = (found.query?.search ?? []).map(r => r.title).filter(t => normalise(t).includes(first));
+
+    for (const title of titles.slice(0, 2)) {
+      const page = (await get({
+        action: 'query',
+        prop: 'extracts|info',
+        inprop: 'url',
+        explaintext: '1',
+        redirects: '1',
+        titles: title,
+      })) as { query?: { pages?: { title: string; extract?: string; fullurl?: string }[] } };
+      const p = page.query?.pages?.[0];
+      if (!p?.extract || !/argentin/i.test(p.extract)) continue;
+      const body = p.extract
+        .split(/\n==+\s*(See also|References|External links|Notes|Further reading|Bibliography)\s*==+/)[0]!
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+      return { title: p.title, url: p.fullurl ?? '', text: body.slice(0, maxChars) };
+    }
+    console.warn('lx research: no Wikipedia article', { name, province, titles });
     return null;
+  } catch (e) {
+    console.warn('lx research: Wikipedia failed', { name, error: String(e).slice(0, 200) });
+    return null;
+  }
+}
+
+const OL_SEARCH = 'https://openlibrary.org/search.json';
+
+/**
+ * Books the catalogue itself files under the place, found without the model.
+ *
+ * The model's book suggestions are mostly titles it half-remembers, and for a
+ * small town most of them are not real. OpenLibrary searched for the place
+ * does better: whatever it returns exists. A result is kept only if the place's
+ * name is in its title or subject headings.
+ */
+export async function catalogueBooks(
+  name: string,
+  context: string,
+  fetcher: typeof fetch = fetch,
+  limit = 4
+): Promise<Suggestion[]> {
+  const first = normalise(name).split(' ')[0] ?? '';
+  if (!first) return [];
+  const params = new URLSearchParams({
+    q: [name, context].filter(Boolean).join(' '),
+    limit: '12',
+    fields: 'key,title,author_name,first_publish_year,subject',
+  });
+  try {
+    const res = await fetcher(`${OL_SEARCH}?${params}`, {
+      headers: { Accept: 'application/json', 'User-Agent': 'Grackles/0.1 (https://grackles.co.uk)' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const docs = ((await res.json()) as { docs?: Record<string, unknown>[] }).docs ?? [];
+    return docs
+      .map(readDoc)
+      .filter(e => e.title && e.author && !hasForeign(e.title))
+      .filter(e => [e.title, ...e.subjects].some(t => normalise(t).split(' ').includes(first)))
+      .slice(0, limit)
+      .map(e => ({
+        kind: 'book' as const,
+        title: e.title,
+        creator: e.author,
+        url: e.link_openlibrary,
+        why: `Filed under ${name} in OpenLibrary${e.year_published ? `; first published ${e.year_published}` : ''}.`,
+      }));
+  } catch {
+    return [];
   }
 }
