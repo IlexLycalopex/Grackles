@@ -68,7 +68,7 @@ test('only what a catalogue vouches for is kept', async () => {
   const { kept, dropped } = await verify(
     proposals,
     wiki({
-      'Zama (film)': { description: '2017 film by Lucrecia Martel' },
+      'Zama (film)': { description: '2017 Argentine film by Lucrecia Martel' },
       Gaiman: { description: 'Town in Chubut' },
       'Neil Gaiman': { description: 'English author' },
       'Y Wladfa': { description: 'Welsh settlement in Argentina' },
@@ -175,11 +175,22 @@ test('catalogue books are kept only when filed under the place', async () => {
   const fetcher = (async () =>
     Response.json({
       docs: [
-        { key: '/works/A', title: 'Gaiman: a Welsh town', author_name: ['A. Author'], subject: [] },
-        { key: '/works/B', title: 'Patagonia', author_name: ['B. Author'], subject: ['Gaiman (Chubut)'] },
-        { key: '/works/C', title: 'Sandman', author_name: ['Neil Gaiman'], subject: ['Comics'] },
+        { key: '/works/A', title: 'Gaiman: a Welsh town', author_name: ['A. Author'], subject: [], edition_count: 3 },
+        { key: '/works/B', title: 'Patagonia', author_name: ['B. Author'], subject: ['Gaiman (Chubut)'], edition_count: 2 },
+        { key: '/works/C', title: 'Sandman', author_name: ['Neil Gaiman'], subject: ['Comics'], edition_count: 40 },
+        { key: '/works/D', title: 'El yacimiento de Gaiman', author_name: ['D. Author'], subject: [], edition_count: 1 },
       ],
     })) as unknown as typeof fetch;
   const books = await catalogueBooks('Gaiman', 'Chubut', fetcher);
   assert.deepEqual(books.map(b => b.title), ['Gaiman: a Welsh town', 'Patagonia']);
+});
+
+test('a real film about somewhere else is not suggested', async () => {
+  const fetcher = (async () =>
+    Response.json({
+      type: 'standard', title: 'Waiting for the Sea', description: '2012 film about the Aral Sea',
+      content_urls: { desktop: { page: 'https://en.wikipedia.org/wiki/Waiting_for_the_Sea' } },
+    })) as unknown as typeof fetch;
+  const { kept } = await verify([{ kind: 'film', title: 'Waiting for the Sea', wiki: 'Waiting for the Sea', creator: '', why: '' }], fetcher);
+  assert.equal(kept.length, 0);
 });
