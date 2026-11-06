@@ -210,3 +210,7 @@ a:hover { color: var(--accent); text-decoration-color: var(--accent); }
 .jp-field input, .jp-field select, .jp-field textarea { background: var(--panel); border-radius: 2px; }
 
 .jp-sync__dot { border-radius: 0; width: 8px; height: 8px; }
+
+/* Two lists side by side (Recently, Most listened): a wide gutter so the
+   rules under each heading read as two columns, not one. */
+.jp-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 40px 64px; align-items: start; }
