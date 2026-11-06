@@ -1,9 +1,10 @@
 ---
 import LxLayout from '../../../layouts/LxLayout.astro';
+import Word from '../../../components/latam/Word.astro';
 import { resolveWorkspace } from '../../../lib/workspace';
 import { describeDeleteError, describeWriteError, NOTHING_DELETED } from '../../../lib/records/save';
 import { loadSettings } from '../../../lib/latam/latam';
-import { makeGlossary, type Gloss } from '../../../lib/latam/glossary';
+import { makeGlossary, recheckGlossary, type Gloss } from '../../../lib/latam/glossary';
 import { instapaperConfigured, sendToInstapaper } from '../../../lib/latam/instapaper';
 import { isFetchable } from '../../../lib/latam/page';
 import { parseFeed, readingMinutes, TOPIC_LABELS, TOPICS, type Topic } from '../../../../supabase/functions/_shared/reader.ts';
@@ -94,7 +95,15 @@ if (Astro.request.method === 'POST') {
     if (!article) error = 'That article is no longer here.';
     else if (intent === 'glossary') {
       const r = await makeGlossary(supabase, workspace.id, article);
-      if (r.ok) notice = `Glossary ready for "${article.title}": ${r.words} words.`;
+      if (r.ok)
+        notice = `Glossary ready for "${article.title}": ${r.words} words.${
+          r.dropped.length ? ` Not in the dictionary, so left out: ${r.dropped.join(', ')}.` : ''
+        }`;
+      else error = r.error;
+    } else if (intent === 'check-words') {
+      const r = await recheckGlossary(supabase, article);
+      if (r.ok)
+        notice = `Checked against Wiktionary: ${r.words} kept.${r.dropped.length ? ` Not in the dictionary, so left out: ${r.dropped.join(', ')}.` : ''}`;
       else error = r.error;
     } else if (intent === 'rate') {
       const { error: e } = await supabase.from('lx_reader_marks').upsert(
@@ -106,7 +115,7 @@ if (Astro.request.method === 'POST') {
       if (!workspace.isOwner) error = 'Only the project owner can send to their Instapaper.';
       else {
         const glossary = (Array.isArray(article.glossary) ? article.glossary : []) as unknown as Gloss[];
-        const note = [article.summary_en, glossary.map(g => `${g.es}: ${g.en}`).join('; ')].filter(Boolean).join(' · ');
+        const note = [article.summary_en, glossary.map(g => `${g.es}: ${g.checked && g.dict ? g.dict : g.en}`).join('; ')].filter(Boolean).join(' · ');
         const tags = [focusTag, `Spanish ${article.level}`, TOPIC_LABELS[article.topic as Topic] ?? article.topic];
         const sent = await sendToInstapaper(article.url, article.title, note, fetch, tags);
         if (!sent.ok) error = sent.message;
@@ -252,14 +261,22 @@ const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'nu
           <h3 lang="es">Vocabulario</h3>
           {
             glossaryOf(lead).length ? (
-              <dl>
-                {glossaryOf(lead).map(g => (
-                  <div>
-                    <dt lang="es">{g.es}</dt>
-                    <dd>{g.en}</dd>
-                  </div>
-                ))}
-              </dl>
+              <>
+                <dl>
+                  {glossaryOf(lead).map(g => (
+                    <div>
+                      <Word word={g} />
+                    </div>
+                  ))}
+                </dl>
+                {workspace.canWrite && !glossaryOf(lead).some(g => g.checked !== undefined) && (
+                  <form method="post" action={here} data-busy="Checking the dictionary…">
+                    <input type="hidden" name="intent" value="check-words" />
+                    <input type="hidden" name="id" value={lead.id} />
+                    <button class="lr-link" type="submit">Check these against the dictionary</button>
+                  </form>
+                )}
+              </>
             ) : (
               workspace.canWrite && (
                 <form method="post" action={here} data-busy>
@@ -320,12 +337,7 @@ const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'nu
                     {a.summary_en && <p>{a.summary_en}</p>}
                     {glossary.length > 0 && (
                       <dl class="lx-words">
-                        {glossary.map(g => (
-                          <>
-                            <dt lang="es">{g.es}</dt>
-                            <dd>{g.en}</dd>
-                          </>
-                        ))}
+                        {glossary.map(g => <Word word={g} />)}
                       </dl>
                     )}
                   </details>
@@ -337,6 +349,13 @@ const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'nu
                         <input type="hidden" name="intent" value="glossary" />
                         <input type="hidden" name="id" value={a.id} />
                         <button class="lr-link" type="submit">Glossary</button>
+                      </form>
+                    )}
+                    {glossary.length > 0 && !glossary.some(g => g.checked !== undefined) && (
+                      <form method="post" action={here} data-busy="Checking…">
+                        <input type="hidden" name="intent" value="check-words" />
+                        <input type="hidden" name="id" value={a.id} />
+                        <button class="lr-link" type="submit">Check words</button>
                       </form>
                     )}
                     {canInstapaper && !m?.sent_at && (
@@ -433,8 +452,9 @@ const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'nu
   }
 
   <p class="lx-hint">
-    Pictures are each article's own, shown from its publisher. Glossaries are written by MiniMax: each word is checked to
-    be in the article, but a meaning can be wrong. Word frequencies from FrequencyWords (CC BY-SA 4.0).
+    Pictures are each article's own, shown from its publisher. Glossaries are chosen by MiniMax and each word is checked to
+    be in the article; meanings come from Wiktionary, porteño and lunfardo senses first, with MiniMax's note on the
+    word in context beneath. Word frequencies from FrequencyWords (CC BY-SA 4.0).
   </p>
 
   <script>
@@ -443,7 +463,7 @@ const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'nu
         const b = f.querySelector('button');
         if (b) {
           b.disabled = true;
-          b.textContent = 'Reading the article…';
+          b.textContent = f.dataset.busy || 'Reading the article…';
         }
       })
     );

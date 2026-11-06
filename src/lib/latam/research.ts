@@ -14,6 +14,7 @@
  * the model's.
  */
 
+import type { CheckedWord } from './dictionary.ts';
 import { parseJsonObject } from '../json.ts';
 import { lookupBook, readDoc, type Edition } from '../ai/openlibrary.ts';
 import { looselyEqual, normalise } from '../title-match.ts';
@@ -30,7 +31,9 @@ export interface Brief {
   history: string;
   culture: string;
   notice: string[];
-  words: { es: string; en: string }[];
+  words: CheckedWord[];
+  /** Words the model gave that the dictionary does not have, left out. */
+  wordsDropped?: string[];
   fishing: string;
 }
 
@@ -93,7 +96,7 @@ Only real, published books and real films. Never invent a title to fill a list; 
 
 Never give an ISBN, a price, opening hours, a phone number, a rating, a prize or a quotation. Where you are unsure of a date or figure, leave it out rather than guess.
 
-"words" are real Spanish words and phrases a visitor would actually hear in that place or region, including lunfardo or regional usage where it applies. Each "es" is a complete word or phrase, never a fragment. Leave the list short rather than pad it.`;
+"words" are real Spanish words and phrases a visitor would actually hear in that place or region, including porteño, lunfardo or other regional usage where it applies. Give each "es" in its dictionary form (singular, infinitive) without an article, so it can be looked up; a set phrase is fine. Each "es" is a complete word or phrase, never a fragment. Every word is checked against a dictionary and any it does not have is thrown away, so never invent one. Leave the list short rather than pad it.`;
 
 /** The reader's focus as one plain line, bounded: it goes into the prompt. */
 export const cleanFocus = (s: string) => s.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 200);

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../database.types';
 import { withJob } from '../ai/job';
+import { checkWords } from './dictionary';
 import { describeAiError } from '../ai/features';
 import {
   buildResearchTurn,
@@ -151,10 +152,15 @@ export async function runResearch(
   if (!outcome.value.ok) return { ok: false, error: outcome.value.error };
 
   const { read, callId } = outcome.value;
-  const [{ kept: checked, dropped, rejected }, catalogue] = await Promise.all([
+  // The words go to the dictionary alongside the catalogue checks: its sense
+  // is the meaning shown, and a word it does not have is left out.
+  const [{ kept: checked, dropped, rejected }, catalogue, words] = await Promise.all([
     verify(read.proposals),
     catalogueBooks(place.name, place.province || regionName || 'Argentina'),
+    checkWords(read.brief.words),
   ]);
+  read.brief.words = words.kept;
+  if (words.dropped.length) read.brief.wordsDropped = words.dropped;
   // The catalogue's own finds after the model's checked ones, without repeats.
   const kept = [
     ...checked,

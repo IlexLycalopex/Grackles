@@ -1,5 +1,6 @@
 ---
 import LxLayout from '../../../../layouts/LxLayout.astro';
+import Word from '../../../../components/latam/Word.astro';
 import { resolveWorkspace } from '../../../../lib/workspace';
 import { describeDeleteError, describeWriteError, NOTHING_DELETED } from '../../../../lib/records/save';
 import { loadSettings, minutes } from '../../../../lib/latam/latam';
@@ -300,13 +301,15 @@ const canInstapaper = workspace.isOwner && instapaperConfigured();
             <div class="lx-prose">
               <h3>Words you will hear</h3>
               <dl class="lx-words">
-                {research.brief.words.map(w => (
-                  <>
-                    <dt lang="es">{w.es}</dt>
-                    <dd>{w.en}</dd>
-                  </>
-                ))}
+                {research.brief.words.map(w => <Word word={w} />)}
               </dl>
+              {research.brief.words.some(w => w.checked) && (
+                <p class="lx-hint">
+                  Meanings from Wiktionary, porteño and lunfardo senses first.
+                  {(research.brief.wordsDropped ?? []).length > 0 &&
+                    ` Not in the dictionary, so left out: ${research.brief.wordsDropped!.join(', ')}.`}
+                </p>
+              )}
             </div>
           )}
           {research.brief.fishing && (
