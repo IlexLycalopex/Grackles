@@ -61,7 +61,7 @@ if (Astro.request.method === 'POST') {
       notice = 'Saved.';
     }
   } else if (intent === 'research') {
-    const r = await runResearch(supabase, user.id, place, regionRow?.name ?? '');
+    const r = await runResearch(supabase, user.id, place, regionRow?.name ?? '', field('focus'));
     if (!r.ok) error = r.error;
     else
       notice = `Research done: ${r.kept} things to read, watch or look up${
@@ -242,13 +242,22 @@ const canInstapaper = workspace.isOwner && instapaperConfigured();
       <h2 id="dive-h">Deep dive</h2>
       {
         workspace.canWrite && (
-          <form method="post" data-busy>
+          <form method="post" data-busy class="lx-dive">
             <input type="hidden" name="intent" value="research" />
+            <label for="dive-focus" class="lx-visually-hidden">Focus (optional)</label>
+            <input
+              id="dive-focus"
+              name="focus"
+              maxlength="200"
+              placeholder="Focus, optional: tango and San Telmo, fly fishing, food and wine"
+              list="dive-focus-past"
+            />
             <button class="lx-button" type="submit">{research ? 'Research again' : 'Research this place'}</button>
           </form>
         )
       }
     </div>
+    <datalist id="dive-focus-past">{[...new Set(all.map(r => r.focus).filter(Boolean))].map(f => <option value={f} />)}</datalist>
     {
       !research ? (
         <p class="lx-empty">
@@ -258,7 +267,7 @@ const canInstapaper = workspace.isOwner && instapaperConfigured();
       ) : (
         <div class="lx-ai">
           <p class="lx-ai__label">
-            Written by MiniMax on {day(research.created_at)},{' '}
+            Written by MiniMax on {day(research.created_at)}{research.focus && <>, focused on <q>{research.focus}</q></>},{' '}
             {research.source_url ? (
               <>from <a href={research.source_url} rel="noopener">the Wikipedia article</a>. Check anything that matters against it</>
             ) : (
@@ -359,7 +368,7 @@ const canInstapaper = workspace.isOwner && instapaperConfigured();
                 .map((r, i) => (
                   <>
                     {i > 0 && ', '}
-                    <a href={`${here}?research=${r.id}`}>{day(r.created_at)}</a>
+                    <a href={`${here}?research=${r.id}`}>{day(r.created_at)}{r.focus && ` (${r.focus})`}</a>
                   </>
                 ))}
             </p>

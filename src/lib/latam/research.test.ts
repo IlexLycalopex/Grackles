@@ -12,6 +12,19 @@ test('the turn names the place and nothing else', () => {
   );
 });
 
+test('a focus goes in as one bounded line, before the source', () => {
+  const turn = buildResearchTurn(
+    { name: 'Buenos Aires', kind: 'city', province: '', regionName: '' },
+    'Buenos Aires is the capital.',
+    '  tango\nand San Telmo  ' + 'x'.repeat(300)
+  );
+  const [head, focus, source] = turn.split('\n\n');
+  assert.equal(head, 'Place: Buenos Aires (city, Argentina).');
+  assert.ok(focus!.startsWith('FOCUS: tango and San Telmo x'));
+  assert.equal(focus!.length, 'FOCUS: '.length + 200);
+  assert.ok(source!.startsWith('SOURCE'));
+});
+
 test('an answer is bounded and typed', () => {
   const r = readResearch(answer({
     overview: 'Welsh tea.',

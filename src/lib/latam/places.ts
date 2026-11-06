@@ -7,6 +7,7 @@ import {
   forbiddenFields,
   catalogueBooks,
   hasForeign,
+  cleanFocus,
   placeSource,
   readResearch,
   RESEARCH_SYSTEM,
@@ -74,6 +75,7 @@ export interface ResearchView {
   rejected: Rejected[];
   dropped: number;
   source_url: string;
+  focus: string;
 }
 
 export const asResearch = (r: ResearchRow): ResearchView => ({
@@ -84,6 +86,7 @@ export const asResearch = (r: ResearchRow): ResearchView => ({
   rejected: (Array.isArray(r.rejected) ? r.rejected : []) as unknown as Rejected[],
   dropped: r.dropped,
   source_url: r.source_url,
+  focus: r.focus,
 });
 
 /**
@@ -94,8 +97,10 @@ export async function runResearch(
   db: Db,
   userId: string,
   place: Place,
-  regionName: string
+  regionName: string,
+  focus = ''
 ): Promise<{ ok: true; id: string; kept: number; dropped: number } | { ok: false; error: string }> {
+  const f = cleanFocus(focus);
   // The facts come from Wikipedia, fetched by the app; the model is asked to
   // write from them rather than from memory. Without a source it still runs,
   // and the page says the briefing had none.
@@ -108,7 +113,7 @@ export async function runResearch(
       workspaceId: place.workspace_id,
       class: 'single',
       // A double press within the minute is one dive, not two bills.
-      idempotencyKey: `research:${place.id}:${new Date().toISOString().slice(0, 16)}`,
+      idempotencyKey: `research:${place.id}:${new Date().toISOString().slice(0, 16)}:${f.toLowerCase()}`,
     },
     async job => {
       const turn = await job.chat({
@@ -118,7 +123,8 @@ export async function runResearch(
             role: 'user',
             content: buildResearchTurn(
               { name: place.name, kind: place.kind, province: place.province, regionName },
-              source?.text ?? ''
+              source?.text ?? '',
+              f
             ),
           },
         ],
@@ -165,6 +171,7 @@ export async function runResearch(
       suggestions: kept as never,
       rejected: rejected as never,
       source_url: source?.url ?? '',
+      focus: f,
       dropped,
       ai_call_id: callId,
     })
