@@ -130,3 +130,56 @@ test('a word with foreign script, a fragment, or a disowned one is dropped whole
   }));
   assert.deepEqual(r?.brief.words, [{ es: 'torta galesa', en: 'Welsh black cake' }]);
 });
+
+test('the source is the one article that mentions Argentina, fetched alone', async () => {
+  const asked: string[] = [];
+  const fetcher = (async (url: string | URL | Request) => {
+    const u = new URL(String(url));
+    asked.push(u.searchParams.get('list') ?? u.searchParams.get('titles') ?? '');
+    if (u.searchParams.get('list') === 'search') {
+      return Response.json({ query: { search: [{ title: 'Neil Gaiman' }, { title: 'Gaiman, Chubut' }] } });
+    }
+    return Response.json({
+      query: { pages: [{ title: 'Gaiman, Chubut', fullurl: 'https://en.wikipedia.org/wiki/Gaiman,_Chubut',
+        extract: 'Gaiman is a town in Chubut, Argentina, founded by Welsh settlers.\n\n== References ==\nx' }] },
+    });
+  }) as typeof fetch;
+  const { placeSource } = await import('./research.ts');
+  const src = await placeSource('Gaiman', 'Chubut', fetcher);
+  assert.equal(src?.title, 'Gaiman, Chubut');
+  assert.equal(src?.text, 'Gaiman is a town in Chubut, Argentina, founded by Welsh settlers.');
+  assert.equal(asked[0], 'search');
+  assert.ok(asked.length <= 3, 'at most two articles are fetched');
+});
+
+test('a redirect to a page about Argentina is kept; one to another subject is not', async () => {
+  const fetcher = (async (url: string | URL | Request) => {
+    const asked = decodeURIComponent(String(url).split('/summary/')[1]!);
+    const to = asked.includes('immigration')
+      ? { title: 'Welsh settlement in Argentina', description: 'Welsh settlement in Patagonia, Argentina' }
+      : { title: 'Neil Gaiman', description: 'English author' };
+    return Response.json({ type: 'standard', ...to, content_urls: { desktop: { page: 'https://en.wikipedia.org/wiki/x' } } });
+  }) as typeof fetch;
+  const { kept } = await verify(
+    [
+      { kind: 'article', title: 'Welsh immigration to Argentina', wiki: 'Welsh immigration to Argentina', creator: '', why: '' },
+      { kind: 'article', title: 'Gaiman', wiki: 'Gaiman', creator: '', why: '' },
+    ],
+    fetcher
+  );
+  assert.deepEqual(kept.map(k => k.title), ['Welsh settlement in Argentina']);
+});
+
+test('catalogue books are kept only when filed under the place', async () => {
+  const { catalogueBooks } = await import('./research.ts');
+  const fetcher = (async () =>
+    Response.json({
+      docs: [
+        { key: '/works/A', title: 'Gaiman: a Welsh town', author_name: ['A. Author'], subject: [] },
+        { key: '/works/B', title: 'Patagonia', author_name: ['B. Author'], subject: ['Gaiman (Chubut)'] },
+        { key: '/works/C', title: 'Sandman', author_name: ['Neil Gaiman'], subject: ['Comics'] },
+      ],
+    })) as unknown as typeof fetch;
+  const books = await catalogueBooks('Gaiman', 'Chubut', fetcher);
+  assert.deepEqual(books.map(b => b.title), ['Gaiman: a Welsh town', 'Patagonia']);
+});
