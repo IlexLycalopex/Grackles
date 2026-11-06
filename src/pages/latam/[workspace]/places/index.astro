@@ -1,0 +1,156 @@
+---
+import LxLayout from '../../../../layouts/LxLayout.astro';
+import { resolveWorkspace } from '../../../../lib/workspace';
+import { describeWriteError } from '../../../../lib/records/save';
+import { KIND_LABELS, loadPlaces, PLACE_STATUSES, statusLabel } from '../../../../lib/latam/places';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'latam', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+const base = `/latam/${workspace.slug}`;
+
+let error: string | null = null;
+let notice: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(`${base}/places`)}`);
+  if (!workspace.canWrite) return new Response('Forbidden', { status: 403 });
+  const form = await Astro.request.formData();
+  if (form.get('intent') === 'seed') {
+    const { data, error: e } = await supabase.rpc('lx_seed_argentina', { p_workspace: workspace.id });
+    if (e) error = describeWriteError(e, 'lx_seed_argentina');
+    else {
+      const r = data as { places: number; themes: number };
+      notice = `Added ${r.places} places and ${r.themes} themes.`;
+    }
+  }
+}
+
+const places = await loadPlaces(supabase, workspace.id);
+const filter = Astro.url.searchParams.get('status') ?? 'all';
+const regions = places.filter(p => p.kind === 'region');
+const shown = places.filter(p => p.kind !== 'region' && (filter === 'all' || p.status === filter));
+const byRegion = [
+  ...regions.map(r => ({ region: r, places: shown.filter(p => p.region === r.slug) })),
+  { region: null, places: shown.filter(p => !regions.some(r => r.slug === p.region)) },
+].filter(g => g.places.length);
+
+const markers = shown
+  .filter(p => p.lat !== null && p.lng !== null)
+  .map(p => ({ slug: p.slug, name: p.name, lat: Number(p.lat), lng: Number(p.lng), status: p.status }));
+const counts = Object.fromEntries(
+  PLACE_STATUSES.map(s => [s.value, places.filter(p => p.kind !== 'region' && p.status === s.value).length])
+);
+---
+
+<LxLayout title={`Places · ${workspace.name}`} workspace={workspace}>
+  <link
+    slot="head"
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+    crossorigin="anonymous"
+  />
+  <header class="lx-head">
+    <div>
+      <p class="lx-kicker"><a href={base}>{workspace.name}</a></p>
+      <h1>Places</h1>
+      <p class="lx-lede">
+        Each place is also a tag. Anything you log, read or listen to tagged with a place's name shows up on its page.
+      </p>
+    </div>
+  </header>
+
+  {error && <p class="lx-error" role="alert">{error}</p>}
+  {notice && <p class="lx-notice" role="status">{notice}</p>}
+
+  {
+    places.length === 0 ? (
+      <section class="lx-panel lx-section">
+        <p class="lx-empty">No places yet.</p>
+        {workspace.canWrite && (
+          <form method="post" class="lx-form">
+            <input type="hidden" name="intent" value="seed" />
+            <button class="lx-button" type="submit">Load the Argentina starter set</button>
+            <span class="lx-hint">About 60 places across all seven regions, and ten themes with reading lists.</span>
+          </form>
+        )}
+      </section>
+    ) : (
+      <>
+        <nav class="lx-filters" aria-label="Filter by status">
+          <a class={`lx-chip${filter === 'all' ? ' lx-chip--on' : ''}`} href={`${base}/places`}>All</a>
+          {PLACE_STATUSES.filter(s => s.value).map(s => (
+            <a class={`lx-chip${filter === s.value ? ' lx-chip--on' : ''}`} href={`${base}/places?status=${s.value}`}>
+              {s.label} <span class="lx-chip__n">{counts[s.value]}</span>
+            </a>
+          ))}
+        </nav>
+
+        <div id="lx-map" class="lx-map" role="img" aria-label="Map of the places listed below" />
+
+        {byRegion.map(g => (
+          <section class="lx-region">
+            <h3>{g.region ? <a href={`${base}/places/${g.region.slug}`}>{g.region.name}</a> : 'Elsewhere'}</h3>
+            <ul class="lx-list">
+              {g.places.map(p => (
+                <li class="lx-row">
+                  <div>
+                    <div class="lx-row__title"><a href={`${base}/places/${p.slug}`}>{p.name}</a></div>
+                    <div class="lx-row__meta">
+                      <span class="lx-status">{KIND_LABELS[p.kind] ?? p.kind}</span>
+                      {p.province && <span>{p.province}</span>}
+                      <span>{p.summary}</span>
+                    </div>
+                  </div>
+                  <div class="lx-row__side">
+                    {p.status && <span class={`lx-place__status lx-place__status--${p.status}`}>{statusLabel(p.status)}</span>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+
+        {workspace.canWrite && (
+          <form method="post" class="lx-form">
+            <input type="hidden" name="intent" value="seed" />
+            <button class="lx-button lx-button--quiet" type="submit">Top up from the starter set</button>
+            <span class="lx-hint">Adds any starter places and themes you do not have. Nothing you have is changed.</span>
+          </form>
+        )}
+      </>
+    )
+  }
+
+  <script
+    is:inline
+    src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+    crossorigin="anonymous"
+  ></script>
+  <script is:inline define:vars={{ markers, base }}>
+    (() => {
+      const el = document.getElementById('lx-map');
+      if (!el || !window.L || !markers.length) return;
+      const map = L.map(el, { scrollWheelZoom: false }).setView([-38.5, -63.5], 4);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 12,
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(map);
+      const colour = { been: '#2f6b3a', want: '#8a5a14', learning: '#17555c', '': '#6b7b82' };
+      const bounds = [];
+      for (const m of markers) {
+        const dot = L.circleMarker([m.lat, m.lng], {
+          radius: 7, weight: 2, color: '#ffffff', fillColor: colour[m.status] ?? colour[''], fillOpacity: 0.95,
+        }).addTo(map);
+        const a = document.createElement('a');
+        a.href = `${base}/places/${m.slug}`;
+        a.textContent = m.name;
+        dot.bindPopup(a);
+        bounds.push([m.lat, m.lng]);
+      }
+      if (bounds.length > 1) map.fitBounds(bounds, { padding: [24, 24] });
+    })();
+  </script>
+</LxLayout>

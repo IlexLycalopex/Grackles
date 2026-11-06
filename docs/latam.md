@@ -53,6 +53,26 @@ entry from the growth in **Spanish** XP, at three XP a minute, tagged
 - It shares JPOD's `JPOD_SYNC_SECRET`; its address is Vault's
   `latam_duolingo_sync_url`.
 
+## Places and themes
+
+`/latam/:workspace/places` and `/themes`. A place or theme is a tag: its page
+counts and lists whatever carries its slug, in LatAm, JPOD (by
+`jp_seconds_since`) and the linked Reading List (`rl_library.tags`). Nothing
+is copied. `lx_seed_argentina()` loads a starter set (61 places across seven
+regions, ten themes with reading lists) and is safe to run again; it only adds
+what is missing.
+
+**Deep dive** (`latam.research`, one metered MiniMax call through `withJob`):
+the model writes a briefing (overview, history, culture, what to notice, local
+words, fishing) and proposes books, films and articles. `lib/latam/research.ts`
+keeps a book only if OpenLibrary has that title by that author, and a film or
+article only if English Wikipedia has the page (a film's page must describe a
+film). The rest are dropped and counted. Only the place's name, kind and
+province are sent (`sends_records = false`). Results are kept in
+`lx_research`, never overwritten; a suggestion becomes an `lx_items` row when
+kept, and a book can go straight to the Reading List as *wanted*, tagged with
+the place.
+
 ## Applying it
 
 1. `20261105150000_latam_app_slug`, then `20261105150100_latam_schema`.
@@ -69,4 +89,4 @@ entry, which already exists; LatAm reads it.
 
 - The overview does not yet count books or reading time from the Reading List
   beyond what is logged here.
-- Strava sync (step 3) and the trip panel (step 4).
+- Strava sync, and trips (dates, stops, readiness against Spanish hours).

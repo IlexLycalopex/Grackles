@@ -185,6 +185,112 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      lx_places: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          slug: string;
+          name: string;
+          kind: string;
+          region: string;
+          province: string;
+          lat: number | null;
+          lng: number | null;
+          summary: string;
+          status: string;
+          notes: string;
+          source_url: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          workspace_id: string;
+          slug: string;
+          name: string;
+          kind: string;
+          region?: string;
+          province?: string;
+          lat?: number | null;
+          lng?: number | null;
+          summary?: string;
+          status?: string;
+          notes?: string;
+          source_url?: string;
+        };
+        Update: {
+          name?: string;
+          kind?: string;
+          region?: string;
+          province?: string;
+          lat?: number | null;
+          lng?: number | null;
+          summary?: string;
+          status?: string;
+          notes?: string;
+          source_url?: string;
+        };
+        Relationships: [];
+      };
+      lx_themes: {
+        Row: { id: string; workspace_id: string; slug: string; name: string; summary: string; sort: number; created_at: string };
+        Insert: { workspace_id: string; slug: string; name: string; summary?: string; sort?: number };
+        Update: { name?: string; summary?: string; sort?: number };
+        Relationships: [];
+      };
+      lx_items: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          theme_id: string | null;
+          place_id: string | null;
+          kind: string;
+          title: string;
+          creator: string;
+          url: string;
+          why: string;
+          done: boolean;
+          source: string;
+          created_at: string;
+        };
+        Insert: {
+          workspace_id: string;
+          theme_id?: string | null;
+          place_id?: string | null;
+          kind: string;
+          title: string;
+          creator?: string;
+          url?: string;
+          why?: string;
+          done?: boolean;
+          source?: string;
+        };
+        Update: { title?: string; creator?: string; url?: string; why?: string; done?: boolean };
+        Relationships: [];
+      };
+      lx_research: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          place_id: string;
+          created_by: string | null;
+          created_at: string;
+          brief: Json;
+          suggestions: Json;
+          dropped: number;
+          ai_call_id: string | null;
+        };
+        Insert: {
+          workspace_id: string;
+          place_id: string;
+          created_by: string;
+          brief: Json;
+          suggestions: Json;
+          dropped: number;
+          ai_call_id?: string | null;
+        };
+        Update: never;
+        Relationships: [];
+      };
       lx_duolingo_snapshots: {
         Row: {
           id: number;
@@ -1827,6 +1933,10 @@ export type Database = {
     Functions: {
       lx_capture: {
         Args: { p_token: string; p_entry: Json };
+        Returns: Json;
+      };
+      lx_seed_argentina: {
+        Args: { p_workspace: string };
         Returns: Json;
       };
       lx_token_create: {

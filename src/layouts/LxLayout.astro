@@ -17,6 +17,8 @@ const { user } = Astro.locals;
 // Setup holds the capture tokens, which are an editor's business.
 const links = [
   { href: base, label: 'Overview' },
+  { href: `${base}/places`, label: 'Places' },
+  { href: `${base}/themes`, label: 'Themes' },
   ...(workspace.canWrite ? [{ href: `${base}/setup`, label: 'Setup' }] : []),
 ];
 ---
@@ -35,6 +37,7 @@ const links = [
       rel="stylesheet"
     />
     {workspace.visibility !== 'public' && <meta name="robots" content="noindex, nofollow" />}
+    <slot name="head" />
   </head>
   <body>
     <nav class="site-nav lx-nav">
@@ -44,7 +47,7 @@ const links = [
         <div class="site-nav__links lx-nav__links">
           {
             links.map(l => (
-              <a href={l.href} class="lx-nav__link" aria-current={pathname === l.href ? 'page' : undefined}>
+              <a href={l.href} class="lx-nav__link" aria-current={pathname === l.href || (l.href !== base && pathname.startsWith(l.href + '/')) ? 'page' : undefined}>
                 {l.label}
               </a>
             ))
