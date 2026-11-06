@@ -283,6 +283,7 @@ export type Database = {
           source_url: string;
           dropped: number;
           ai_call_id: string | null;
+          focus: string;
         };
         Insert: {
           workspace_id: string;
@@ -292,6 +293,7 @@ export type Database = {
           suggestions: Json;
           rejected?: Json;
           source_url?: string;
+          focus?: string;
           dropped: number;
           ai_call_id?: string | null;
         };

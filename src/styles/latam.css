@@ -298,3 +298,8 @@ a:hover { color: var(--accent); text-decoration-color: var(--accent); }
 .lr-link { font: inherit; font-size: 14px; background: none; border: 0; padding: 10px 0; min-height: 44px; color: var(--muted); cursor: pointer; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
 .lr-link:hover { color: var(--accent); }
 .lr-link[aria-pressed='true'] { color: var(--ink); font-weight: 600; text-decoration-color: var(--ink); }
+
+/* Deep dive: an optional focus beside the button. */
+.lx-dive { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex: 1 1 420px; justify-content: flex-end; }
+.lx-dive input { font: inherit; flex: 1 1 260px; max-width: 420px; min-height: 44px; padding: 0 12px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); border-radius: 2px; }
+.lx-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
