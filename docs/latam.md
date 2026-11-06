@@ -73,6 +73,19 @@ province are sent (`sends_records = false`). Results are kept in
 kept, and a book can go straight to the Reading List as *wanted*, tagged with
 the place.
 
+Grounding: before the call, the app finds the place's English Wikipedia
+article by search (it must mention Argentina) and sends up to 7,000
+characters of it; the model writes from that, at temperature 0.2. Text in any
+non-Latin script is stripped, and a local word containing any is dropped whole.
+A film or article page Wikipedia reached by redirect to another subject is
+rejected. Proposals no catalogue found are listed on the page.
+
+## Instapaper
+
+With `INSTAPAPER_USERNAME` and `INSTAPAPER_PASSWORD` set on the Vercel
+project, an article kept from a deep dive is also saved to Instapaper (Simple
+API), and listed articles get an Instapaper button. Owner only.
+
 ## Applying it
 
 1. `20261105150000_latam_app_slug`, then `20261105150100_latam_schema`.

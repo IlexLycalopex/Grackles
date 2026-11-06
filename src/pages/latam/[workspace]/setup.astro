@@ -4,6 +4,7 @@ import { requireWrite } from '../../../lib/workspace';
 import { describeWriteError } from '../../../lib/records/save';
 import { parseTags } from '../../../lib/pod/podcasts';
 import { ACTIVITY_TYPES, loadSettings, type Token } from '../../../lib/latam/latam';
+import { instapaperConfigured } from '../../../lib/latam/instapaper';
 
 export const prerender = false;
 
@@ -144,6 +145,20 @@ const when = (iso: string | null) =>
       </div>
       <button class="lx-button" type="submit">Save</button>
     </form>
+  </section>
+
+  <section class="lx-panel lx-section" aria-labelledby="instapaper-h">
+    <h2 id="instapaper-h">Instapaper</h2>
+    {
+      instapaperConfigured() ? (
+        <p class="lx-notice">Connected. Articles you keep from a deep dive go to Instapaper, and listed articles have an Instapaper button.</p>
+      ) : (
+        <p class="lx-hint">
+          Not connected. Add <code>INSTAPAPER_USERNAME</code> and <code>INSTAPAPER_PASSWORD</code> to the site's
+          environment variables in Vercel, then redeploy. Only the project owner can send.
+        </p>
+      )
+    }
   </section>
 
   <section class="lx-panel lx-section" aria-labelledby="tokens-h">

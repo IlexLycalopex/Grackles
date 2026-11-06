@@ -13,6 +13,7 @@ import {
   type Item,
 } from '../../../../lib/latam/places';
 import { workKey } from '../../../../lib/library';
+import { instapaperConfigured, sendToInstapaper } from '../../../../lib/latam/instapaper';
 
 export const prerender = false;
 
@@ -81,7 +82,15 @@ if (Astro.request.method === 'POST') {
       });
       if (e?.code === '23505') notice = `${s.title} is already on the list.`;
       else if (e) error = describeWriteError(e, 'lx_items keep');
-      else notice = `Kept ${s.title}.`;
+      else {
+        notice = `Kept ${s.title}.`;
+        // An article kept is an article to read: it goes to Instapaper too,
+        // when the owner has connected it.
+        if (s.kind === 'article' && workspace.isOwner && instapaperConfigured()) {
+          const sent = await sendToInstapaper(s.url, s.title, s.why);
+          notice = sent.ok ? `Kept ${s.title} and sent it to Instapaper.` : `Kept ${s.title}. ${sent.message}`;
+        }
+      }
     } else if (!settings?.reading_workspace_id) {
       error = 'No Reading List is linked. Link one on Setup.';
     } else {
@@ -122,6 +131,15 @@ if (Astro.request.method === 'POST') {
       .select('id');
     if (e) error = describeWriteError(e, 'lx_items done');
     else if (!data?.length) error = 'Nothing was changed. Your role may have changed.';
+  } else if (intent === 'instapaper') {
+    const { data: it } = await supabase.from('lx_items').select('title, url, why').eq('id', field('id')).eq('place_id', place.id).maybeSingle();
+    if (!workspace.isOwner) error = 'Only the project owner can send to their Instapaper.';
+    else if (!it) error = 'That item is no longer there.';
+    else {
+      const sent = await sendToInstapaper(it.url, it.title, it.why);
+      if (sent.ok) notice = `Sent ${it.title} to Instapaper.`;
+      else error = sent.message;
+    }
   } else if (intent === 'item-delete') {
     const { data, error: e } = await supabase.from('lx_items').delete().eq('id', field('id')).eq('place_id', place.id).select('id');
     if (e) error = describeDeleteError(e, 'lx_items delete');
@@ -162,6 +180,7 @@ const paras = (s: string) => s.split(/\n{2,}/).map(p => p.trim()).filter(Boolean
 const day = (iso: string) =>
   new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London' });
 const KINDS = ['book', 'film', 'podcast', 'article', 'other'];
+const canInstapaper = workspace.isOwner && instapaperConfigured();
 ---
 
 <LxLayout title={`${place.name} · ${workspace.name}`} workspace={workspace}>
@@ -235,9 +254,13 @@ const KINDS = ['book', 'film', 'podcast', 'article', 'other'];
       ) : (
         <div class="lx-ai">
           <p class="lx-ai__label">
-            Written by MiniMax on {day(research.created_at)}. The briefing is the model's own and may contain errors; the
-            suggestions below were each found in OpenLibrary or Wikipedia
-            {research.dropped > 0 && `, and ${research.dropped} that could not be were left out`}.
+            Written by MiniMax on {day(research.created_at)},{' '}
+            {research.source_url ? (
+              <>from <a href={research.source_url} rel="noopener">the Wikipedia article</a>. Check anything that matters against it</>
+            ) : (
+              'from the model\'s own knowledge, with no source article found. Treat dates and names with caution'
+            )}
+            . Every suggestion below was found in OpenLibrary or Wikipedia.
           </p>
           <div class="lx-prose">
             {paras(research.brief.overview).map(p => <p>{p}</p>)}
@@ -318,6 +341,12 @@ const KINDS = ['book', 'film', 'podcast', 'article', 'other'];
               </ul>
             </div>
           )}
+          {research.rejected.length > 0 && (
+            <p class="lx-hint">
+              Suggested but not found in a catalogue, so left out:{' '}
+              {research.rejected.map(r => `${r.title}${r.creator ? ` (${r.creator})` : ''}`).join('; ')}.
+            </p>
+          )}
           {all.length > 1 && (
             <p class="lx-hint">
               Earlier dives:{' '}
@@ -363,6 +392,13 @@ const KINDS = ['book', 'film', 'podcast', 'article', 'other'];
                     <input type="hidden" name="done" value={String(!it.done)} />
                     <button class="lx-button lx-button--quiet" type="submit">{it.done ? 'Not done' : 'Done'}</button>
                   </form>
+                  {canInstapaper && it.url && (it.kind === 'article' || it.kind === 'other') && (
+                    <form method="post">
+                      <input type="hidden" name="intent" value="instapaper" />
+                      <input type="hidden" name="id" value={it.id} />
+                      <button class="lx-button lx-button--quiet" type="submit">Instapaper</button>
+                    </form>
+                  )}
                   <form method="post">
                     <input type="hidden" name="intent" value="item-delete" />
                     <input type="hidden" name="id" value={it.id} />

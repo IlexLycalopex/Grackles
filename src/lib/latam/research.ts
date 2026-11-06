@@ -51,6 +51,13 @@ export interface Suggestion {
   why: string;
 }
 
+/** A proposal no catalogue could find, kept so the page can say what it was. */
+export interface Rejected {
+  kind: string;
+  title: string;
+  creator: string;
+}
+
 export interface Research {
   brief: Brief;
   proposals: Proposal[];
@@ -74,20 +81,42 @@ Answer with JSON and nothing else: no prose outside it, no code fence.
 
 RULES.
 
+You may be given SOURCE: the place's English Wikipedia article. Base the overview, history and culture on it. Do not state a date, name, number or institution that is not in SOURCE unless you are certain of it; leave it out instead. A short, correct briefing is the goal.
+
+Write in English only, apart from the Spanish in "words" and proper names. Use the Latin alphabet only: never Chinese, Cyrillic or any other script.
+
 British English, plain and specific. Up to eight books, five films, six articles, ten words.
 
 Only real, published books and real films. Never invent a title to fill a list; three right answers are better than eight with one made up. Prefer books available in English; include a Spanish original when it is the key text. Every proposal is checked against a catalogue and anything that is not found is thrown away.
 
 Never give an ISBN, a price, opening hours, a phone number, a rating, a prize or a quotation. Where you are unsure of a date or figure, leave it out rather than guess.
 
-"words" are words and phrases a visitor would actually hear in that place or region, including lunfardo or regional usage where it applies.`;
+"words" are real Spanish words and phrases a visitor would actually hear in that place or region, including lunfardo or regional usage where it applies. Each "es" is a complete word or phrase, never a fragment. Leave the list short rather than pad it.`;
 
-export function buildResearchTurn(place: PlaceForResearch): string {
+export function buildResearchTurn(place: PlaceForResearch, source = ''): string {
   const where = [place.province, place.regionName].filter(Boolean).join(', ');
-  return `Place: ${place.name} (${place.kind}${where ? `, ${where}` : ''}, Argentina).`;
+  const head = `Place: ${place.name} (${place.kind}${where ? `, ${where}` : ''}, Argentina).`;
+  return source ? `${head}\n\nSOURCE (English Wikipedia):\n${source}` : head;
 }
 
-const text = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+/**
+ * Anything that is not Latin script, punctuation, digits or accents. The first
+ * live dive returned "el背后的 Welsh heritage": a model drifting mid-token
+ * into another language. Spanish needs nothing outside Latin; neither does
+ * English.
+ */
+const FOREIGN = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/gu;
+// Latin letters no Spanish or English word uses (Č, Ł, Ş...), which the same
+// drift produced as "ČhepecČke".
+const ODD_LATIN = /[ČčĆćŁłŞşŠšŽžĐđŘřĚěŮůŃńŚśŹźŻż]/g;
+
+export const hasForeign = (s: string) => /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u.test(s) || /[ČčĆćŁłŞşŠšŽžĐđŘřĚěŮůŃńŚśŹźŻż]/.test(s);
+
+/** The text with foreign script removed and the spacing it leaves tidied. */
+export const clean = (s: string) =>
+  s.replace(FOREIGN, '').replace(ODD_LATIN, '').replace(/ {2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').trim();
+
+const text = (v: unknown, max: number) => (typeof v === 'string' ? clean(v).slice(0, max) : '');
 const list = (v: unknown) => (Array.isArray(v) ? v : []);
 
 /** The model's answer, bounded and typed, or null when it is not usable. */
@@ -99,9 +128,14 @@ export function readResearch(content: string): Research | null {
     history: text(raw.history, 3000),
     culture: text(raw.culture, 2000),
     notice: list(raw.notice).map(n => text(n, 300)).filter(Boolean).slice(0, 8),
+    // A word with any foreign script in it is dropped whole, not cleaned: a
+    // phrase with a hole in it teaches the wrong Spanish. So is a fragment
+    // ending in a preposition or a comma, and one the model itself disowns.
     words: list(raw.words)
-      .map(w => ({ es: text((w as Record<string, unknown>)?.es, 80), en: text((w as Record<string, unknown>)?.en, 200) }))
-      .filter(w => w.es && w.en)
+      .map(w => w as Record<string, unknown>)
+      .filter(w => typeof w?.es === 'string' && typeof w?.en === 'string' && !hasForeign(w.es as string) && !hasForeign(w.en as string))
+      .map(w => ({ es: text(w.es, 80), en: text(w.en, 200) }))
+      .filter(w => w.es && w.en && !/(,|\b(de|del|la|el|en|a|y|con))$/i.test(w.es) && !/not a natural/i.test(w.en))
       .slice(0, 10),
     fishing: text(raw.fishing, 1500),
   };
@@ -130,14 +164,26 @@ export function forbiddenFields(content: string): string[] {
   return ['isbn', 'price', 'rating'].filter(f => new RegExp(`"${f}"\\s*:`, 'i').test(content));
 }
 
-/** The edition OpenLibrary agrees is this title by this author, if any. */
+/** The author's surname, which is what catalogues agree on. */
+const surname = (author: string) => normalise(author).split(' ').filter(Boolean).pop() ?? '';
+
+/**
+ * The edition OpenLibrary agrees is this title by this author, if any. The
+ * title must match; the author need only share a surname, because "E. Lucas
+ * Bridges" and "Lucas Bridges" are one man and a catalogue writes him either way.
+ */
 export function matchingEdition(candidates: Edition[], title: string, author: string): Edition | null {
   const t = normalise(title);
-  const a = normalise(author);
+  const last = surname(author);
   return (
-    candidates.find(c => looselyEqual(normalise(c.title), t) && (!a || looselyEqual(normalise(c.author), a))) ?? null
+    candidates.find(
+      c => looselyEqual(normalise(c.title), t) && (!last || normalise(c.author).split(' ').includes(last))
+    ) ?? null
   );
 }
+
+/** "Zama (film)" and "Zama" are one title; "Neil Gaiman" and "Gaiman" are not. */
+const bare = (title: string) => normalise(title.replace(/\s*\([^)]*\)\s*$/, ''));
 
 interface WikiPage {
   title: string;
@@ -162,6 +208,9 @@ async function wikiPage(title: string, fetcher: typeof fetch): Promise<WikiPage 
       content_urls?: { desktop?: { page?: string } };
     };
     if (page.type !== 'standard' || !page.content_urls?.desktop?.page) return null;
+    // Wikipedia follows redirects, and "Gaiman" redirects to Neil Gaiman. A page
+    // whose title is not the one asked for is a different subject.
+    if (!looselyEqual(bare(page.title ?? ''), bare(title))) return null;
     return { title: page.title ?? title, description: page.description ?? '', url: page.content_urls.desktop.page };
   } catch {
     return null;
@@ -179,12 +228,18 @@ export async function verify(
   proposals: Proposal[],
   fetcher: typeof fetch = fetch,
   findBook: typeof lookupBook = lookupBook
-): Promise<{ kept: Suggestion[]; dropped: number }> {
+): Promise<{ kept: Suggestion[]; dropped: number; rejected: Rejected[] }> {
   const checked = await Promise.all(
     proposals.map(async (p): Promise<Suggestion | null> => {
       if (p.kind === 'book') {
-        const found = await findBook(p.title, p.creator);
-        const edition = found.ok ? matchingEdition(found.candidates, p.title, p.creator) : null;
+        let found = await findBook(p.title, p.creator);
+        let edition = found.ok ? matchingEdition(found.candidates, p.title, p.creator) : null;
+        // A catalogue that files the author differently finds nothing by name;
+        // the title alone, checked against the surname, often does.
+        if (!edition && p.creator) {
+          found = await findBook(p.title, '');
+          edition = found.ok ? matchingEdition(found.candidates, p.title, p.creator) : null;
+        }
         return edition
           ? { kind: 'book', title: edition.title, creator: edition.author || p.creator, url: edition.link_openlibrary, why: p.why }
           : null;
@@ -195,6 +250,9 @@ export async function verify(
       return { kind: p.kind, title: p.kind === 'film' ? p.title : page.title, creator: '', url: page.url, why: p.why };
     })
   );
+  const rejected: Rejected[] = proposals
+    .filter((_, i) => !checked[i])
+    .map(p => ({ kind: p.kind, title: p.title, creator: p.creator }));
   const seen = new Set<string>();
   const kept = checked.filter((s): s is Suggestion => {
     if (!s) return false;
@@ -203,5 +261,57 @@ export async function verify(
     seen.add(key);
     return true;
   });
-  return { kept, dropped: proposals.length - kept.length };
+  return { kept, dropped: proposals.length - kept.length, rejected };
+}
+
+const WIKI_API = 'https://en.wikipedia.org/w/api.php';
+
+/**
+ * The place's English Wikipedia article as plain text, for the model to work
+ * from. Found by search rather than by title, because "Gaiman" the title is
+ * Neil Gaiman. The page must mention Argentina, which is what stops a search
+ * for Trevelin landing on a Cornish surname.
+ */
+export async function placeSource(
+  name: string,
+  province: string,
+  fetcher: typeof fetch = fetch,
+  maxChars = 7000
+): Promise<{ title: string; url: string; text: string } | null> {
+  const params = new URLSearchParams({
+    action: 'query',
+    format: 'json',
+    formatversion: '2',
+    generator: 'search',
+    gsrsearch: [name, province, 'Argentina'].filter(Boolean).join(' '),
+    gsrlimit: '3',
+    prop: 'extracts|info',
+    inprop: 'url',
+    explaintext: '1',
+    exlimit: '3',
+    redirects: '1',
+  });
+  try {
+    const res = await fetcher(`${WIKI_API}?${params}`, {
+      headers: { Accept: 'application/json', 'User-Agent': 'Grackles/1.0 (https://grackles.co.uk)' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      query?: { pages?: { title: string; index?: number; extract?: string; fullurl?: string }[] };
+    };
+    const pages = (json.query?.pages ?? []).sort((a, b) => (a.index ?? 99) - (b.index ?? 99));
+    const first = normalise(name).split(' ')[0] ?? '';
+    const page = pages.find(
+      p => p.extract && /argentin/i.test(p.extract) && normalise(p.title).includes(first) && !hasForeign(p.title)
+    );
+    if (!page?.extract) return null;
+    const body = page.extract
+      .split(/\n==+\s*(See also|References|External links|Notes|Further reading|Bibliography)\s*==+/)[0]!
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    return { title: page.title, url: page.fullurl ?? '', text: body.slice(0, maxChars) };
+  } catch {
+    return null;
+  }
 }

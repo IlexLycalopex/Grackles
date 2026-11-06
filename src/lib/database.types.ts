@@ -276,6 +276,8 @@ export type Database = {
           created_at: string;
           brief: Json;
           suggestions: Json;
+          rejected: Json;
+          source_url: string;
           dropped: number;
           ai_call_id: string | null;
         };
@@ -285,6 +287,8 @@ export type Database = {
           created_by: string;
           brief: Json;
           suggestions: Json;
+          rejected?: Json;
+          source_url?: string;
           dropped: number;
           ai_call_id?: string | null;
         };
