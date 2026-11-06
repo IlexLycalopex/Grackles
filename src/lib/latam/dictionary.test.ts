@@ -145,3 +145,9 @@ test('a word the English Wiktionary lacks is looked for in the Spanish one befor
   assert.equal(by.corredera!.url, 'https://es.wiktionary.org/wiki/corredera');
   assert.ok(by.jineteada!.checked);
 });
+
+test('the same word twice is kept once', async () => {
+  const { fetcher } = wiktionary();
+  const r = await checkWords([{ es: 'quilombo', en: 'a mess' }, { es: 'Quilombo', en: 'chaos' }], fetcher);
+  assert.equal(r.kept.length, 1);
+});

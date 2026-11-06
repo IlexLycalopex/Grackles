@@ -257,6 +257,8 @@ export async function checkWords<T extends { es: string; en: string }>(
   words: T[],
   fetcher: Fetcher = fetch
 ): Promise<{ kept: (T & CheckedWord)[]; dropped: string[]; available: boolean }> {
+  // The same word twice (the model listed "morfar" with two notes) is one.
+  words = words.filter((w, i) => words.findIndex(x => x.es.trim().toLowerCase() === w.es.trim().toLowerCase()) === i);
   if (!words.length) return { kept: [], dropped: [], available: true };
   try {
     const found = await lookUp(words.flatMap(w => candidates(w.es)), fetcher);
