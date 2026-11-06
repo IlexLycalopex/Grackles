@@ -1,0 +1,49 @@
+---
+/**
+ * One glossary word as a dt/dd pair: the dictionary's sense as the meaning,
+ * a porteño or lunfardo tag, and the model's note beneath as context. Older
+ * glossaries, made before words were checked, show the model's note alone.
+ */
+import type { CheckedWord } from '../../lib/latam/dictionary';
+
+interface Props {
+  word: CheckedWord;
+}
+const { word: w } = Astro.props;
+const TAGS = { lunfardo: 'Lunfardo', rioplatense: 'Porteño' } as const;
+const tag = w.tag ? TAGS[w.tag] : '';
+const labels = (w.labels ?? []).filter(l => !/^(Rioplatense|lunfardo)$/i.test(l)).slice(0, 3);
+---
+
+<dt lang="es">
+  {w.es}
+  {tag && <span class="lx-wtag">{tag}</span>}
+</dt>
+<dd>
+  {
+    w.checked && w.dict ? (
+      <>
+        <span class="lx-wdict">
+          {labels.length > 0 && <span class="lx-wlabels">({labels.join(', ')}) </span>}
+          {w.dict}
+        </span>
+        {w.lemma && (
+          <span class="lx-wnote">
+            {' '}
+            from <span lang="es">{w.lemma}</span>
+          </span>
+        )}
+        <span class="lx-wnote">
+          {' '}
+          · <a href={w.url} rel="noopener">Wiktionary</a>
+        </span>
+        {w.en && <span class="lx-wctx">In context, by MiniMax: {w.en}</span>}
+      </>
+    ) : (
+      <>
+        {w.en}
+        <span class="lx-wnote">{w.checked === false ? ' · phrase, not in the dictionary' : ' · not checked'}</span>
+      </>
+    )
+  }
+</dd>

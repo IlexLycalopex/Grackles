@@ -2012,7 +2012,7 @@ export type Database = {
         Returns: string;
       };
       lx_reader_enrich: {
-        Args: { p_article: string; p_summary: string; p_glossary: Json; p_call: string };
+        Args: { p_article: string; p_summary: string; p_glossary: Json; p_call: string | null };
         Returns: undefined;
       };
       lx_seed_argentina: {

@@ -15,13 +15,11 @@ import { describeAiError } from '../ai/features';
 import { parseJsonObject } from '../json';
 import { articleText } from '../../../supabase/functions/_shared/reader.ts';
 import { hasForeign } from './research';
+import { checkWords, type CheckedWord } from './dictionary';
 
 type Db = SupabaseClient<Database>;
 
-export interface Gloss {
-  es: string;
-  en: string;
-}
+export type Gloss = CheckedWord;
 
 export const GLOSSARY_SYSTEM = `You help an English speaker at B1–B2 level read an Argentine Spanish article.
 
@@ -32,7 +30,7 @@ Answer with JSON and nothing else:
   "words": [{ "es": "a word or short phrase exactly as it appears in the article", "en": "its meaning here, in a few words" }]
 }
 
-Choose up to ten words or short phrases a B1–B2 learner is unlikely to know and that matter for understanding this article. Prefer Argentine and regional usage, voseo forms and lunfardo where they appear. Copy each one exactly as it is written in the article. British English. Latin script only.`;
+Choose up to twelve words or short phrases a B1–B2 learner is unlikely to know and that matter for understanding this article. Prefer porteño and other Argentine usage, voseo forms and lunfardo where they appear. Copy each one exactly as it is written in the article. Each word is checked against a dictionary afterwards, so prefer single words to long phrases. British English. Latin script only.`;
 
 const fold = (s: string) => s.toLowerCase().normalize('NFC');
 
@@ -47,7 +45,7 @@ export function readGlossary(content: string, article: string): { summary: strin
     .filter(w => typeof w?.es === 'string' && typeof w?.en === 'string')
     .map(w => ({ es: (w.es as string).trim().slice(0, 80), en: (w.en as string).trim().slice(0, 160) }))
     .filter(w => w.es && w.en && !hasForeign(w.es) && !hasForeign(w.en) && text.includes(fold(w.es)))
-    .slice(0, 10);
+    .slice(0, 12);
   if (!summary && !words.length) return null;
   return { summary, words };
 }
@@ -69,7 +67,7 @@ export async function makeGlossary(
   db: Db,
   workspaceId: string,
   article: { id: string; url: string; title: string }
-): Promise<{ ok: true; words: number } | { ok: false; error: string }> {
+): Promise<{ ok: true; words: number; dropped: string[] } | { ok: false; error: string }> {
   const text = await fetchArticle(article.url);
   if (text.length < 400) return { ok: false, error: 'The article could not be read from its site, so there is nothing to make a glossary from.' };
 
@@ -96,12 +94,37 @@ export async function makeGlossary(
   if (!outcome.value.ok) return { ok: false, error: outcome.value.error };
 
   const { read, callId } = outcome.value;
+  // Each word then goes to the dictionary: its sense is the meaning shown,
+  // and a single word it does not have is left out. Ten is enough to keep.
+  const checked = await checkWords(read.words);
+  const words = checked.kept.slice(0, 10);
   const { error } = await db.rpc('lx_reader_enrich', {
     p_article: article.id,
     p_summary: read.summary,
-    p_glossary: read.words as never,
+    p_glossary: words as never,
     p_call: callId,
   });
   if (error) return { ok: false, error: 'The glossary was made but could not be saved.' };
-  return { ok: true, words: read.words.length };
+  return { ok: true, words: words.length, dropped: checked.dropped };
+}
+
+/**
+ * A glossary made before words were checked, checked now: no model call,
+ * the summary and call kept as they were.
+ */
+export async function recheckGlossary(
+  db: Db,
+  article: { id: string; summary_en: string; glossary: unknown; ai_call_id: string | null }
+): Promise<{ ok: true; words: number; dropped: string[] } | { ok: false; error: string }> {
+  const current = (Array.isArray(article.glossary) ? article.glossary : []) as Gloss[];
+  const checked = await checkWords(current.map(({ es, en }) => ({ es, en })));
+  if (!checked.available) return { ok: false, error: 'The dictionary could not be reached. Try again in a minute.' };
+  const { error } = await db.rpc('lx_reader_enrich', {
+    p_article: article.id,
+    p_summary: article.summary_en,
+    p_glossary: checked.kept as never,
+    p_call: article.ai_call_id,
+  });
+  if (error) return { ok: false, error: 'The words were checked but could not be saved.' };
+  return { ok: true, words: checked.kept.length, dropped: checked.dropped };
 }
