@@ -23,7 +23,7 @@ const labels = (w.labels ?? []).filter(l => !/^(Rioplatense|lunfardo)$/i.test(l)
   {
     w.checked && w.dict ? (
       <>
-        <span class="lx-wdict">
+        <span class="lx-wdict" lang={w.dictLang === 'es' ? 'es' : 'en'}>
           {labels.length > 0 && <span class="lx-wlabels">({labels.join(', ')}) </span>}
           {w.dict}
         </span>
@@ -35,7 +35,7 @@ const labels = (w.labels ?? []).filter(l => !/^(Rioplatense|lunfardo)$/i.test(l)
         )}
         <span class="lx-wnote">
           {' '}
-          · <a href={w.url} rel="noopener">Wiktionary</a>
+          · <a href={w.url} rel="noopener">{w.dictLang === 'es' ? 'Wikcionario' : 'Wiktionary'}</a>
         </span>
         {w.en && <span class="lx-wctx">In context, by MiniMax: {w.en}</span>}
       </>

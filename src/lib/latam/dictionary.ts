@@ -29,6 +29,8 @@ export interface CheckedWord {
   /** The dictionary headword, when it differs from es (a plural, a verb form). */
   lemma?: string;
   url?: string;
+  /** 'es' when the sense is from the Spanish Wiktionary, in Spanish. */
+  dictLang?: 'en' | 'es';
   /** true when found in the dictionary; false for a phrase it does not have. */
   checked?: boolean;
 }
@@ -42,7 +44,8 @@ export interface Sense {
   formRank: number;
 }
 
-const API = 'https://en.wiktionary.org/w/api.php';
+const EN_API = 'https://en.wiktionary.org/w/api.php';
+const ES_API = 'https://es.wiktionary.org/w/api.php';
 const ARTICLE = /^(el|la|los|las|un|una|unos|unas|lo)\s+/i;
 // Words inside a label list that only join labels ("usually in the plural").
 const CONNECTORS = new Set(['_', 'in', 'usually', 'usually in the', 'chiefly', 'everywhere', 'by extension', 'also', 'especially', 'and', 'or', 'now', 'often', 'the', 'of', 'outside', 'except', 'possibly', 'sometimes', 'rare']);
@@ -116,15 +119,88 @@ export function spanishSenses(wikitext: string): Sense[] | null {
   return senses.length ? senses : null;
 }
 
-/** The sense to show: a regional one if there is one, else the first that is a meaning rather than a form. */
-export function bestSense(senses: Sense[]): Sense | null {
-  return senses.find(s => tagFor(s.labels) && !s.formOf) ?? senses.find(s => !s.formOf) ?? null;
+const STOP = new Set(['that', 'this', 'with', 'from', 'used', 'when', 'where', 'which', 'their', 'there', 'often', 'especially', 'something', 'someone', 'word', 'local', 'common', 'into', 'about', 'very', 'more', 'also', 'term']);
+const content = (s: string) =>
+  new Set((s.toLowerCase().match(/[a-z]{4,}/g) ?? []).filter(w => !STOP.has(w)).map(w => w.replace(/(ing|ed|es|s)$/, '')));
+
+/**
+ * The sense to show. The one that shares most words with the model's note
+ * on the word in context ("pozo" in a fishing piece is a pool, not a well);
+ * failing any overlap, a porteño or lunfardo sense; failing that, the first
+ * that is a meaning rather than a form.
+ */
+export function bestSense(senses: Sense[], hint = ''): Sense | null {
+  const meanings = senses.filter(s => !s.formOf);
+  if (!meanings.length) return null;
+  const want = content(hint);
+  if (want.size) {
+    const score = (s: Sense) => [...content(s.text)].filter(w => want.has(w)).length;
+    const top = Math.max(...meanings.map(score));
+    if (top > 0) {
+      const best = meanings.filter(s => score(s) === top);
+      return best.find(s => tagFor(s.labels)) ?? best[0]!;
+    }
+  }
+  return meanings.find(s => tagFor(s.labels)) ?? meanings[0]!;
+}
+
+const ES_REGIONAL = /argentin|r[ií]o de la plata|rioplatense|lunfardo|uruguay|cono sur/i;
+
+/** The Spanish Wiktionary's definitions of a Spanish word, in Spanish, or null. */
+export function esSenses(wikitext: string): Sense[] | null {
+  const at = wikitext.search(/==\s*\{\{lengua\|es\}\}\s*==/);
+  if (at < 0) return null;
+  const rest = wikitext.slice(at + 10);
+  const end = rest.search(/\n==\s*\{\{lengua\|/);
+  const lines = (end < 0 ? rest : rest.slice(0, end)).split('\n');
+  const senses: Sense[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (!/^;\d/.test(line)) continue;
+    // A definition's notes follow it until the next one: {{uso|...}}, {{ámbito|...}}.
+    const notes: string[] = [];
+    for (let j = i + 1; j < lines.length && !/^;\d/.test(lines[j]!) && !/^=/.test(lines[j]!); j++) notes.push(lines[j]!);
+    const colon = line.indexOf(':');
+    const head = colon < 0 ? '' : line.slice(0, colon);
+    let text = colon < 0 ? line : line.slice(colon + 1);
+    let formOf = '';
+    for (let k = 0; k < 20 && /\{\{[^{}]*\}\}/.test(text); k++) {
+      text = text.replace(/\{\{([^{}]*)\}\}/g, (_, body: string) => {
+        const parts = body.split('|').map(p => p.trim());
+        const name = (parts[0] ?? '').toLowerCase();
+        if (name.startsWith('forma')) {
+          formOf ||= parts[1] ?? '';
+          return `forma de ${parts[1] ?? ''}`;
+        }
+        if (['plm', 'l', 'l+', 'impropia', 'csem', 'sub'].includes(name)) return name === 'sub' ? '' : parts[parts.length > 2 && name === 'l' ? 2 : 1] ?? '';
+        return '';
+      });
+    }
+    text = text
+      .replace(/<ref[\s\S]*?(<\/ref>|\/>)/g, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/g, '$1')
+      .replace(/'''?/g, '')
+      .replace(/\s+([,;.)])/g, '$1')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+    text = text.charAt(0).toUpperCase() + text.slice(1);
+    const where = `${head} ${notes.join(' ')}`;
+    const labels = ES_REGIONAL.test(where) ? [/lunfardo/i.test(where) ? 'lunfardo' : 'Rioplatense'] : [];
+    if (text) senses.push({ labels, text: text.slice(0, 200), formOf, formRank: formOf ? 2 : 9 });
+  }
+  return senses.length ? senses : null;
 }
 
 type Fetcher = typeof fetch;
 
 /** Spanish senses for each title asked, by the title asked. Missing pages are absent. */
-async function lookUp(titles: string[], fetcher: Fetcher): Promise<Map<string, { title: string; senses: Sense[] }>> {
+async function lookUp(
+  titles: string[],
+  fetcher: Fetcher,
+  api = EN_API,
+  parse: (wikitext: string) => Sense[] | null = spanishSenses
+): Promise<Map<string, { title: string; senses: Sense[] }>> {
   const out = new Map<string, { title: string; senses: Sense[] }>();
   const unique = [...new Set(titles.filter(Boolean))];
   for (let i = 0; i < unique.length; i += 50) {
@@ -139,7 +215,7 @@ async function lookUp(titles: string[], fetcher: Fetcher): Promise<Map<string, {
       formatversion: '2',
       titles: batch.join('|'),
     });
-    const res = await fetcher(`${API}?${params}`, {
+    const res = await fetcher(`${api}?${params}`, {
       headers: { Accept: 'application/json', 'User-Agent': 'Grackles/1.0 (https://grackles.co.uk)' },
       signal: AbortSignal.timeout(8000),
     });
@@ -158,7 +234,7 @@ async function lookUp(titles: string[], fetcher: Fetcher): Promise<Map<string, {
       t = q.normalized?.find(n => n.from === t)?.to ?? t;
       t = q.redirects?.find(r => r.from === t)?.to ?? t;
       const page = pages.get(t);
-      const senses = page ? spanishSenses(page.revisions?.[0]?.slots?.main?.content ?? '') : null;
+      const senses = page ? parse(page.revisions?.[0]?.slots?.main?.content ?? '') : null;
       if (page && senses) out.set(asked, { title: page.title, senses });
     }
   }
@@ -197,13 +273,33 @@ export async function checkWords<T extends { es: string; en: string }>(
     }
     const lemmaPages = lemmas.size ? await lookUp([...lemmas.values()], fetcher) : new Map();
 
+    const english = (w: T) => {
+      const lemma = lemmas.get(w);
+      const head = lemma ? lemmaPages.get(lemma) : entryFor(w);
+      const sense = head ? bestSense(head.senses, w.en) : null;
+      return head && sense ? { head, sense } : null;
+    };
+
+    // Words the English Wiktionary lacks go to the Spanish one, which has
+    // more regional entries (jineteada, corredera) and still lacks the
+    // invented ones. Its definitions are in Spanish.
+    const missing = words.filter(w => !english(w) && !/\s/.test(w.es.trim().replace(ARTICLE, '')));
+    let spanish = new Map<string, { title: string; senses: Sense[] }>();
+    if (missing.length) {
+      try {
+        spanish = await lookUp(missing.flatMap(w => candidates(w.es)), fetcher, ES_API, esSenses);
+      } catch (e) {
+        console.warn('lx dictionary: Wikcionario failed', String(e).slice(0, 200));
+      }
+    }
+
     const kept: (T & CheckedWord)[] = [];
     const dropped: string[] = [];
     for (const w of words) {
-      const e = entryFor(w);
-      const lemma = lemmas.get(w);
-      const head = lemma ? lemmaPages.get(lemma) : e;
-      const sense = head ? bestSense(head.senses) : null;
+      const en = english(w);
+      const es = en ? null : candidates(w.es).map(c => spanish.get(c)).find(Boolean) ?? null;
+      const sense = en?.sense ?? (es ? bestSense(es.senses) ?? es.senses[0]! : null);
+      const head = en?.head ?? es;
       if (head && sense) {
         kept.push({
           ...w,
@@ -211,7 +307,8 @@ export async function checkWords<T extends { es: string; en: string }>(
           labels: sense.labels,
           tag: tagFor(sense.labels),
           lemma: head.title.toLowerCase() !== w.es.trim().toLowerCase().replace(ARTICLE, '') ? head.title : undefined,
-          url: wiktionaryUrl(head.title),
+          url: en ? wiktionaryUrl(head.title) : `https://es.wiktionary.org/wiki/${encodeURIComponent(head.title.replace(/ /g, '_'))}`,
+          dictLang: en ? 'en' : 'es',
           checked: true,
         });
       } else if (/\s/.test(w.es.trim().replace(ARTICLE, ''))) {
