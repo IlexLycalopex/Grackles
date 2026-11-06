@@ -116,3 +116,29 @@ test('a glossary keeps only words that are in the article, in Latin script', () 
   assert.deepEqual(r?.words.map(w => w.es), ['baqueanos', 'correntada', 'che']);
   assert.equal(r?.summary, 'Fly fishing on the Limay with local guides.');
 });
+
+import { cleanImage, feedImage, pageImage } from '../../../supabase/functions/_shared/reader.ts';
+
+test('a feed item gives its picture, from whichever tag it uses', () => {
+  assert.equal(feedImage('<item><media:content url="https://e.test/a.jpg" medium="image"/></item>'), 'https://e.test/a.jpg');
+  assert.equal(feedImage('<item><enclosure url="https://e.test/b.png" type="image/png"/></item>'), 'https://e.test/b.png');
+  assert.equal(feedImage('<item><description>&lt;img src="https://e.test/c.webp"&gt; texto</description></item>'), 'https://e.test/c.webp');
+  assert.equal(feedImage('<item><title>sin foto</title></item>'), null);
+});
+
+test('a page gives the picture it shows link previews', () => {
+  assert.equal(pageImage('<head><meta property="og:image" content="https://e.test/og.jpg"></head>'), 'https://e.test/og.jpg');
+  assert.equal(pageImage('<head><meta content="//cdn.e.test/t.jpg" name="twitter:image"></head>'), 'https://cdn.e.test/t.jpg');
+  assert.equal(pageImage('<head></head>'), null);
+});
+
+test('only an https picture is shown', () => {
+  assert.equal(cleanImage('http://e.test/x.jpg'), 'https://e.test/x.jpg');
+  assert.equal(cleanImage('javascript:alert(1)'), null);
+  assert.equal(cleanImage('/relative.jpg'), null);
+});
+
+test('an Atom feed is read too', () => {
+  const atom = '<feed><entry><title>Una vía nueva en el Chaltén</title><link rel="alternate" href="https://e.test/via"/><published>2026-11-05T10:00:00Z</published></entry></feed>';
+  assert.deepEqual(parseFeed(atom).map(i => i.url), ['https://e.test/via']);
+});

@@ -219,6 +219,26 @@ check "an editor marks an article about right" ok "
 check "a LatAm editor adds a glossary" ok "
   select public.lx_reader_enrich('e1000000-0000-4000-8000-0000000000a1', 'Trout.', '[{\"es\":\"trucha\",\"en\":\"trout\"}]', null);
   do \$\$ begin assert (select jsonb_array_length(glossary) from public.lx_reader_articles where id = 'e1000000-0000-4000-8000-0000000000a1') = 1; end \$\$;" "$as_rob"
+check "an editor adds a feed of their own" ok "
+  insert into public.lx_reader_feeds (workspace_id, url, name, topic, created_by)
+    values ('$LX', 'https://e.test/feed', 'Test feed', 'fishing', '$ROB');
+  do \$\$ begin assert (select count(*) from public.lx_reader_feeds) = 1; end \$\$;" "$as_rob"
+check "but not in someone else's name" "42501" "
+  insert into public.lx_reader_feeds (workspace_id, url, name, topic, created_by)
+    values ('$LX', 'https://e.test/feed2', 'Test feed', 'fishing', '$JAMIE');" "$as_rob"
+check "a viewer cannot add one" "42501" "
+  update public.workspace_members set role = 'viewer' where workspace_id = '$LX' and user_id = '$ROB';
+  set local role authenticated; set local request.jwt.claims = '{\"sub\":\"$ROB\"}';
+  insert into public.lx_reader_feeds (workspace_id, url, name, topic, created_by)
+    values ('$LX', 'https://e.test/feed3', 'Test feed', 'fishing', '$ROB');"
+check "a viewer cannot ring the fetch" "GRK50" "
+  update public.workspace_members set role = 'viewer' where workspace_id = '$LX' and user_id = '$ROB';
+  set local role authenticated; set local request.jwt.claims = '{\"sub\":\"$ROB\"}';
+  select public.lx_reader_fetch_now();"
+check "an editor rings it at most once in ten minutes" "GRK53" "
+  insert into public.lx_reader_fetch_requests (requested_by) values ('$ROB');
+  set local role authenticated; set local request.jwt.claims = '{\"sub\":\"$ROB\"}';
+  select public.lx_reader_fetch_now();"
 check "someone with no LatAm project cannot" "GRK50" "
   delete from public.workspace_members where user_id = '$ROB';
   set local role authenticated; set local request.jwt.claims = '{\"sub\":\"$ROB\"}';

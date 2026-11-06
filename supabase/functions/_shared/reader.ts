@@ -113,6 +113,8 @@ export interface FeedItem {
   url: string;
   title: string;
   published: string | null;
+  /** The feed's own picture for the item, when it carries one. */
+  image: string | null;
 }
 
 const decode = (s: string) =>
@@ -142,19 +144,72 @@ export function unwrapLink(link: string): string {
 }
 
 export function parseFeed(xml: string): FeedItem[] {
-  return [...xml.matchAll(/<item[\s>][\s\S]*?<\/item>/gi)]
-    .map(m => {
-      const item = m[0];
-      const url = unwrapLink(tag(item, 'link'));
-      const date = tag(item, 'pubDate');
+  const rss = [...xml.matchAll(/<item[\s>][\s\S]*?<\/item>/gi)].map(m => {
+    const item = m[0];
+    const date = tag(item, 'pubDate') || tag(item, 'dc:date');
+    return { item, url: unwrapLink(tag(item, 'link')), date };
+  });
+  // Atom, which some of the feeds a reader adds will be: <entry>, with the
+  // address in <link href>.
+  const atom = [...xml.matchAll(/<entry[\s>][\s\S]*?<\/entry>/gi)].map(m => {
+    const item = m[0];
+    const href =
+      item.match(/<link[^>]*rel=["']alternate["'][^>]*href=["']([^"']+)["']/i)?.[1] ??
+      item.match(/<link[^>]*href=["']([^"']+)["']/i)?.[1] ??
+      '';
+    return { item, url: decode(href), date: tag(item, 'published') || tag(item, 'updated') };
+  });
+  return [...rss, ...atom]
+    .map(({ item, url, date }) => {
       const parsed = date ? new Date(date) : null;
       return {
         url,
         title: tag(item, 'title').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').slice(0, 300),
         published: parsed && !Number.isNaN(parsed.getTime()) ? parsed.toISOString() : null,
+        image: feedImage(item),
       };
     })
     .filter(i => /^https?:\/\//.test(i.url) && i.title);
+}
+
+// ── Pictures ────────────────────────────────────────────────────────
+
+/** An image address fit to show: https, absolute, not absurdly long. */
+export function cleanImage(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let u = decode(raw.trim());
+  if (u.startsWith('//')) u = `https:${u}`;
+  if (u.startsWith('http://')) u = `https://${u.slice(7)}`;
+  if (!/^https:\/\/[^\s"'<>]+$/.test(u) || u.length > 1000) return null;
+  return u;
+}
+
+/** The picture a feed item carries: media:content, a thumbnail, an image enclosure, or an <img> in its text. */
+export function feedImage(item: string): string | null {
+  const attr = (re: RegExp) => item.match(re)?.[1];
+  return cleanImage(
+    attr(/<media:content[^>]*url=["']([^"']+)["'][^>]*(?:medium=["']image["']|type=["']image)/i) ??
+      attr(/<media:content[^>]*url=["']([^"']+\.(?:jpe?g|png|webp)[^"']*)["']/i) ??
+      attr(/<media:thumbnail[^>]*url=["']([^"']+)["']/i) ??
+      attr(/<enclosure[^>]*url=["']([^"']+)["'][^>]*type=["']image/i) ??
+      attr(/<enclosure[^>]*type=["']image[^"']*["'][^>]*url=["']([^"']+)["']/i) ??
+      decode(item).match(/<img[^>]+src=["']([^"']+)["']/i)?.[1]
+  );
+}
+
+/** The picture an article's page announces to link previews. */
+export function pageImage(html: string): string | null {
+  const head = html.slice(0, 200_000);
+  for (const name of ['og:image:secure_url', 'og:image', 'twitter:image', 'twitter:image:src']) {
+    const re = new RegExp(
+      `<meta[^>]+(?:property|name)=["']${name}["'][^>]*content=["']([^"']+)["']|<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["']${name}["']`,
+      'i'
+    );
+    const m = head.match(re);
+    const found = cleanImage(m?.[1] ?? m?.[2]);
+    if (found) return found;
+  }
+  return null;
 }
 
 // ── Article text ────────────────────────────────────────────────────

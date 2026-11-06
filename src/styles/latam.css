@@ -2,45 +2,30 @@
  * LatAm — the Argentina project.
  *
  * Loaded by LxLayout alone, like every app's stylesheet here, so nothing in it
- * can reach another app and nothing of theirs can reach it. Same bones as
- * JPOD's logbook — mono numbers, quiet rules — in Patagonian colours: glacier
- * paper, slate ink, lake teal for what is measured and ochre for what needs a
- * look.
+ * can reach another app and nothing of theirs can reach it. The look is
+ * Diario, shared with JPOD: a broadsheet on ivory paper, Fraunces headlines,
+ * Source Sans text, ink rules between sections and one rust accent for what
+ * to act on. Light only.
  */
 
 :root {
-  --ground: #f2f5f4;
-  --panel: #ffffff;
-  --ink: #1b2a33;
-  --muted: #4a5b63;
-  --rule: #d5dddf;
-  --accent: #17555c;
-  --accent-soft: #dcebec;
-  --warn: #8a5a14;
-  --warn-soft: #f6e9d3;
+  --ground: #f7f4ee;
+  --panel: #fffdf9;
+  --ink: #1d1b17;
+  --muted: #5f574b;
+  --rule: #d6cfc2;
+  --accent: #9a3412;
+  --accent-soft: #f3e3d6;
+  --warn: #8a4b0f;
+  --warn-soft: #f6ead8;
   --ok: #2f6b3a;
   --bad: #9b2c1f;
-  --display: 'Space Grotesk', system-ui, sans-serif;
-  --body: 'IBM Plex Sans', system-ui, sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, monospace;
-  color-scheme: light dark;
+  --display: 'Fraunces', Georgia, serif;
+  --body: 'Source Sans 3', system-ui, sans-serif;
+  --mono: 'Source Sans 3', system-ui, sans-serif;
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ground: #10171b;
-    --panel: #172127;
-    --ink: #e8eff1;
-    --muted: #a5b6bc;
-    --rule: #2d3b42;
-    --accent: #6fc1c9;
-    --accent-soft: #19363a;
-    --warn: #e2b46a;
-    --warn-soft: #3a2c14;
-    --ok: #8fca98;
-    --bad: #f19282;
-  }
-}
 
 * { box-sizing: border-box; }
 body {
@@ -192,3 +177,124 @@ h2 { font-size: 22px; }
 .lx-progress { height: 6px; background: var(--accent-soft); border-radius: 3px; overflow: hidden; }
 .lx-progress span { display: block; height: 100%; background: var(--accent); }
 @media (max-width: 640px) { .lx-map { height: 320px; } }
+
+/* ── Diario ──────────────────────────────────────────────────────────
+ * The house style LatAm and JPOD share since November 2026: a Sunday
+ * paper. Fraunces headlines on newsprint ivory, Source Sans for reading,
+ * one rust accent, and rules in place of cards. Light only, by choice.
+ * These rules come last and restate the components above in that style.
+ */
+body { font-size: 17px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; letter-spacing: -0.01em; }
+h1 { font-size: clamp(40px, 7vw, 72px); font-weight: 700; line-height: 0.98; letter-spacing: -0.02em; }
+h2 { font-size: 26px; }
+h3 { font-size: 21px; }
+a { color: var(--ink); text-decoration-color: var(--rule); text-underline-offset: 3px; }
+a:hover { color: var(--accent); text-decoration-color: var(--accent); }
+
+.lx-nav { background: var(--ground); border-bottom: 1px solid var(--ink); }
+.lx-nav__mark { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: 0; }
+.lx-nav__link { color: var(--ink); font-size: 15px; }
+.lx-nav__link:hover { color: var(--accent); }
+.lx-nav__link[aria-current='page'] { font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); }
+.lx-nav__role { font-family: var(--body); font-size: 12px; letter-spacing: 0.12em; }
+
+.lx-head { border-bottom: 4px double var(--ink); padding-bottom: 18px; }
+.lx-kicker { font-family: var(--body); font-size: 13px; letter-spacing: 0.12em; color: var(--muted); }
+.lx-kicker a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.lx-lede { font-size: 17px; line-height: 1.5; color: #4a4339; }
+.lx-section > h2, .lx-section__head > h2 { border-bottom: 1px solid var(--ink); padding-bottom: 8px; }
+.lx-section__head { border-bottom: 1px solid var(--ink); padding-bottom: 8px; }
+.lx-section__head > h2 { border-bottom: 0; padding-bottom: 0; }
+
+.lx-panel { background: transparent; border: 0; border-top: 1px solid var(--ink); border-radius: 0; padding: 18px 0 0; }
+
+.lx-stats { gap: 0; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--rule); }
+.lx-stat { background: transparent; border: 0; border-radius: 0; border-right: 1px solid var(--rule); padding: 16px 20px 16px 0; }
+.lx-stat + .lx-stat { padding-left: 20px; }
+.lx-stat:last-child { border-right: 0; }
+.lx-stat__label { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; }
+.lx-stat__value { font-family: var(--display); font-size: 38px; font-weight: 600; font-variant-numeric: lining-nums tabular-nums; }
+
+.lx-num, .lx-status, .lx-chip__n, .lx-bar__labels, .lx-row__side strong { font-variant-numeric: tabular-nums; }
+.lx-status { font-size: 12px; letter-spacing: 0.1em; color: var(--accent); font-weight: 600; }
+
+.lx-bar__fill { background: var(--ink); border-radius: 0; }
+.lx-bar--now .lx-bar__fill { background: var(--accent); }
+
+.lx-chip { background: transparent; border: 1px solid var(--rule); color: var(--ink); padding: 5px 12px; font-size: 14px; min-height: 36px; }
+.lx-chip:hover { outline: 0; border-color: var(--ink); }
+.lx-chip--on, .lx-chip--on:hover { background: var(--ink); border-color: var(--ink); color: var(--ground); }
+
+.lx-list { border-top: 1px solid var(--ink); }
+.lx-row { padding: 16px 0; }
+.lx-row__title { font-family: var(--display); font-weight: 600; font-size: 19px; line-height: 1.25; }
+.lx-row__title a { text-decoration: none; }
+.lx-row__side strong { font-family: var(--display); font-size: 18px; font-weight: 600; }
+
+.lx-table th { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; border-bottom-color: var(--ink); }
+
+.lx-button { border-radius: 2px; background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.lx-button:hover { background: #7c2a0e; border-color: #7c2a0e; }
+.lx-button--quiet { background: transparent; color: var(--ink); border-color: var(--ink); font-weight: 500; }
+.lx-button--quiet:hover { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+.lx-field input, .lx-field select, .lx-field textarea { background: var(--panel); border-radius: 2px; }
+
+.lx-sync__dot { border-radius: 0; width: 8px; height: 8px; }
+.lx-check { background: var(--warn-soft); border: 0; border-top: 2px solid var(--warn); border-radius: 0; }
+.lx-ai { border: 0; border-top: 1px solid var(--ink); border-radius: 0; padding: 18px 0 0; }
+.lx-ai__label { font-family: var(--body); font-size: 13px; font-style: italic; }
+.lx-words dt { font-family: var(--display); font-style: italic; font-weight: 400; font-size: 18px; }
+.lx-place__status { font-family: var(--body); border-radius: 999px; letter-spacing: 0.08em; }
+.lx-map { border-radius: 0; border: 1px solid var(--ink); }
+.lx-progress { border-radius: 0; background: var(--rule); }
+.lx-progress span { background: var(--ink); }
+.lx-token, .lx-code { border-radius: 2px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* ── Lecturas: the front page ────────────────────────────────────── */
+.lr-masthead { align-items: flex-end; }
+.lr-standfirst { margin: 0; max-width: 420px; font-size: 16px; line-height: 1.5; color: #4a4339; }
+.lr-bar { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; justify-content: space-between; padding: 4px 0 14px; border-bottom: 1px solid var(--rule); margin-top: -18px; }
+.lr-sections { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 15px; }
+.lr-sections a { text-decoration: none; padding: 8px 0; }
+.lr-sections a[aria-current='page'] { color: var(--accent); font-weight: 600; }
+.lr-levels { display: flex; gap: 6px; }
+.lr-pill { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border: 1px solid var(--rule); border-radius: 999px; font-size: 14px; color: var(--muted); text-decoration: none; }
+.lr-pill--on, .lr-pill--on:hover { background: var(--ink); border-color: var(--ink); color: var(--ground); }
+
+.lr-kicker { margin: 0; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.lr-kicker > span:first-child { color: var(--accent); font-weight: 600; }
+.lr-flag { border: 1px solid var(--accent); color: var(--accent); border-radius: 999px; padding: 1px 8px; letter-spacing: 0.06em; }
+.lr-meta { margin: 0; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.lr-lead { display: flex; flex-wrap: wrap; gap: 40px; }
+.lr-lead__story { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.lr-lead__pic img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--rule); }
+.lr-lead__title { font-size: clamp(30px, 4.4vw, 46px); line-height: 1.05; }
+.lr-lead__title a { text-decoration: none; }
+.lr-lead__summary { margin: 0; font-size: 19px; line-height: 1.55; color: #3b352d; max-width: 62ch; }
+.lr-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.lr-cta { display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; background: var(--accent); color: #fff; font-weight: 600; border-radius: 2px; text-decoration: none; }
+.lr-cta:hover { background: #7c2a0e; color: #fff; }
+
+.lr-vocab { flex: 1 1 280px; border-left: 1px solid var(--rule); padding-left: 28px; display: flex; flex-direction: column; gap: 14px; }
+.lr-vocab dl { margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.lr-vocab dt { font-family: var(--display); font-style: italic; font-size: 19px; line-height: 1.2; }
+.lr-vocab dd { margin: 2px 0 0; color: #4a4339; font-size: 15px; }
+.lr-rate { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); padding-top: 8px; border-top: 1px solid var(--rule); }
+.lr-rate > span { width: 100%; }
+.lr-rate__btn { font: inherit; min-height: 44px; padding: 0 14px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); cursor: pointer; }
+.lr-rate__btn[aria-pressed='true'] { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+@media (max-width: 760px) { .lr-vocab { border-left: 0; padding-left: 0; border-top: 1px solid var(--rule); padding-top: 18px; } }
+
+.lr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); column-gap: 36px; }
+.lr-card { padding: 22px 0; border-bottom: 1px solid var(--rule); display: flex; flex-direction: column; gap: 8px; }
+.lr-card__pic img { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; background: var(--rule); margin-bottom: 4px; }
+.lr-card h3 { font-size: 21px; line-height: 1.22; }
+.lr-card h3 a { text-decoration: none; }
+.lr-more summary { cursor: pointer; font-size: 14px; color: var(--accent); min-height: 32px; }
+.lr-more p { margin: 6px 0 10px; font-size: 15px; color: #3b352d; }
+.lr-card__actions { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: auto; }
+.lr-link { font: inherit; font-size: 14px; background: none; border: 0; padding: 10px 0; min-height: 44px; color: var(--muted); cursor: pointer; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+.lr-link:hover { color: var(--accent); }
+.lr-link[aria-pressed='true'] { color: var(--ink); font-weight: 600; text-decoration-color: var(--ink); }

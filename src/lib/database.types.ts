@@ -317,9 +317,28 @@ export type Database = {
           glossary: Json;
           enriched_at: string | null;
           ai_call_id: string | null;
+          image_url: string | null;
+          feed_id: string | null;
         };
         Insert: never;
         Update: never;
+        Relationships: [];
+      };
+      lx_reader_feeds: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          url: string;
+          name: string;
+          topic: string;
+          created_by: string | null;
+          created_at: string;
+          last_run_at: string | null;
+          last_ok: boolean | null;
+          last_message: string;
+        };
+        Insert: { workspace_id: string; url: string; name: string; topic: string; created_by: string };
+        Update: { name?: string; topic?: string };
         Relationships: [];
       };
       lx_reader_marks: {
@@ -1985,6 +2004,10 @@ export type Database = {
       lx_capture: {
         Args: { p_token: string; p_entry: Json };
         Returns: Json;
+      };
+      lx_reader_fetch_now: {
+        Args: Record<string, never>;
+        Returns: string;
       };
       lx_reader_enrich: {
         Args: { p_article: string; p_summary: string; p_glossary: Json; p_call: string };

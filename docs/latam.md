@@ -137,6 +137,17 @@ drink, food), graded for a learner.
   points of it are Suggested.
 - **Instapaper**: sent with the summary and glossary as the description and,
   with the full API key, tagged Argentina, Spanish B1 (etc.) and the topic.
+- **Pictures**: `image_url` is the article's own lead picture, from its feed
+  (media:content, media:thumbnail, an image enclosure or the first `<img>`)
+  or its page's og:image, https only. Shown from the publisher with
+  `referrerpolicy="no-referrer"`; nothing is copied. Each run backfills up to
+  30 recent articles without one.
+- **Your feeds** (`lx_reader_feeds`): an editor adds any RSS or Atom feed with
+  a name and a section. The page checks it parses before saving. The fetch
+  reads them beside the built-in list under the same filters and records
+  each one's last result, shown beside it. **Fetch now**
+  (`lx_reader_fetch_now()`, editors only) rings the fetch at once, at most
+  once in ten minutes (GRK53).
 
 ## Applying it
 
