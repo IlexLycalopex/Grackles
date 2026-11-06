@@ -157,9 +157,15 @@ const suggested = (cov: number | null) => comfort !== null && cov !== null && Ma
 type Row = NonNullable<typeof articles>[number];
 const glossaryOf = (a: Row) => (Array.isArray(a.glossary) ? a.glossary : []) as unknown as Gloss[];
 const list = (articles ?? []).sort((a, b) => Number(suggested(b.cov5k)) - Number(suggested(a.cov5k)));
-// The lead: one suggested for this reader if any, else the first with a
-// glossary already made, else the newest; then the rest beneath it.
-const lead = list.find(a => suggested(a.cov5k)) ?? list.find(a => glossaryOf(a).length) ?? list[0] ?? null;
+// The lead carries a picture, so the front page never opens on an empty
+// column: one suggested for this reader, else one with a glossary already
+// made, else the newest with a picture; then the rest beneath it.
+const lead =
+  list.find(a => suggested(a.cov5k) && a.image_url) ??
+  list.find(a => glossaryOf(a).length && a.image_url) ??
+  list.find(a => a.image_url) ??
+  list[0] ??
+  null;
 const rest = list.filter(a => a !== lead);
 
 const canInstapaper = workspace.isOwner && instapaperConfigured();
