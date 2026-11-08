@@ -142,6 +142,16 @@ drink, food), graded for a learner.
   or its page's og:image, https only. Shown from the publisher with
   `referrerpolicy="no-referrer"`; nothing is copied. Each run backfills up to
   30 recent articles without one.
+- **Read and archive**: rating an article (too easy, about right, too hard)
+  means it has been read. `lx_reader_read()` records the rating, sets
+  `read_at`, and logs the estimated reading time (words / 120, at least one
+  minute) once in the study log as an article from source `lecturas`, tagged
+  with the focus tag, spanish and lecturas. An article already logged by URL
+  (read in Instapaper and synced back) is not counted again. Read articles
+  leave the list for the archive (`?view=archive`), where **Put back**
+  (`lx_reader_unread()`) unmarks one and removes its logged time. When fewer
+  than 12 unread B1–B2 articles are left after a rating, the page rings
+  `lx_reader_fetch_now()`.
 - **Your feeds** (`lx_reader_feeds`): an editor adds any RSS or Atom feed with
   a name and a section. The page checks it parses before saving. The fetch
   reads them beside the built-in list under the same filters and records

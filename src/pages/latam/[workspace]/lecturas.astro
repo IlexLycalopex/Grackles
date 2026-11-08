@@ -19,6 +19,8 @@ const base = `/latam/${workspace.slug}`;
 const here = `${base}/lecturas${Astro.url.search}`;
 
 const LEVELS = ['A2', 'B1', 'B2', 'C1'] as const;
+// Below this many unread B1–B2 articles, marking one read rings the fetch.
+const UNREAD_FLOOR = 12;
 const RATINGS = [
   { value: 'easy', label: 'too easy' },
   { value: 'right', label: 'about right' },
@@ -106,11 +108,35 @@ if (Astro.request.method === 'POST') {
         notice = `Checked against Wiktionary: ${r.words} kept.${r.dropped.length ? ` Not in the dictionary, so left out: ${r.dropped.join(', ')}.` : ''}`;
       else error = r.error;
     } else if (intent === 'rate') {
-      const { error: e } = await supabase.from('lx_reader_marks').upsert(
-        { workspace_id: workspace.id, article_id: article.id, rating: field('rating'), created_by: user.id, updated_at: new Date().toISOString() },
-        { onConflict: 'workspace_id,article_id' }
-      );
-      if (e) error = describeWriteError(e, 'lx_reader_marks rate');
+      // Rating it means it has been read: marked read, its estimated time
+      // logged once, and it moves to the archive.
+      const { data, error: e } = await supabase.rpc('lx_reader_read', {
+        p_workspace: workspace.id,
+        p_article: article.id,
+        p_rating: field('rating'),
+      });
+      if (e) error = describeWriteError(e, 'lx_reader_read');
+      else {
+        const r = data as { minutes: number; logged: boolean };
+        notice = r.logged
+          ? `Read: ${r.minutes} min added to your study log. "${article.title}" is in the archive.`
+          : `Rating saved. "${article.title}" is in the archive; its time was already logged.`;
+        // Keep the list stocked: when few unread articles are left, ring the
+        // fetch (at most once in ten minutes; a refusal here is not an error).
+        const { data: readNow } = await supabase.from('lx_reader_marks').select('article_id').eq('workspace_id', workspace.id).not('read_at', 'is', null);
+        const readIds = (readNow ?? []).map(m => m.article_id);
+        let left = supabase.from('lx_reader_articles').select('id', { count: 'exact', head: true }).in('level', ['B1', 'B2']);
+        if (readIds.length) left = left.not('id', 'in', `(${readIds.join(',')})`);
+        const { count } = await left;
+        if ((count ?? 0) < UNREAD_FLOOR) {
+          const { error: f } = await supabase.rpc('lx_reader_fetch_now');
+          if (!f) notice += ' Fewer than a dozen unread left, so more are being fetched now.';
+        }
+      }
+    } else if (intent === 'unread') {
+      const { error: e } = await supabase.rpc('lx_reader_unread', { p_workspace: workspace.id, p_article: article.id });
+      if (e) error = describeWriteError(e, 'lx_reader_unread');
+      else notice = `"${article.title}" is back on the list, and its time is off the log.`;
     } else if (intent === 'instapaper') {
       if (!workspace.isOwner) error = 'Only the project owner can send to their Instapaper.';
       else {
@@ -133,6 +159,7 @@ if (Astro.request.method === 'POST') {
 
 const params = Astro.url.searchParams;
 const topic = TOPICS.includes(params.get('topic') as Topic) ? (params.get('topic') as Topic) : null;
+const archive = params.get('view') === 'archive';
 const levels = params.getAll('level').filter(l => (LEVELS as readonly string[]).includes(l));
 const shownLevels = levels.length ? levels : ['B1', 'B2'];
 
@@ -145,13 +172,28 @@ let query = supabase
   .limit(80);
 if (topic) query = query.eq('topic', topic);
 
-const [{ data: articles }, { data: marks }, { data: feeds }, { count: total }] = await Promise.all([
+const { data: marks } = await supabase
+  .from('lx_reader_marks')
+  .select('article_id, rating, sent_at, read_at')
+  .eq('workspace_id', workspace.id);
+const readMarks = (marks ?? []).filter(m => m.read_at).sort((a, b) => b.read_at!.localeCompare(a.read_at!));
+const readIds = readMarks.map(m => m.article_id);
+// Read articles leave the list for the archive.
+if (readIds.length) query = query.not('id', 'in', `(${readIds.join(',')})`);
+
+const [{ data: articles }, { data: archived }, { data: feeds }, { count: total }] = await Promise.all([
   query,
-  supabase.from('lx_reader_marks').select('article_id, rating, sent_at').eq('workspace_id', workspace.id),
+  readIds.length
+    ? supabase.from('lx_reader_articles').select('id, url, source, title, words, level, topic').in('id', readIds)
+    : Promise.resolve({ data: [] as { id: string; url: string; source: string; title: string; words: number; level: string | null; topic: string }[] }),
   supabase.from('lx_reader_feeds').select('*').eq('workspace_id', workspace.id).order('created_at'),
   supabase.from('lx_reader_articles').select('id', { count: 'exact', head: true }).not('level', 'is', null),
 ]);
 const markOf = new Map((marks ?? []).map(m => [m.article_id, m]));
+const archiveRows = readMarks.map(m => ({ m, a: (archived ?? []).find(a => a.id === m.article_id) })).filter(r => r.a);
+const readMinutes = archiveRows.reduce((s, r) => s + readingMinutes(r.a!.words), 0);
+const hm = (n: number) => (n < 60 ? `${n}m` : `${Math.floor(n / 60)}h${n % 60 ? ` ${n % 60}m` : ''}`);
+const readDay = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/London' });
 
 // The reader's comfort zone: the median five-thousand-word coverage of the
 // articles they called about right, once there are three of them.
@@ -201,7 +243,12 @@ const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'nu
 <LxLayout title={`Lecturas · ${workspace.name}`} workspace={workspace}>
   <header class="lx-head lr-masthead">
     <div>
-      <p class="lx-kicker" lang="es">{today} · {total ?? 0} artículos</p>
+      <p class="lx-kicker">
+        <span lang="es">{today} · {Math.max(0, (total ?? 0) - readIds.length)} por leer</span> ·{' '}
+        <a href={archive ? `${base}/lecturas` : `${base}/lecturas?view=archive`}>
+          {archive ? 'Back to the list' : `Archive: ${readIds.length} read, ${hm(readMinutes)}`}
+        </a>
+      </p>
       <h1>Lecturas</h1>
     </div>
     <p class="lr-standfirst">
@@ -226,8 +273,43 @@ const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'nu
   {notice && <p class="lx-notice" role="status">{notice}</p>}
 
   {
-    !lead ? (
-      <p class="lx-empty">Nothing in this section at these levels yet. New articles arrive each morning.</p>
+    archive && (
+      <section class="lx-section" aria-labelledby="archive-h">
+        <h2 id="archive-h" lang="es">Leídos</h2>
+        {archiveRows.length === 0 ? (
+          <p class="lx-empty">Nothing read yet. Rate an article after reading it and it moves here, with its time logged.</p>
+        ) : (
+          <ul class="lx-list">
+            {archiveRows.map(({ m, a }) => (
+              <li class="lx-row">
+                <div>
+                  <div class="lx-row__title" lang="es"><a href={a!.url} target="_blank" rel="noopener">{a!.title}</a></div>
+                  <div class="lx-row__meta">
+                    <span>Read {readDay(m.read_at!)}</span>
+                    <span>{readingMinutes(a!.words)} min</span>
+                    <span>{a!.level}</span>
+                    <span>{publisher(a!)}</span>
+                    {m.rating && <span>you said {RATINGS.find(r => r.value === m.rating)?.label}</span>}
+                  </div>
+                </div>
+                {workspace.canWrite && (
+                  <form method="post" action={here} class="lx-row__side">
+                    <input type="hidden" name="intent" value="unread" />
+                    <input type="hidden" name="id" value={a!.id} />
+                    <button class="lx-button lx-button--quiet" type="submit">Put back</button>
+                  </form>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    )
+  }
+
+  {
+    archive ? null : !lead ? (
+      <p class="lx-empty">Everything in this section at these levels has been read. More arrive each morning, or use Fetch now below.</p>
     ) : (
       <section class="lr-lead" aria-label="Lead article">
         <article class="lr-lead__story">
@@ -290,7 +372,7 @@ const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'nu
           }
           {workspace.canWrite && (
             <div class="lr-rate">
-              <span>After reading, was it</span>
+              <span>Read it? Rate it to log {readingMinutes(lead.words)} min and archive it:</span>
               {RATINGS.map(r => (
                 <form method="post" action={here}>
                   <input type="hidden" name="intent" value="rate" />
@@ -307,7 +389,7 @@ const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'nu
   }
 
   {
-    rest.length > 0 && (
+    !archive && rest.length > 0 && (
       <section class="lx-section" aria-labelledby="mas-h">
         <h2 id="mas-h" lang="es">Más lecturas</h2>
         <div class="lr-grid">

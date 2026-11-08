@@ -351,6 +351,8 @@ export type Database = {
           sent_at: string | null;
           created_by: string | null;
           updated_at: string;
+          read_at: string | null;
+          activity_id: string | null;
         };
         Insert: {
           workspace_id: string;
@@ -2006,6 +2008,14 @@ export type Database = {
       lx_capture: {
         Args: { p_token: string; p_entry: Json };
         Returns: Json;
+      };
+      lx_reader_read: {
+        Args: { p_workspace: string; p_article: string; p_rating: string };
+        Returns: Json;
+      };
+      lx_reader_unread: {
+        Args: { p_workspace: string; p_article: string };
+        Returns: undefined;
       };
       lx_reader_fetch_now: {
         Args: Record<string, never>;
