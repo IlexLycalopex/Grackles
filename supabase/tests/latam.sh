@@ -219,6 +219,37 @@ check "an editor marks an article about right" ok "
 check "a LatAm editor adds a glossary" ok "
   select public.lx_reader_enrich('e1000000-0000-4000-8000-0000000000a1', 'Trout.', '[{\"es\":\"trucha\",\"en\":\"trout\"}]', null);
   do \$\$ begin assert (select jsonb_array_length(glossary) from public.lx_reader_articles where id = 'e1000000-0000-4000-8000-0000000000a1') = 1; end \$\$;" "$as_rob"
+A1='e1000000-0000-4000-8000-0000000000a1'
+check "rating an article marks it read and logs its minutes once" ok "
+  select public.lx_reader_read('$LX', '$A1', 'right');
+  select public.lx_reader_read('$LX', '$A1', 'hard');
+  do \$\$ begin
+    assert (select rating from public.lx_reader_marks where article_id = '$A1') = 'hard';
+    assert (select read_at is not null from public.lx_reader_marks where article_id = '$A1');
+    assert (select count(*) from public.lx_activities where source = 'lecturas') = 1;
+    assert (select minutes from public.lx_activities where source = 'lecturas') = 4;
+    assert (select type from public.lx_activities where source = 'lecturas') = 'article';
+  end \$\$;" "$as_rob"
+check "an article already logged another way is not counted twice" ok "
+  reset role;
+  insert into public.lx_activities (workspace_id, occurred_on, type, title, minutes, link, source, source_ref)
+    values ('$LX', current_date, 'article', 'Truchas', 5, 'https://e.test/a', 'instapaper', 'b1');
+  set local role authenticated; set local request.jwt.claims = '{\"sub\":\"$ROB\"}';
+  select public.lx_reader_read('$LX', '$A1', 'easy');
+  do \$\$ begin assert (select count(*) from public.lx_activities where link = 'https://e.test/a') = 1; end \$\$;" "$as_rob"
+check "putting it back unmarks it and removes its minutes" ok "
+  select public.lx_reader_read('$LX', '$A1', 'right');
+  select public.lx_reader_unread('$LX', '$A1');
+  do \$\$ begin
+    assert (select read_at is null and rating is null from public.lx_reader_marks where article_id = '$A1');
+    assert (select count(*) from public.lx_activities where source = 'lecturas') = 0;
+  end \$\$;" "$as_rob"
+check "a viewer cannot mark an article read" "GRK50" "
+  update public.workspace_members set role = 'viewer' where workspace_id = '$LX' and user_id = '$ROB';
+  set local role authenticated; set local request.jwt.claims = '{\"sub\":\"$ROB\"}';
+  select public.lx_reader_read('$LX', '$A1', 'right');"
+check "the log helper is not callable directly" "42501" "
+  select app.lx_reader_log('$LX', '$A1', '$ROB', current_date);" "$as_rob"
 check "an editor adds a feed of their own" ok "
   insert into public.lx_reader_feeds (workspace_id, url, name, topic, created_by)
     values ('$LX', 'https://e.test/feed', 'Test feed', 'fishing', '$ROB');
