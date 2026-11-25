@@ -1,0 +1,46 @@
+---
+import '../styles/routes.css';
+import type { ResolvedWorkspace } from '../lib/workspace';
+
+interface Props {
+  title: string;
+  workspace: ResolvedWorkspace;
+}
+
+const { title, workspace } = Astro.props;
+const base = `/routes/${workspace.slug}`;
+const { user } = Astro.locals;
+const pathname = Astro.url.pathname;
+---
+
+<html lang="en-GB">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={workspace.description || 'Long routes, split into days.'} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Source+Sans+3:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    {workspace.visibility !== 'public' && <meta name="robots" content="noindex, nofollow" />}
+  </head>
+  <body class="rt">
+    <nav class="rt-nav">
+      <div class="rt-wrap rt-nav__inner">
+        <a href={base} class="rt-nav__mark">Routes</a>
+        <span class="rt-nav__name">{workspace.name}</span>
+        <span class="rt-nav__spacer"></span>
+        {workspace.role && <span class="rt-nav__role">{workspace.role}</span>}
+        <a class="rt-nav__link" href={user ? '/dashboard' : `/login?next=${pathname}`}>
+          {user ? 'Projects' : 'Sign in'}
+        </a>
+      </div>
+    </nav>
+    <main class="rt-wrap rt-main">
+      <slot />
+    </main>
+  </body>
+</html>
