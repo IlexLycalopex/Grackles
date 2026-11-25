@@ -474,6 +474,14 @@ async function holdings(w: string, of: AppSlug): Promise<{ n: number; noun: stri
       const { count } = await supabase.from('lx_activities').select('id', opts).eq('workspace_id', w);
       return { n: count ?? 0, noun: 'activities' };
     }
+    case 'routes': {
+      const { count } = await supabase
+        .from('rt_plans')
+        .select('id', opts)
+        .eq('workspace_id', w)
+        .is('deleted_at', null);
+      return { n: count ?? 0, noun: 'route plans' };
+    }
     default:
       return null;
   }

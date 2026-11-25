@@ -509,6 +509,80 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      // ── Routes ───────────────────────────────────────────────────────
+      // Routes are inserted and deleted, never updated: a replaced GPX is a
+      // new route. Plans are written directly under RLS.
+      rt_routes: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          created_by: string | null;
+          name: string;
+          source_filename: string;
+          total_distance_m: number;
+          total_ascent_m: number | null;
+          total_descent_m: number | null;
+          max_elevation_m: number | null;
+          has_elevation: boolean;
+          profile: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          name: string;
+          source_filename?: string;
+          total_distance_m: number;
+          total_ascent_m?: number | null;
+          total_descent_m?: number | null;
+          max_elevation_m?: number | null;
+          has_elevation: boolean;
+          profile: Json;
+        };
+        Update: never;
+        Relationships: [];
+      };
+      rt_plans: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          route_id: string;
+          created_by: string | null;
+          name: string;
+          pace_s_per_km: number;
+          climb_allowance: boolean;
+          breaks_m: number[];
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          route_id: string;
+          name: string;
+          pace_s_per_km?: number;
+          climb_allowance?: boolean;
+          breaks_m?: number[];
+        };
+        Update: {
+          route_id?: string;
+          name?: string;
+          pace_s_per_km?: number;
+          climb_allowance?: boolean;
+          breaks_m?: number[];
+          deleted_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'rt_plans_route_id_workspace_id_fkey';
+            columns: ['route_id', 'workspace_id'];
+            isOneToOne: false;
+            referencedRelation: 'rt_routes';
+            referencedColumns: ['id', 'workspace_id'];
+          },
+        ];
+      };
       // ── Commonplace ──────────────────────────────────────────────────
       // Every write goes through a cp_* function; the only direct write any
       // role holds is deleting a deck. Insert and Update are `never` so a
@@ -2663,6 +2737,7 @@ export type Database = {
         | 'commonplace'
         | 'podcasts'
         | 'latam'
+        | 'routes'
         | 'external';
       member_role: 'owner' | 'editor' | 'viewer';
       visibility: 'private' | 'unlisted' | 'public';

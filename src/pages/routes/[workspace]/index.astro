@@ -1,0 +1,160 @@
+---
+import RoutesLayout from '../../../layouts/RoutesLayout.astro';
+import { resolveWorkspace } from '../../../lib/workspace';
+
+export const prerender = false;
+
+const { supabase, user } = Astro.locals;
+const workspace = await resolveWorkspace(supabase, 'routes', Astro.params.workspace!, user?.id ?? null);
+if (!workspace) return new Response('Not found', { status: 404 });
+
+// The Saved plans list. Distance comes from the route so the list can say how
+// long each plan is without loading a profile.
+const { data: rows } = await supabase
+  .from('rt_plans')
+  .select('id, name, breaks_m, updated_at, rt_routes(total_distance_m)')
+  .eq('workspace_id', workspace.id)
+  .is('deleted_at', null)
+  .order('updated_at', { ascending: false });
+
+const plans = (rows ?? []).map(r => ({
+  id: r.id,
+  name: r.name,
+  stages: r.breaks_m.length + 1,
+  distanceM: (r.rt_routes as { total_distance_m: number } | null)?.total_distance_m ?? 0,
+  updatedAt: r.updated_at,
+}));
+
+const boot = JSON.stringify({
+  workspace: workspace.slug,
+  canWrite: workspace.canWrite,
+  plans,
+  // Set once a sample GPX is committed under public/samples/.
+  sample: '',
+});
+---
+
+<RoutesLayout title={`Routes · ${workspace.name}`} workspace={workspace}>
+  <div id="rt-app" data-boot={boot}>
+    <!-- Empty state -->
+    <section class="rt-empty" data-view="empty">
+      <header class="rt-head">
+        <p class="rt-kicker">Long route planner</p>
+        <h1>Split a long route into days</h1>
+        <p class="rt-lede">
+          Load a GPX file to see the climb, drag the day breaks until each day suits, and save the plan.
+        </p>
+      </header>
+
+      <div class="rt-drop" data-drop tabindex="-1">
+        <p class="rt-drop__title">Drop a GPX file here</p>
+        <p class="rt-drop__or">or</p>
+        <div class="rt-drop__actions">
+          <label class="rt-btn rt-btn--primary">
+            Choose a file
+            <input type="file" accept=".gpx,application/gpx+xml" data-file hidden />
+          </label>
+          <button type="button" class="rt-btn" data-sample>Try the sample route</button>
+        </div>
+        <p class="rt-drop__hint">GPX tracks or routes, up to 20 MB. The file is read in your browser.</p>
+        <p class="rt-error" data-drop-error role="alert" hidden></p>
+      </div>
+
+      <section class="rt-saved" aria-labelledby="rt-saved-h">
+        <h2 id="rt-saved-h">Saved plans</h2>
+        <ul class="rt-saved__list" data-saved></ul>
+        <p class="rt-muted" data-saved-empty hidden>No saved plans yet.</p>
+      </section>
+    </section>
+
+    <!-- Planner -->
+    <section class="rt-planner" data-view="planner" hidden>
+      <div class="rt-filebar">
+        <button type="button" class="rt-btn rt-btn--quiet" data-back>← All plans</button>
+        <div class="rt-chip">
+          <span class="rt-chip__name" data-file-name></span>
+          <span class="rt-chip__meta" data-file-meta></span>
+          <span class="rt-chip__bar" data-progress hidden><span></span></span>
+        </div>
+        <label class="rt-btn rt-btn--quiet" data-replace-wrap>
+          Replace GPX
+          <input type="file" accept=".gpx,application/gpx+xml" data-replace hidden />
+        </label>
+      </div>
+      <p class="rt-notice" data-notice role="status" hidden></p>
+
+      <div class="rt-grid">
+        <div class="rt-mapcol">
+          <div class="rt-map" data-map aria-label="Map of the route"></div>
+          <p class="rt-muted rt-map__fail" data-map-fail hidden>
+            The map could not load. The profile and stages still work.
+          </p>
+        </div>
+
+        <div class="rt-stats" data-stats></div>
+
+        <div class="rt-profilecard">
+          <div class="rt-profile" data-profile>
+            <canvas data-canvas></canvas>
+            <div class="rt-profile__handles" data-handles></div>
+            <div class="rt-profile__cross" data-cross hidden></div>
+            <div class="rt-profile__readout" data-readout hidden></div>
+            <p class="rt-profile__none" data-noele hidden>No elevation data in this file</p>
+          </div>
+          <p class="rt-hint">
+            Click the profile to add a day break. Drag a break, or focus it and use the arrow keys (Shift moves 1 km).
+          </p>
+        </div>
+
+        <div class="rt-controls">
+          <div class="rt-control">
+            <span class="rt-control__label">Even split</span>
+            <div class="rt-seg" data-presets></div>
+          </div>
+          <div class="rt-control">
+            <span class="rt-control__label">Flat pace (min/km)</span>
+            <div class="rt-seg" data-paces></div>
+            <input class="rt-input rt-input--pace" data-pace-custom inputmode="numeric" placeholder="m:ss" aria-label="Custom pace, minutes and seconds per km" />
+          </div>
+          <label class="rt-check">
+            <input type="checkbox" data-climb checked />
+            Climb allowance (1 min per 10 m up)
+          </label>
+        </div>
+
+        <div class="rt-stages">
+          <table class="rt-table">
+            <thead>
+              <tr>
+                <th scope="col">Day</th>
+                <th scope="col">km</th>
+                <th scope="col" class="num">Distance</th>
+                <th scope="col" class="num">Up / down</th>
+                <th scope="col" class="num">Time</th>
+                <th scope="col">Day end</th>
+                <th scope="col"><span class="rt-sr">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody data-stages></tbody>
+          </table>
+        </div>
+
+        <div class="rt-save">
+          <input class="rt-input rt-input--name" data-name aria-label="Plan name" maxlength="200" />
+          <button type="button" class="rt-btn rt-btn--primary" data-save>Save plan</button>
+          <span class="rt-status" data-status role="status"></span>
+        </div>
+      </div>
+    </section>
+
+    <div class="rt-toast" data-toast role="status" hidden>
+      <span data-toast-text></span>
+      <button type="button" class="rt-btn rt-btn--quiet" data-toast-undo>Undo</button>
+    </div>
+  </div>
+
+  <script>
+    import { start } from '../../../lib/routes/planner';
+    start(document.getElementById('rt-app')!);
+  </script>
+</RoutesLayout>

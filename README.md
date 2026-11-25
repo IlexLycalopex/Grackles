@@ -39,6 +39,7 @@ several people can share a project.
 | ✅ | Adding a link at `/admin` — an outside site on the launcher without a migration or a deploy, filed under `external` |
 | ✅ | Commonplace — the learning app. Map quizzes (US states, countries by continent, capitals) in eleven ways to play, flashcards with CSV import, and spaced repetition under both. See below and `docs/commonplace-spec.md` |
 | ✅ | JPOD — the podcast log. Pocket Casts history imported once from the Android app's database export, kept current by a daily Edge Function, grouped by tags and keyword rules. Live 2026-11-05; see `docs/jpod.md` |
+| 🟡 | Routes — the long route planner at `/routes/:workspace`. GPX in the browser, map and elevation profile, day breaks dragged into place, flat pace plus a climb allowance, plans saved per project. Phase 1 spec in Claude Docs; migrations `20261125120000` and `20261125120100` applied 2026-11-25 |
 | 🟡 | LatAm — the Argentina project. Phone capture through HTTP Shortcuts with a token, reading matched against the Reading List, a To check list, and totals that include JPOD by tag. See `docs/latam.md` |
 
 The launcher at `/` is unchanged in appearance but no longer carries a list.

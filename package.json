@@ -19,6 +19,7 @@
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.60.0",
     "astro": "^7.4.1",
+    "maplibre-gl": "^6.16.0",
     "ts-fsrs": "^5.4.2"
   },
   "devDependencies": {
